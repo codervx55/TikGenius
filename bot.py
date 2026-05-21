@@ -327,14 +327,15 @@ Pay here:
     # AI COMMANDS
     # =====================
 
-    elif command in [
-        "/ideas",
-        "/hooks",
-        "/captions",
-        "/scripts",
-        "/hashtags",
-        "/bio"
-    ]:
+elif command in [
+    "/ideas",
+    "/hooks",
+    "/captions",
+    "/scripts",
+    "/hashtags",
+    "/bio",
+    "/pov"
+]:
 
         if not topic:
 

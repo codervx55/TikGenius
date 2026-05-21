@@ -410,8 +410,266 @@ LOADING_MESSAGES = {
         "🧠 Omo relax... make we think like TikTok girls small",
         "🔥 Checking wetin fit blow for Naija FYP...",
         "👀 This hook suppose touch people's chest...",
+        "🎬 Cooking something dangerously relatable...",
+        "⚡ Almost ready... this one go hit different",
     ],
     "captions": [
         "💅 Generating soft-life caption...",
         "😭 Adding small emotional damage...",
-        "🪄 Making it
+        "🪄 Making it look effortlessly viral...",
+        "🥹 This one dey sweet already...",
+    ],
+    "pov": [
+        "🎥 Oya imagine this scene first...",
+        "🍿 Wait first... this POV fit mad",
+        "👀 This one get drama small...",
+        "😭 Somebody definitely go relate to this...",
+    ],
+    "hashtags": [
+        "📊 Finding hashtags wey TikTok go like...",
+        "🚀 Oya make algorithm favor you...",
+        "🔥 Mixing viral tags together...",
+    ],
+    "bio": [
+        "✨ Soft-life bio loading...",
+        "📱 Creating bio wey dey attractive...",
+        "🪄 This bio fit collect followers...",
+    ],
+    "script": [
+        "🎬 Writing your script like a Lagos creator...",
+        "📝 Cooking full video concept...",
+        "🔥 This script go make them watch till the end...",
+    ],
+    "trends": [
+        "📈 Scanning Naija TikTok for what's working...",
+        "🔥 Finding ideas wey fit blow this week...",
+        "👀 Checking wetin dey land on FYP right now...",
+    ],
+}
+
+EXTRA_REPLIES = [
+    "😭 nah this one too real",
+    "🔥 this content dey smell viral",
+    "🫠 omo this one hard small",
+    "💀 people go relate die",
+    "📈 this one fit touch FYP",
+    "👀 your followers no go skip this one",
+]
+
+FREE_COMMANDS = {"/hooks", "/captions", "/hashtags", "/pov", "/bio"}
+PRO_COMMANDS  = {"/script", "/trends"}
+ALL_CONTENT   = FREE_COMMANDS | PRO_COMMANDS
+
+EXAMPLES = {
+    "hooks":    "/hooks soft life lagos",
+    "captions": "/captions my glow up era",
+    "hashtags": "/hashtags Nigerian food",
+    "pov":      "/pov you finally left a toxic situation",
+    "bio":      "/bio lifestyle and fashion creator",
+    "script":   "/script how I saved ₦500k in 6 months",
+    "trends":   "/trends relationship content",
+}
+
+# ─────────────────────────────────────────────
+# ROUTES
+# ─────────────────────────────────────────────
+@flask_app.route("/", methods=["GET"])
+def home():
+    return "TikGenius is running ✅", 200
+
+@flask_app.route("/telegram-webhook", methods=["POST"])
+def telegram_webhook():
+    data    = request.json or {}
+    message = data.get("message", {})
+    chat    = message.get("chat", {})
+    user    = message.get("from", {})
+
+    chat_id    = chat.get("id")
+    user_id    = user.get("id")
+    username   = user.get("username", "")
+    first_name = user.get("first_name", "Creator")
+    text       = message.get("text", "").strip()
+
+    if not chat_id or not text:
+        return jsonify({"ok": True})
+
+    parts   = text.split(" ", 1)
+    command = parts.lower().split("@")
+    topic   = parts.strip() if len(parts) > 1 else ""
+
+    # ── /start ──
+    if command == "/start":
+        send_message(chat_id, f"""🔥 Oya {first_name}, welcome to TikGenius 🇳🇬
+
+Your AI TikTok content plug. Built for Nigerian creators.
+
+Commands:
+/hooks [topic]     → viral opening lines
+/captions [topic]  → short captions
+/hashtags [topic]  → 5 hashtag sets
+/pov [topic]       → POV video ideas
+/bio [niche]       → bio options
+/script [idea]     → full video script ⭐
+/trends [niche]    → what to film now ⭐
+
+⭐ = Pro only
+
+Free: {FREE_LIMIT} uses/day
+Pro: ₦2,000/month — unlimited everything
+
+/upgrade to go Pro""")
+
+    # ── /activatepro (admin only) ──
+    elif command == "/activatepro":
+        if str(user_id) == ADMIN_ID:
+            target_id = int(topic) if topic.isdigit() else user_id
+            expires = activate_pro(target_id)
+            send_message(chat_id, f"✅ Pro activated for {target_id}\n\nExpires: {expires}")
+        else:
+            send_message(chat_id, "❌ Not allowed.")
+
+    # ── /plan ──
+    elif command == "/plan":
+        if is_pro(user_id):
+            exp = get_pro_expiry(user_id)
+            send_message(chat_id, f"""✅ TikGenius Pro — Active
+
+Expires: {exp}
+Usage: Unlimited
+
+No dulling. Your page go blow 🔥""")
+        else:
+            remaining = free_uses_remaining(user_id)
+            send_message(chat_id, f"""🆓 Free Plan
+
+Uses left today: {remaining}/{FREE_LIMIT}
+Resets at midnight UTC
+
+Pro unlocks:
+✅ Unlimited uses
+✅ /script — full video scripts
+✅ /trends — what to film now
+
+/upgrade → ₦2,000/month""")
+
+    # ── /upgrade ──
+    elif command == "/upgrade":
+        link = create_payment_link(user_id, username)
+        if link:
+            send_message(chat_id, f"""🚀 TikGenius Pro — ₦2,000/month
+
+What you unlock:
+✅ Unlimited hooks, captions, hashtags, POVs, bios
+✅ /script — AI writes your full video script
+✅ /trends — trending ideas for your niche
+
+Pay here 👇
+{link}
+
+Activation is automatic after payment ⚡""")
+        else:
+            send_message(chat_id, "⚠️ Payment link failed. Try /upgrade again.")
+
+    # ── Content commands ──
+    elif command in ALL_CONTENT:
+        mode = command.replace("/", "")
+
+        # Pro gate
+        if command in PRO_COMMANDS and not is_pro(user_id):
+            link = create_payment_link(user_id, username)
+            msg  = f"🔒 {command} is a Pro feature.\n\n"
+            msg += f"Upgrade to unlock:\n{link}" if link else "Use /upgrade to go Pro."
+            send_message(chat_id, msg)
+            return jsonify({"ok": True})
+
+        # No topic
+        if not topic:
+            send_message(chat_id, f"Add a topic 👇\n\nExample:\n{EXAMPLES.get(mode, command + ' [topic]')}")
+            return jsonify({"ok": True})
+
+        # Free limit
+        if not check_and_increment_free_usage(user_id):
+            link = create_payment_link(user_id, username)
+            msg  = "⏳ Free limit don finish for today.\n\nUpgrade for unlimited:\n"
+            msg += link if link else "/upgrade"
+            send_message(chat_id, msg)
+            return jsonify({"ok": True})
+
+        # Generate
+        send_typing(chat_id)
+        loading_text = random.choice(LOADING_MESSAGES.get(mode, ["🔥 Cooking something viral..."]))
+        send_message(chat_id, loading_text)
+        
+        # Simulate processing time for long scripts
+        duration = 3 if mode in ["hooks", "captions", "hashtags", "bio", "pov"] else 6
+        simulate_typing_duration(chat_id, duration)
+
+        result = ask_ai(mode, topic)
+        send_message(chat_id, f"✨ TikGenius\n\n{result[:3800]}")
+
+        if random.random() < 0.45:
+            send_message(chat_id, random.choice(EXTRA_REPLIES))
+
+        # Nudge near limit
+        if not is_pro(user_id):
+            remaining = free_uses_remaining(user_id)
+            if remaining == 0:
+                link = create_payment_link(user_id, username)
+                msg  = "⚡ That was your last free use today.\n\nGo unlimited:\n"
+                msg += link if link else "/upgrade"
+                send_message(chat_id, msg)
+            elif remaining <= 2:
+                send_message(chat_id, f"💡 {remaining} free use(s) left today. /upgrade to go unlimited.")
+
+    else:
+        send_message(chat_id, "Unknown command. Use /start")
+
+    return jsonify({"ok": True})
+
+# ─────────────────────────────────────────────
+# PAYSTACK WEBHOOK
+# ─────────────────────────────────────────────
+@flask_app.route("/paystack-webhook", methods=["POST"])
+def paystack_webhook():
+    signature = request.headers.get("x-paystack-signature", "")
+    body      = request.get_data()
+    # Paystack sends raw bytes in body
+    if isinstance(body, bytes):
+        body = body.decode('utf-8')
+    
+    expected  = hmac.new(
+        PAYSTACK_SECRET_KEY.encode(), body.encode('utf-8'), hashlib.sha512
+    ).hexdigest()
+
+    if not hmac.compare_digest(signature, expected):
+        return jsonify({"error": "invalid signature"}), 400
+
+    event = request.json or {}
+
+    if event.get("event") == "charge.success":
+        data        = event["data"]
+        amount      = data.get("amount")
+        metadata    = data.get("metadata", {})
+        telegram_id = metadata.get("telegram_id")
+
+        if amount == PRICE_KOBO and telegram_id:
+            expires = activate_pro(telegram_id)
+            send_message(
+                telegram_id,
+                f"""🎉 Payment confirmed! Welcome to Pro 🚀
+
+Valid until: {expires}
+Unlimited access activated ✅
+
+Unlocked:
+/script [idea]  — full video script
+/trends [niche] — what to film this week
+
+Go try it 🔥
+/hooks your niche"""
+            )
+
+    return jsonify({"status": "ok"}), 200
+
+if __name__ == "__main__":
+    flask_app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

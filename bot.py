@@ -26,99 +26,115 @@ You are TikGenius, a Nigerian TikTok content plug.
 Create content that sounds like real Nigerian TikTok creators, not AI.
 
 Rules:
-- Keep responses short and copy-ready
-- Sound casual, human, emotional, and relatable
+- Keep everything short and copy-ready
+- Use Nigerian TikTok style naturally
 - Assume the audience is Nigerian
-- Use Naija context naturally, but do not overuse pidgin
-- Avoid sounding too polished
+- Sound casual, emotional, funny, toxic, unserious, or relatable
+- Avoid long sentences
+- Avoid explanation
 - Avoid motivational quotes
 - Avoid old Facebook-style captions
-- Avoid explaining your answer
+- Avoid sounding too polished
+- Avoid random forced pidgin
 """
 
 PROMPTS = {
-    "hooks": """You create viral Nigerian TikTok opening texts.
-
-TOPIC: {topic}
-
-Create hooks that sound like REAL Nigerian TikTok captions.
+    "hooks": """Create 10 viral Nigerian TikTok opening texts for: {topic}
 
 Style:
-- casual
-- emotional
-- relatable
-- messy sometimes
 - short
+- human
+- curiosity-driven
+- sounds like text on TikTok video
+- emotional, funny, dramatic, or relatable
 - lowercase is okay
-- sound human
-- sound like a Nigerian creator talking naturally
-- no motivational tone
-- no AI tone
 - no explanation
 
 Examples:
 - i was not supposed to post this 😭
-- why is this actually true?
-- na this thing dey pain me pass
-- i didn’t expect this to happen
-- omo i regret this badly 😂
-- i thought everybody did this?
-- this thing no funny again
-- lowkey this changed everything
+- this thing pain me lowkey
 - i can’t be the only one abeg
-- this one almost made me cry
+- why is this actually true?
+- i saw the signs btw
 
 Output ONLY hooks.
 Number them 1-10.
 """,
 
-    "captions": """Create 10 short Nigerian TikTok captions for: {topic}
+    "captions": """Create 15 ultra-short Nigerian TikTok captions for: {topic}
 
 Style:
-- casual
+- lowercase preferred
+- short like real TikTok captions
+- emotional
+- soft pain
+- toxic sometimes
 - relatable
-- human
-- short
-- emotional or funny
-- sounds like real TikTok text
+- unserious
+- aesthetic
+- sounds like Nigerian TikTok girls
+
+VERY IMPORTANT:
+- no full storytelling
+- no long sentences
 - no explanation
+- no AI tone
+- no motivational tone
+
+Examples:
+- this one pain me lowkey
+- i can explain sha
+- i miss my old self
+- no because why would you do that
+- na me cause am
+- mentally i’m tired
+- love no hard like this before
+- i saw the signs btw
+- i dey act okay
+- soft life pls
 
 Output ONLY captions.
-Number them 1-10.
+Number them 1-15.
 """,
 
-    "hashtags": """Create 5 clean hashtag sets for: {topic}
+    "hashtags": """Create 5 clean TikTok hashtag sets for: {topic}
 
 Rules:
 - 6 hashtags per set
-- Mix broad, niche, and Nigerian hashtags
-- Clean and copy-ready
+- mix broad, niche, and Nigerian tags
+- clean and copy-ready
+- no explanation
 
 Output:
 Set 1: ...
 Set 2: ...
+Set 3: ...
+Set 4: ...
+Set 5: ...
 """,
 
-    "bio": """Create 5 TikTok bios for: {topic}
+    "bio": """Create 8 short TikTok bios for: {topic}
 
 Rules:
-- Under 80 characters
-- Clean
-- Human
-- Creator-friendly
-- Nigerian flavour where useful
+- under 80 characters
+- clean
+- human
+- creator-friendly
+- Nigerian where useful
+- no explanation
 
-Output ONLY numbered bios.
+Output ONLY bios.
+Number them 1-8.
 """,
 
-    "pov": """Create 5 short viral Nigerian TikTok POV ideas for: {topic}
+    "pov": """Create 10 short viral Nigerian TikTok POV ideas for: {topic}
 
 Style:
 - one sentence each
 - relatable
 - casual
-- sounds like real TikTok text
-- emotional, funny, dramatic, or very real
+- emotional, funny, dramatic, or real
+- sounds like text on a TikTok video
 - no explanation
 
 Examples:
@@ -128,7 +144,7 @@ Examples:
 - POV: you enter Lagos traffic with full confidence
 
 Output ONLY POVs.
-Number them 1-5.
+Number them 1-10.
 """
 }
 
@@ -210,10 +226,7 @@ def send_message(chat_id, text):
     try:
         requests.post(
             url,
-            json={
-                "chat_id": chat_id,
-                "text": text
-            },
+            json={"chat_id": chat_id, "text": text},
             timeout=10
         )
     except Exception as e:
@@ -226,10 +239,7 @@ def send_typing(chat_id):
     try:
         requests.post(
             url,
-            json={
-                "chat_id": chat_id,
-                "action": "typing"
-            },
+            json={"chat_id": chat_id, "action": "typing"},
             timeout=5
         )
     except Exception:
@@ -243,17 +253,11 @@ def ask_ai(mode, topic):
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
             ],
             temperature=0.95,
-            max_tokens=500
+            max_tokens=650
         )
 
         return response.choices[0].message.content.strip()
@@ -389,7 +393,7 @@ Activation is automatic after payment.""")
         mode = command.replace("/", "")
 
         if not topic:
-            send_message(chat_id, f"Example:\n{command} fashion")
+            send_message(chat_id, f"Example:\n{command} relationship")
             return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):

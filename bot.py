@@ -104,7 +104,7 @@ def ask_ai(prompt):
     try:
 
         response = gemini_client.models.generate_content(
-            model="gemini-1.5-flash-latest",
+            model="gemini-2.0-flash-lite",
             contents=prompt
         )
 

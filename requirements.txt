@@ -2,3 +2,4 @@ flask
 requests
 gunicorn
 groq
+psycopg2-binary

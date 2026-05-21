@@ -3,6 +3,7 @@ import json
 import hmac
 import hashlib
 import threading
+import asyncio
 from datetime import datetime, timedelta
 
 import requests
@@ -14,9 +15,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
-ADMIN_ID = os.getenv("ADMIN_ID")
 
-PRICE_KOBO = 200000  # ₦2,000
+PRICE_KOBO = 200000
 USERS_FILE = "users.json"
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -39,7 +39,10 @@ def save_users(users):
 def activate_pro(user_id):
     users = load_users()
     expires = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
-    users[str(user_id)] = {"plan": "pro", "expires": expires}
+    users[str(user_id)] = {
+        "plan": "pro",
+        "expires": expires
+    }
     save_users(users)
     return expires
 
@@ -79,9 +82,13 @@ async def plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = users.get(str(user_id))
 
     if is_pro(user_id):
-        await update.message.reply_text(f"✅ You are on TikGenius Pro\nExpires: {user['expires']}")
+        await update.message.reply_text(
+            f"✅ You are on TikGenius Pro\nExpires: {user['expires']}"
+        )
     else:
-        await update.message.reply_text("🆓 You are on Free Plan\nUpgrade with /upgrade")
+        await update.message.reply_text(
+            "🆓 You are on Free Plan\nUpgrade with /upgrade"
+        )
 
 
 async def upgrade(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -156,12 +163,33 @@ Do not mention watermark removal.
     await update.message.reply_text(result[:4000])
 
 
-async def hooks(update, context): await ai_command(update, context, "hooks")
-async def ideas(update, context): await ai_command(update, context, "ideas")
-async def captions(update, context): await ai_command(update, context, "captions")
-async def scripts(update, context): await ai_command(update, context, "scripts")
-async def hashtags(update, context): await ai_command(update, context, "hashtags")
-async def bio(update, context): await ai_command(update, context, "bio")
+async def hooks(update, context):
+    await ai_command(update, context, "hooks")
+
+
+async def ideas(update, context):
+    await ai_command(update, context, "ideas")
+
+
+async def captions(update, context):
+    await ai_command(update, context, "captions")
+
+
+async def scripts(update, context):
+    await ai_command(update, context, "scripts")
+
+
+async def hashtags(update, context):
+    await ai_command(update, context, "hashtags")
+
+
+async def bio(update, context):
+    await ai_command(update, context, "bio")
+
+
+@flask_app.route("/", methods=["GET"])
+def home():
+    return "TikGenius is running ✅", 200
 
 
 @flask_app.route("/paystack-webhook", methods=["POST"])
@@ -193,6 +221,9 @@ def paystack_webhook():
 
 
 def run_bot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))

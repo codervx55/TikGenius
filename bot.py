@@ -239,4 +239,5 @@ def run_bot():
     app.run_polling()
 
 
-threading.Thread(target=run_bot, daemon=True).start()
+if os.getenv("RUN_BOT", "true") == "true":
+    threading.Thread(target=run_bot, daemon=True).start()

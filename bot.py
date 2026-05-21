@@ -3,7 +3,6 @@ import hmac
 import hashlib
 import random
 import re
-import time
 from datetime import datetime, timedelta
 
 import psycopg2
@@ -22,10 +21,11 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 PRICE_KOBO = 200000
 FREE_LIMIT = 5
-ADMIN_ID = "7375528876"
+ADMIN_ID = "6415641863"
 
 flask_app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
+
 
 def get_session():
     session = requests.Session()
@@ -35,14 +35,16 @@ def get_session():
     session.mount("https://", adapter)
     return session
 
-http_session = get_session()
 
+http_session = get_session()
 db_pool = None
+
 
 def init_pool():
     global db_pool
     if db_pool:
         return
+
     db_pool = pool.SimpleConnectionPool(
         1,
         10,
@@ -51,14 +53,17 @@ def init_pool():
     )
     print("✅ Database pool initialized")
 
+
 def get_db():
     if not db_pool:
         init_pool()
     return db_pool.getconn()
 
+
 def release_db(conn):
     if db_pool and conn:
         db_pool.putconn(conn)
+
 
 def init_db():
     conn = get_db()
@@ -79,11 +84,14 @@ def init_db():
     finally:
         release_db(conn)
 
+
 init_db()
+
 
 def activate_pro(user_id):
     expires = (datetime.utcnow() + timedelta(days=30)).date()
     conn = get_db()
+
     try:
         with conn.cursor() as cur:
             cur.execute("""
@@ -99,27 +107,35 @@ def activate_pro(user_id):
     finally:
         release_db(conn)
 
+
 def is_pro(user_id):
     conn = get_db()
+
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT plan, expires FROM users WHERE user_id=%s", (user_id,))
             row = cur.fetchone()
+
         if not row or row["plan"] != "pro" or not row["expires"]:
             return False
+
         return row["expires"] >= datetime.utcnow().date()
     finally:
         release_db(conn)
 
+
 def get_pro_expiry(user_id):
     conn = get_db()
+
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT expires FROM users WHERE user_id=%s", (user_id,))
             row = cur.fetchone()
+
         return row["expires"].strftime("%Y-%m-%d") if row and row["expires"] else None
     finally:
         release_db(conn)
+
 
 def check_and_increment_free_usage(user_id):
     if is_pro(user_id):
@@ -127,6 +143,7 @@ def check_and_increment_free_usage(user_id):
 
     today = datetime.utcnow().date()
     conn = get_db()
+
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT usage_date, usage_count FROM users WHERE user_id=%s", (user_id,))
@@ -148,23 +165,29 @@ def check_and_increment_free_usage(user_id):
                         ELSE 1
                     END
             """, (user_id, today))
+
         conn.commit()
         return True
     finally:
         release_db(conn)
 
+
 def free_uses_remaining(user_id):
     today = datetime.utcnow().date()
     conn = get_db()
+
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT usage_date, usage_count FROM users WHERE user_id=%s", (user_id,))
             row = cur.fetchone()
+
         if not row or row["usage_date"] != today:
             return FREE_LIMIT
+
         return max(0, FREE_LIMIT - row["usage_count"])
     finally:
         release_db(conn)
+
 
 SYSTEM_PROMPT = """
 You are TikGenius.
@@ -275,6 +298,7 @@ Why it works:
 No intro."""
 }
 
+
 def ask_ai(mode, topic):
     prompt = PROMPTS[mode].format(topic=topic)
 
@@ -325,19 +349,24 @@ def ask_ai(mode, topic):
         print(f"Groq Error: {e}")
         return "⚠️ TikGenius brain dey buffer. Try again in 10 seconds."
 
+
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+
     try:
         http_session.post(url, json={"chat_id": chat_id, "text": text}, timeout=10)
     except Exception as e:
         print(f"Telegram error: {e}")
 
+
 def send_typing(chat_id):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction"
+
     try:
         http_session.post(url, json={"chat_id": chat_id, "action": "typing"}, timeout=5)
     except Exception:
         pass
+
 
 def create_payment_link(user_id, username):
     reference = f"TG-{user_id}-{int(datetime.utcnow().timestamp())}"
@@ -368,10 +397,12 @@ def create_payment_link(user_id, username):
 
         if res.get("status"):
             return res["data"]["authorization_url"]
+
         return None
     except Exception as e:
         print(f"Paystack error: {e}")
         return None
+
 
 LOADING_MESSAGES = {
     "hooks": ["🧠 Omo relax... make we cook hook", "🔥 Checking wetin fit blow", "👀 This one go touch chest"],
@@ -397,9 +428,11 @@ EXAMPLES = {
     "trends": "/trends relationship content"
 }
 
+
 @flask_app.route("/", methods=["GET"])
 def home():
     return "TikGenius is running ✅", 200
+
 
 @flask_app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
@@ -436,7 +469,9 @@ Commands:
 Free: {FREE_LIMIT} uses/day
 Pro: ₦2,000/month
 
-/upgrade to go Pro""")
+/plan - check plan
+/upgrade - go Pro
+/stats - admin only""")
 
     elif command == "/activatepro":
         if str(user_id) == ADMIN_ID:
@@ -452,10 +487,44 @@ Pro: ₦2,000/month
         else:
             send_message(chat_id, f"🆓 Free Plan\nUses left: {free_uses_remaining(user_id)}/{FREE_LIMIT}\n/upgrade")
 
+    elif command == "/stats":
+        if str(user_id) != ADMIN_ID:
+            send_message(chat_id, "❌ Not allowed.")
+            return jsonify({"ok": True})
+
+        conn = get_db()
+
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) AS total FROM users")
+                total = cur.fetchone()["total"]
+
+                cur.execute("SELECT COUNT(*) AS pro FROM users WHERE plan='pro'")
+                pro = cur.fetchone()["pro"]
+
+                cur.execute("SELECT COUNT(*) AS free FROM users WHERE plan='free' OR plan IS NULL")
+                free = cur.fetchone()["free"]
+
+            send_message(chat_id, f"""📊 TikGenius Stats
+
+👥 Total Users: {total}
+💎 Pro Users: {pro}
+🆓 Free Users: {free}""")
+        finally:
+            release_db(conn)
+
     elif command == "/upgrade":
         link = create_payment_link(user_id, username)
+
         if link:
-            send_message(chat_id, f"🚀 TikGenius Pro\n₦2,000/month\n\nPay here:\n{link}")
+            send_message(chat_id, f"""🚀 TikGenius Pro
+
+Price: ₦2,000/month
+
+Pay here:
+{link}
+
+Activation is automatic after payment.""")
         else:
             send_message(chat_id, "⚠️ Payment link failed. Try again.")
 
@@ -492,6 +561,7 @@ Pro: ₦2,000/month
 
     return jsonify({"ok": True})
 
+
 @flask_app.route("/paystack-webhook", methods=["POST"])
 def paystack_webhook():
     signature = request.headers.get("x-paystack-signature", "")
@@ -522,6 +592,7 @@ def paystack_webhook():
             )
 
     return jsonify({"status": "ok"}), 200
+
 
 if __name__ == "__main__":
     flask_app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

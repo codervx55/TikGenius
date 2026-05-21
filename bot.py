@@ -2,15 +2,11 @@ import os
 import json
 import hmac
 import hashlib
-import threading
-import asyncio
 from datetime import datetime, timedelta
 
 import requests
 from flask import Flask, request, jsonify
 from google import genai
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -19,8 +15,8 @@ PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
 PRICE_KOBO = 200000
 USERS_FILE = "users.json"
 
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 flask_app = Flask(__name__)
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 def load_users():
@@ -39,10 +35,7 @@ def save_users(users):
 def activate_pro(user_id):
     users = load_users()
     expires = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
-    users[str(user_id)] = {
-        "plan": "pro",
-        "expires": expires
-    }
+    users[str(user_id)] = {"plan": "pro", "expires": expires}
     save_users(users)
     return expires
 
@@ -58,50 +51,32 @@ def is_pro(user_id):
     return expires >= datetime.utcnow()
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        """🔥 Welcome to TikGenius
+def send_message(chat_id, text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    requests.post(url, json={
+        "chat_id": chat_id,
+        "text": text
+    })
 
-Your AI assistant for TikTok growth 🚀
 
-Commands:
-/ideas fashion
-/hooks fitness
-/captions skincare
-/scripts business
-/hashtags food
-/bio content creator
-/upgrade
-/plan"""
+def ask_ai(prompt):
+    response = gemini_client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt
     )
+    return response.text
 
 
-async def plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    users = load_users()
-    user = users.get(str(user_id))
-
-    if is_pro(user_id):
-        await update.message.reply_text(
-            f"✅ You are on TikGenius Pro\nExpires: {user['expires']}"
-        )
-    else:
-        await update.message.reply_text(
-            "🆓 You are on Free Plan\nUpgrade with /upgrade"
-        )
-
-
-async def upgrade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    reference = f"TG-{user.id}-{int(datetime.utcnow().timestamp())}"
+def create_payment_link(user_id, username):
+    reference = f"TG-{user_id}-{int(datetime.utcnow().timestamp())}"
 
     payload = {
-        "email": f"{user.id}@tikgenius.bot",
+        "email": f"{user_id}@tikgenius.bot",
         "amount": PRICE_KOBO,
         "reference": reference,
         "metadata": {
-            "telegram_id": user.id,
-            "username": user.username or "",
+            "telegram_id": user_id,
+            "username": username or "",
             "plan": "pro"
         }
     }
@@ -119,37 +94,83 @@ async def upgrade(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ).json()
 
     if res.get("status"):
-        link = res["data"]["authorization_url"]
-        await update.message.reply_text(
-            f"""🚀 Upgrade to TikGenius Pro
+        return res["data"]["authorization_url"]
+
+    return None
+
+
+@flask_app.route("/", methods=["GET"])
+def home():
+    return "TikGenius is running ✅", 200
+
+
+@flask_app.route("/telegram-webhook", methods=["POST"])
+def telegram_webhook():
+    data = request.json
+
+    message = data.get("message", {})
+    chat = message.get("chat", {})
+    user = message.get("from", {})
+
+    chat_id = chat.get("id")
+    user_id = user.get("id")
+    username = user.get("username", "")
+    text = message.get("text", "")
+
+    if not chat_id or not text:
+        return jsonify({"ok": True})
+
+    parts = text.split(" ", 1)
+    command = parts[0].lower()
+    topic = parts[1] if len(parts) > 1 else ""
+
+    if command == "/start":
+        send_message(chat_id, """🔥 Welcome to TikGenius
+
+Your AI assistant for TikTok growth 🚀
+
+Commands:
+/ideas fashion
+/hooks fitness
+/captions skincare
+/scripts business
+/hashtags food
+/bio content creator
+/upgrade
+/plan""")
+
+    elif command == "/plan":
+        users = load_users()
+        current_user = users.get(str(user_id))
+
+        if is_pro(user_id):
+            send_message(chat_id, f"✅ You are on TikGenius Pro\nExpires: {current_user['expires']}")
+        else:
+            send_message(chat_id, "🆓 You are on Free Plan\nUpgrade with /upgrade")
+
+    elif command == "/upgrade":
+        link = create_payment_link(user_id, username)
+
+        if link:
+            send_message(chat_id, f"""🚀 Upgrade to TikGenius Pro
 
 Price: ₦2,000/month
 
 Pay here:
 {link}
 
-Your Pro access activates automatically after payment."""
-        )
-    else:
-        await update.message.reply_text("Payment link failed. Please try again.")
+Your Pro access activates automatically after payment.""")
+        else:
+            send_message(chat_id, "Payment link failed. Please try again.")
 
+    elif command in ["/ideas", "/hooks", "/captions", "/scripts", "/hashtags", "/bio"]:
+        if not topic:
+            send_message(chat_id, f"Example: {command} fashion")
+            return jsonify({"ok": True})
 
-def ask_ai(prompt):
-    response = gemini_client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt
-    )
-    return response.text
+        mode = command.replace("/", "")
 
-
-async def ai_command(update: Update, context: ContextTypes.DEFAULT_TYPE, mode: str):
-    topic = " ".join(context.args)
-
-    if not topic:
-        await update.message.reply_text(f"Example: /{mode} fashion")
-        return
-
-    prompt = f"""
+        prompt = f"""
 You are TikGenius, an AI assistant for TikTok creators.
 
 Create {mode} for this niche/topic: {topic}
@@ -159,37 +180,13 @@ Make it practical, catchy, simple, and viral.
 Do not mention watermark removal.
 """
 
-    result = ask_ai(prompt)
-    await update.message.reply_text(result[:4000])
+        result = ask_ai(prompt)
+        send_message(chat_id, result[:4000])
 
+    else:
+        send_message(chat_id, "Unknown command. Type /start to see commands.")
 
-async def hooks(update, context):
-    await ai_command(update, context, "hooks")
-
-
-async def ideas(update, context):
-    await ai_command(update, context, "ideas")
-
-
-async def captions(update, context):
-    await ai_command(update, context, "captions")
-
-
-async def scripts(update, context):
-    await ai_command(update, context, "scripts")
-
-
-async def hashtags(update, context):
-    await ai_command(update, context, "hashtags")
-
-
-async def bio(update, context):
-    await ai_command(update, context, "bio")
-
-
-@flask_app.route("/", methods=["GET"])
-def home():
-    return "TikGenius is running ✅", 200
+    return jsonify({"ok": True})
 
 
 @flask_app.route("/paystack-webhook", methods=["POST"])
@@ -218,26 +215,3 @@ def paystack_webhook():
             activate_pro(telegram_id)
 
     return jsonify({"status": "ok"}), 200
-
-
-def run_bot():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("plan", plan))
-    app.add_handler(CommandHandler("upgrade", upgrade))
-    app.add_handler(CommandHandler("hooks", hooks))
-    app.add_handler(CommandHandler("ideas", ideas))
-    app.add_handler(CommandHandler("captions", captions))
-    app.add_handler(CommandHandler("scripts", scripts))
-    app.add_handler(CommandHandler("hashtags", hashtags))
-    app.add_handler(CommandHandler("bio", bio))
-
-    app.run_polling()
-
-
-if os.getenv("RUN_BOT", "true") == "true":
-    threading.Thread(target=run_bot, daemon=True).start()

@@ -1,4 +1,4 @@
 flask
-groq
 requests
-psycopg2-binary
+gunicorn
+groq

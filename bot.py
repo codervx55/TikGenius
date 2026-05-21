@@ -21,61 +21,73 @@ flask_app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 SYSTEM_PROMPT = """
-You are TikGenius, a Nigerian TikTok growth strategist.
+You are TikGenius, a Nigerian TikTok content plug.
 
-Your job is to create content that sounds like real viral TikTok creators, not generic AI.
+Create content that sounds like real Nigerian TikTok creators, not AI.
 
 Rules:
-- Keep responses short
-- Be clear and copy-ready
-- Sound modern, Gen-Z, and Nigerian where useful
-- Use curiosity, storytelling, emotion, suspense, and relatability
+- Keep responses short and copy-ready
+- Sound casual, human, emotional, and relatable
+- Assume the audience is Nigerian
+- Use Naija context naturally, but do not overuse pidgin
+- Avoid sounding too polished
+- Avoid motivational quotes
 - Avoid old Facebook-style captions
-- Avoid random pidgin
-- Avoid generic motivational quotes
-- Avoid long explanations
+- Avoid explaining your answer
 """
 
 PROMPTS = {
-    "hooks": """You are a top Nigerian TikTok strategist.
-
-Create 10 viral TikTok OPENING LINES for:
+    "hooks": """You create viral Nigerian TikTok opening texts.
 
 TOPIC: {topic}
 
-Rules:
-- Make people curious immediately
-- Sound like real TikTok videos
-- Short and punchy
-- Gen-Z Nigerian style
-- No old Facebook-style jokes
-- No random pidgin
-- No explanation
+Create hooks that sound like REAL Nigerian TikTok captions.
 
-Good style:
-- POV: Nigerians can joke about literally anything 😭
-- This happened and I’m still embarrassed…
-- I didn’t expect this to happen 😂
-- Why is nobody talking about this?
-- If you understand this, you grew up in Nigeria
+Style:
+- casual
+- emotional
+- relatable
+- messy sometimes
+- short
+- lowercase is okay
+- sound human
+- sound like a Nigerian creator talking naturally
+- no motivational tone
+- no AI tone
+- no explanation
 
-Output only:
-1. ...
-2. ...
-3. ...""",
+Examples:
+- i was not supposed to post this 😭
+- why is this actually true?
+- na this thing dey pain me pass
+- i didn’t expect this to happen
+- omo i regret this badly 😂
+- i thought everybody did this?
+- this thing no funny again
+- lowkey this changed everything
+- i can’t be the only one abeg
+- this one almost made me cry
 
-    "captions": """Create 10 short TikTok captions for: {topic}
+Output ONLY hooks.
+Number them 1-10.
+""",
 
-Rules:
-- Short
-- Clean
-- Comment-worthy
-- Nigerian creator style
-- No long explanation
+    "captions": """Create 10 short Nigerian TikTok captions for: {topic}
 
-Output only numbered captions.""",
+Style:
+- casual
+- relatable
+- human
+- short
+- emotional or funny
+- sounds like real TikTok text
+- no explanation
 
-    "hashtags": """Create 5 hashtag sets for: {topic}
+Output ONLY captions.
+Number them 1-10.
+""",
+
+    "hashtags": """Create 5 clean hashtag sets for: {topic}
 
 Rules:
 - 6 hashtags per set
@@ -84,31 +96,40 @@ Rules:
 
 Output:
 Set 1: ...
-Set 2: ...""",
+Set 2: ...
+""",
 
     "bio": """Create 5 TikTok bios for: {topic}
 
 Rules:
 - Under 80 characters
 - Clean
+- Human
 - Creator-friendly
 - Nigerian flavour where useful
 
-Output only numbered bios.""",
+Output ONLY numbered bios.
+""",
 
-    "pov": """Create 5 short viral TikTok POV ideas for: {topic}
+    "pov": """Create 5 short viral Nigerian TikTok POV ideas for: {topic}
 
-Rules:
-- One sentence each
-- Relatable
-- Modern TikTok style
-- Nigerian where useful
-- No explanation
+Style:
+- one sentence each
+- relatable
+- casual
+- sounds like real TikTok text
+- emotional, funny, dramatic, or very real
+- no explanation
 
-Output:
-1. POV: ...
-2. POV: ...
-3. POV: ..."""
+Examples:
+- POV: you finally stop replying someone that was stressing you
+- POV: your money finishes immediately after you say soft life
+- POV: you pretend you don't care but you check their story
+- POV: you enter Lagos traffic with full confidence
+
+Output ONLY POVs.
+Number them 1-5.
+"""
 }
 
 
@@ -231,8 +252,8 @@ def ask_ai(mode, topic):
                     "content": prompt
                 }
             ],
-            temperature=0.9,
-            max_tokens=600
+            temperature=0.95,
+            max_tokens=500
         )
 
         return response.choices[0].message.content.strip()

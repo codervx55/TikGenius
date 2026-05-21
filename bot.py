@@ -61,7 +61,7 @@ def send_message(chat_id, text):
 
 def ask_ai(prompt):
     response = gemini_client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-1.5-flash",
         contents=prompt
     )
     return response.text

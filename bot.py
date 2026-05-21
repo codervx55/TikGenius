@@ -20,135 +20,225 @@ FREE_LIMIT = 5
 flask_app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-SYSTEM_PROMPT = """
-You are TikGenius, a Nigerian TikTok content plug.
+# ─────────────────────────────────────────────
+# SYSTEM PROMPT — identity and non-negotiables
+# ─────────────────────────────────────────────
+SYSTEM_PROMPT = """You are TikGenius. You write Nigerian TikTok content that goes viral.
 
-Create content that sounds like real Nigerian TikTok creators, not AI.
+You think like a 22-year-old Lagos content creator who understands:
+- Sapa culture
+- Gen Z Nigerian humor
+- Twitter (X) energy spilling into TikTok
+- Soft life, main character vibes, toxic era
+- Yoruba, Igbo, Pidgin slang mixed naturally (NOT forced)
 
-Rules:
-- Keep everything short and copy-ready
-- Use Nigerian TikTok style naturally
-- Assume the audience is Nigerian
-- Sound casual, emotional, funny, toxic, unserious, or relatable
-- Avoid long sentences
-- Avoid explanation
-- Avoid motivational quotes
-- Avoid old Facebook-style captions
-- Avoid sounding too polished
-- Avoid random forced pidgin
+Your output sounds like it was typed by a real person, not generated.
+Short. Punchy. Emotionally true. Occasionally unhinged.
+
+NEVER write:
+- Motivational quotes
+- Long explanations
+- Perfect grammar on purpose
+- Robotic lists with too much structure
+- "Here are your hooks:" or any preamble
+- AI disclaimers
+- Hashtags inside hooks or captions unless asked
+
+ALWAYS write:
+- Like it's going on a TikTok screen right now
+- Content that makes people stop scrolling
+- Things that feel personal, not broadcast
 """
 
+# ─────────────────────────────────────────────
+# PROMPTS — tightly scoped, example-heavy
+# ─────────────────────────────────────────────
 PROMPTS = {
-    "hooks": """Create 10 viral Nigerian TikTok opening texts for: {topic}
+    "hooks": """Topic: {topic}
 
-Style:
-- short
-- human
-- curiosity-driven
-- sounds like text on TikTok video
-- emotional, funny, dramatic, or relatable
-- lowercase is okay
-- no explanation
+Write 10 viral TikTok opening hooks. These are the first words that appear on the video screen.
 
-Examples:
+Study these real examples first:
 - i was not supposed to post this 😭
 - this thing pain me lowkey
-- i can’t be the only one abeg
-- why is this actually true?
-- i saw the signs btw
+- nobody asked me this in 4 years 💀
+- i can't be the only one abeg
+- the way i SCREAMED
+- they really thought i wasn't paying attention
+- babe i found out something
+- ngl this one hit different
+- i tried to act unbothered and FAILED
+- POV: you just remembered that thing 😭
 
-Output ONLY hooks.
-Number them 1-10.
-""",
+Rules:
+- under 12 words each
+- no punctuation at sentence end unless it's an emoji
+- lowercase feels more human
+- mix emotions: funny, painful, dramatic, chaotic, relatable
+- sound like breaking news from someone's life
 
-    "captions": """Create 15 ultra-short Nigerian TikTok captions for: {topic}
+Output: just the 10 hooks, numbered 1-10. Nothing else.""",
 
-Style:
-- lowercase preferred
-- short like real TikTok captions
-- emotional
-- soft pain
-- toxic sometimes
-- relatable
-- unserious
-- aesthetic
-- sounds like Nigerian TikTok girls
+    "captions": """Topic: {topic}
 
-VERY IMPORTANT:
-- no full storytelling
-- no long sentences
-- no explanation
-- no AI tone
-- no motivational tone
+Write 15 TikTok captions. These go below the video.
 
-Examples:
+Study these real Nigerian TikTok captions:
 - this one pain me lowkey
-- i can explain sha
+- i can explain sha 🤦‍♀️
 - i miss my old self
-- no because why would you do that
-- na me cause am
-- mentally i’m tired
+- no because WHY
+- na me cause am honestly
+- mentally i'm tired
 - love no hard like this before
 - i saw the signs btw
 - i dey act okay
-- soft life pls
+- soft life pls 🕊️
+- my toxic trait is thinking i'm fine
+- carried myself and left
+- they really did that 😭
+- nobody is normal here and that's okay
+- this your bestie era 💅
 
-Output ONLY captions.
-Number them 1-15.
-""",
+Rules:
+- short. 1-8 words mostly
+- no full storytelling
+- mix: aesthetic, soft, unbothered, chaotic, funny
+- lowercase preferred
+- feel like something a real person typed in 5 seconds
 
-    "hashtags": """Create 5 clean TikTok hashtag sets for: {topic}
+Output: just the 15 captions, numbered 1-15. Nothing else.""",
+
+    "hashtags": """Topic: {topic}
+
+Create 5 TikTok hashtag sets.
 
 Rules:
 - 6 hashtags per set
-- mix broad, niche, and Nigerian tags
-- clean and copy-ready
-- no explanation
+- Set 1: broad reach (#fyp type)
+- Set 2: niche/topic specific
+- Set 3: Nigerian audience focus
+- Set 4: emotional/mood tags
+- Set 5: mixed best-of strategy
+- No explanation, no commentary
 
-Output:
-Set 1: ...
-Set 2: ...
-Set 3: ...
-Set 4: ...
-Set 5: ...
-""",
+Output format:
+Set 1: #tag #tag #tag #tag #tag #tag
+Set 2: #tag #tag #tag #tag #tag #tag
+Set 3: #tag #tag #tag #tag #tag #tag
+Set 4: #tag #tag #tag #tag #tag #tag
+Set 5: #tag #tag #tag #tag #tag #tag""",
 
-    "bio": """Create 8 short TikTok bios for: {topic}
+    "bio": """Topic/niche: {topic}
+
+Write 8 short TikTok bios for this creator.
+
+Study these real TikTok bio styles:
+- just a girl who loves chaos and carbs 🌸
+- lagos bred. content made. no apologies
+- i post when the spirit moves me
+- your fave's fave tbh
+- soft life in progress 🕊️
+- unlearning everything slowly
+- professional overthinker | amateur human
+- it's giving main character and i'm not sorry
 
 Rules:
 - under 80 characters
-- clean
-- human
-- creator-friendly
-- Nigerian where useful
-- no explanation
+- sound like a real person wrote it
+- mix: funny, aesthetic, unbothered, Nigerian-coded
+- no cheesy job descriptions
 
-Output ONLY bios.
-Number them 1-8.
-""",
+Output: just 8 bios, numbered 1-8. Nothing else.""",
 
-    "pov": """Create 10 short viral Nigerian TikTok POV ideas for: {topic}
+    "pov": """Topic: {topic}
+
+Write 10 POV ideas for TikTok videos.
+
+Study these real examples:
+- POV: you finally stop replying someone that was stressing you
+- POV: your sapa hits the moment you say "soft life"
+- POV: you pretend you don't care but check their story 3x
+- POV: you enter Lagos traffic with full confidence and a full tank
+- POV: you're the friend that remembers everything
+- POV: you realize the main character was you the whole time
+- POV: you get the bag and suddenly everyone is a cousin
+- POV: you hear your name in a conversation you weren't in
+- POV: you finally eat the good food you've been saving
+- POV: you gave them a second chance and THIRD thing happened
+
+Rules:
+- one sentence each
+- no comma-heavy run-ons
+- relatable, specific, Nigerian where it fits naturally
+- funny, painful, dramatic, or quietly real
+
+Output: just the 10 POVs, numbered 1-10. Nothing else.""",
+
+    "script": """Topic/idea: {topic}
+
+Write a short TikTok video script. Under 60 seconds when read aloud.
+
+Format:
+[HOOK] — the first 3 seconds (text on screen OR what they say)
+[BODY] — the main content, broken into short punchy lines
+[ENDING] — call to action or mic-drop line
 
 Style:
-- one sentence each
-- relatable
-- casual
-- emotional, funny, dramatic, or real
-- sounds like text on a TikTok video
-- no explanation
+- sounds like how a Nigerian creator actually speaks
+- casual, like talking to a close friend on camera
+- short sentences, natural pauses
+- if using Pidgin, use it naturally not forced
+- funny or emotionally real
 
-Examples:
-- POV: you finally stop replying someone that was stressing you
-- POV: your money finishes immediately after you say soft life
-- POV: you pretend you don't care but you check their story
-- POV: you enter Lagos traffic with full confidence
+Output: the script only. No extra explanation.""",
 
-Output ONLY POVs.
-Number them 1-10.
-"""
+    "trends": """Current TikTok niche: {topic}
+
+Suggest 8 trending video concepts this creator should film RIGHT NOW.
+
+For each idea give:
+- the concept in one line
+- what text goes on screen (hook)
+- why it would do well (one sentence max)
+
+Style:
+- specific and actionable
+- sounds like advice from someone on Naija TikTok daily
+- no generic "share your story" advice
+
+Output: 8 numbered ideas in that format. Nothing else."""
 }
 
+# ─────────────────────────────────────────────
+# COMMAND MENU
+# ─────────────────────────────────────────────
+COMMANDS_HELP = """🔥 *TikGenius Commands*
 
+*Content:*
+/hooks \[topic\] — viral opening lines
+/captions \[topic\] — short captions
+/hashtags \[topic\] — 5 hashtag sets
+/pov \[topic\] — POV video ideas
+/bio \[niche\] — TikTok bio options
+/script \[idea\] — full video script ✨
+/trends \[niche\] — what to film now ✨
+
+*Account:*
+/plan — check your plan
+/upgrade — go Pro
+
+*Examples:*
+/hooks soft life lagos
+/script my morning routine as a slay queen
+/trends relationship content
+
+New: /script and /trends for Pro users 🚀"""
+
+
+# ─────────────────────────────────────────────
+# USER DATA
+# ─────────────────────────────────────────────
 def load_users():
     try:
         with open(USERS_FILE, "r") as f:
@@ -177,10 +267,8 @@ def activate_pro(user_id):
 def is_pro(user_id):
     users = load_users()
     user = users.get(str(user_id))
-
     if not user or user.get("plan") != "pro":
         return False
-
     expires = datetime.strptime(user["expires"], "%Y-%m-%d")
     return expires >= datetime.utcnow()
 
@@ -213,39 +301,36 @@ def free_uses_remaining(user_id):
     users = load_users()
     today = datetime.utcnow().strftime("%Y-%m-%d")
     usage = users.get(str(user_id), {}).get("usage", {})
-
     if usage.get("date") != today:
         return FREE_LIMIT
-
     return max(0, FREE_LIMIT - usage.get("count", 0))
 
 
-def send_message(chat_id, text):
+# ─────────────────────────────────────────────
+# TELEGRAM HELPERS
+# ─────────────────────────────────────────────
+def send_message(chat_id, text, parse_mode=None):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-
+    payload = {"chat_id": chat_id, "text": text}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
     try:
-        requests.post(
-            url,
-            json={"chat_id": chat_id, "text": text},
-            timeout=10
-        )
+        requests.post(url, json=payload, timeout=10)
     except Exception as e:
         print(f"Telegram error: {e}")
 
 
 def send_typing(chat_id):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction"
-
     try:
-        requests.post(
-            url,
-            json={"chat_id": chat_id, "action": "typing"},
-            timeout=5
-        )
+        requests.post(url, json={"chat_id": chat_id, "action": "typing"}, timeout=5)
     except Exception:
         pass
 
 
+# ─────────────────────────────────────────────
+# AI CALL
+# ─────────────────────────────────────────────
 def ask_ai(mode, topic):
     prompt = PROMPTS[mode].format(topic=topic)
 
@@ -256,20 +341,24 @@ def ask_ai(mode, topic):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.95,
-            max_tokens=650
+            temperature=0.92,       # high creativity but not random garbage
+            max_tokens=800,
+            top_p=0.95,             # nucleus sampling for more natural output
+            frequency_penalty=0.4,  # reduces repetition across items
+            presence_penalty=0.3    # encourages topic variety
         )
-
         return response.choices[0].message.content.strip()
 
     except Exception as e:
         print(f"Groq error: {e}")
-        return "⚠️ TikGenius AI dey busy right now. Try again small."
+        return "⚠️ TikGenius AI dey busy right now. Try again small time."
 
 
+# ─────────────────────────────────────────────
+# PAYMENT
+# ─────────────────────────────────────────────
 def create_payment_link(user_id, username):
     reference = f"TG-{user_id}-{int(datetime.utcnow().timestamp())}"
-
     payload = {
         "email": f"{user_id}@tikgenius.bot",
         "amount": PRICE_KOBO,
@@ -280,12 +369,10 @@ def create_payment_link(user_id, username):
             "plan": "pro"
         }
     }
-
     headers = {
         "Authorization": f"Bearer {PAYSTACK_SECRET_KEY}",
         "Content-Type": "application/json"
     }
-
     try:
         res = requests.post(
             "https://api.paystack.co/transaction/initialize",
@@ -293,17 +380,40 @@ def create_payment_link(user_id, username):
             headers=headers,
             timeout=20
         ).json()
-
         if res.get("status"):
             return res["data"]["authorization_url"]
-
         return None
-
     except Exception as e:
         print(f"Paystack error: {e}")
         return None
 
 
+# ─────────────────────────────────────────────
+# LOADING MESSAGES
+# ─────────────────────────────────────────────
+LOADING = [
+    "🧠 hold on make i cook this properly...",
+    "🔥 this one go burst, just wait",
+    "⚡ checking what's landing on Naija FYP rn...",
+    "👀 finding something your followers won't skip...",
+    "🎬 relax... something mad is loading",
+    "📈 oya make we touch FYP small...",
+    "🇳🇬 thinking like a Lagos creator with 500k followers...",
+    "💅 cooking your content era right now...",
+    "🕊️ soft life content incoming...",
+    "😭 this one go make them comment their whole life story...",
+]
+
+# Commands available to free users
+FREE_COMMANDS = {"/hooks", "/captions", "/hashtags", "/pov", "/bio"}
+# Commands only for Pro users
+PRO_COMMANDS = {"/script", "/trends"}
+ALL_CONTENT_COMMANDS = FREE_COMMANDS | PRO_COMMANDS
+
+
+# ─────────────────────────────────────────────
+# WEBHOOK — TELEGRAM
+# ─────────────────────────────────────────────
 @flask_app.route("/", methods=["GET"])
 def home():
     return "TikGenius is running ✅", 200
@@ -329,116 +439,144 @@ def telegram_webhook():
     command = parts[0].lower().split("@")[0]
     topic = parts[1].strip() if len(parts) > 1 else ""
 
+    # ── /start ──
     if command == "/start":
         send_message(chat_id, f"""🔥 Oya {first_name}, welcome to TikGenius 🇳🇬
 
-Your AI TikTok content plug.
+Your AI TikTok content plug. Built for Nigerian creators.
 
-Commands:
-/hooks fashion
-/captions skincare
-/hashtags football
-/pov relationship
-/bio content creator
+What I can make for you:
+/hooks fashion → viral opening lines
+/captions skincare → short captions
+/hashtags football → hashtag sets
+/pov relationship → POV ideas
+/bio content creator → bio options
+/script morning routine → full video script ⭐
+/trends lifestyle → what to film now ⭐
+
+⭐ = Pro only
 
 Free plan: {FREE_LIMIT} uses/day
-Pro: unlimited access
+Pro: ₦2,000/month — unlimited everything
 
-/plan - check plan
-/upgrade - go Pro for ₦2,000/month""")
+Type /help to see all commands
+Type /upgrade to go Pro""")
 
+    # ── /help ──
+    elif command == "/help":
+        send_message(chat_id, COMMANDS_HELP, parse_mode="Markdown")
+
+    # ── /plan ──
     elif command == "/plan":
         users = load_users()
-
         if is_pro(user_id):
             exp = users[str(user_id)]["expires"]
-            send_message(chat_id, f"""✅ TikGenius Pro Active
+            send_message(chat_id, f"""✅ TikGenius Pro — Active
 
 Expires: {exp}
 Usage: Unlimited
+Commands: All unlocked
 
-No dulling. Your page go blow 🔥""")
+Your page go blow. Keep posting. 🔥""")
         else:
             remaining = free_uses_remaining(user_id)
-            send_message(chat_id, f"""🆓 Free Plan
+            send_message(chat_id, f"""📊 Free Plan
 
 Uses left today: {remaining}/{FREE_LIMIT}
+Resets: midnight UTC
 
-Upgrade:
-/upgrade""")
+Pro unlocks:
+✅ Unlimited uses
+✅ /script — full video scripts
+✅ /trends — what to film now
+✅ Priority AI quality
 
+Type /upgrade to go Pro for ₦2,000/month""")
+
+    # ── /upgrade ──
     elif command == "/upgrade":
         link = create_payment_link(user_id, username)
-
         if link:
-            send_message(chat_id, f"""🚀 TikGenius Pro
+            send_message(chat_id, f"""🚀 TikGenius Pro — ₦2,000/month
 
-Price: ₦2,000/month
+What you unlock:
+✅ Unlimited hooks, captions, hashtags, POVs, bios
+✅ /script — AI writes your full video script
+✅ /trends — trending video ideas for your niche
+✅ Faster, better quality AI output
 
-You get:
-✅ Unlimited hooks
-✅ Captions
-✅ Hashtags
-✅ POV ideas
-✅ Bios
-
-Pay here:
+Pay here 👇
 {link}
 
-Activation is automatic after payment.""")
+Activation is automatic after payment ⚡""")
         else:
-            send_message(chat_id, "⚠️ Payment link failed. Try again.")
+            send_message(chat_id, "⚠️ Payment link failed. Try /upgrade again in a moment.")
 
-    elif command in ["/hooks", "/captions", "/hashtags", "/bio", "/pov"]:
+    # ── Content commands ──
+    elif command in ALL_CONTENT_COMMANDS:
         mode = command.replace("/", "")
 
-        if not topic:
-            send_message(chat_id, f"Example:\n{command} relationship")
+        # Pro-only gate
+        if command in PRO_COMMANDS and not is_pro(user_id):
+            link = create_payment_link(user_id, username)
+            msg = f"🔒 {command} is a Pro feature.\n\n"
+            if link:
+                msg += f"Upgrade to unlock it:\n{link}"
+            else:
+                msg += "Use /upgrade to go Pro."
+            send_message(chat_id, msg)
             return jsonify({"ok": True})
 
+        # Topic required
+        if not topic:
+            examples = {
+                "hooks": "/hooks soft life lagos",
+                "captions": "/captions my glow up era",
+                "hashtags": "/hashtags Nigerian food",
+                "pov": "/pov you finally left a bad situation",
+                "bio": "/bio lifestyle and fashion creator",
+                "script": "/script how I saved ₦500k in 6 months",
+                "trends": "/trends relationship content"
+            }
+            send_message(chat_id, f"Add a topic 👇\n\nExample:\n{examples.get(mode, command + ' [topic]')}")
+            return jsonify({"ok": True})
+
+        # Free limit check
         if not check_and_increment_free_usage(user_id):
             link = create_payment_link(user_id, username)
-
-            if link:
-                send_message(chat_id, f"""⏳ Free limit don finish.
-
-Go Pro for unlimited access:
-{link}""")
-            else:
-                send_message(chat_id, "⏳ Free limit don finish.\nUse /upgrade to continue.")
-
+            msg = "⏳ You don finish your free uses for today.\n\nUpgrade for unlimited access:\n"
+            msg += link if link else "/upgrade"
+            send_message(chat_id, msg)
             return jsonify({"ok": True})
 
-        loading_messages = [
-            "🧠 Oya make we cook something viral...",
-            "🔥 Hold on... this one go burst",
-            "⚡ Checking wetin fit enter Naija FYP...",
-            "👀 Cooking content your followers no go skip...",
-            "🎬 Relax... we dey find something mad",
-            "📈 Make we touch FYP small...",
-            "🇳🇬 Thinking like a Lagos content creator..."
-        ]
-
+        # Generate content
         send_typing(chat_id)
-        send_message(chat_id, random.choice(loading_messages))
+        send_message(chat_id, random.choice(LOADING))
+        send_typing(chat_id)
 
         result = ask_ai(mode, topic)
         send_message(chat_id, result[:4000])
 
+        # Nudge free users near limit
         if not is_pro(user_id):
             remaining = free_uses_remaining(user_id)
-            if remaining <= 2:
-                send_message(
-                    chat_id,
-                    f"💡 {remaining} free use(s) left today. Use /upgrade to go unlimited."
-                )
+            if remaining == 0:
+                link = create_payment_link(user_id, username)
+                msg = "⚡ That was your last free use today.\n\nGo unlimited:\n"
+                msg += link if link else "/upgrade"
+                send_message(chat_id, msg)
+            elif remaining <= 2:
+                send_message(chat_id, f"💡 {remaining} free use(s) left today. /upgrade to go unlimited.")
 
     else:
-        send_message(chat_id, "Unknown command. Use /start")
+        send_message(chat_id, "Unknown command.\n\nType /help to see everything I can do.")
 
     return jsonify({"ok": True})
 
 
+# ─────────────────────────────────────────────
+# WEBHOOK — PAYSTACK
+# ─────────────────────────────────────────────
 @flask_app.route("/paystack-webhook", methods=["POST"])
 def paystack_webhook():
     signature = request.headers.get("x-paystack-signature", "")
@@ -465,14 +603,17 @@ def paystack_webhook():
             expires = activate_pro(telegram_id)
             send_message(
                 telegram_id,
-                f"""🎉 Payment confirmed!
-
-Welcome to TikGenius Pro 🚀
+                f"""🎉 Payment confirmed! Welcome to Pro 🚀
 
 Valid until: {expires}
-Unlimited access don open.
+Status: Unlimited access activated
 
-Try: /hooks your niche"""
+New commands unlocked:
+/script [idea] — AI writes your full video
+/trends [niche] — what to post this week
+
+Go try it:
+/script your first idea 🔥"""
             )
 
     return jsonify({"status": "ok"}), 200

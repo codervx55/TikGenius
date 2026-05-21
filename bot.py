@@ -6,40 +6,57 @@ from datetime import datetime, timedelta
 
 import requests
 from flask import Flask, request, jsonify
-from google import genai
+from groq import Groq
 
+# =========================
 # ENV VARIABLES
+# =========================
+
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
 
+# =========================
 # SETTINGS
+# =========================
+
 PRICE_KOBO = 200000
 USERS_FILE = "users.json"
 
+# =========================
 # APPS
-flask_app = Flask(__name__)
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+# =========================
 
+flask_app = Flask(__name__)
+
+groq_client = Groq(
+    api_key=GROQ_API_KEY
+)
 
 # =========================
 # USER DATABASE
 # =========================
 
 def load_users():
+
     try:
+
         with open(USERS_FILE, "r") as f:
             return json.load(f)
+
     except:
+
         return {}
 
 
 def save_users(users):
+
     with open(USERS_FILE, "w") as f:
         json.dump(users, f, indent=2)
 
 
 def activate_pro(user_id):
+
     users = load_users()
 
     expires = (
@@ -57,6 +74,7 @@ def activate_pro(user_id):
 
 
 def is_pro(user_id):
+
     users = load_users()
 
     user = users.get(str(user_id))
@@ -96,26 +114,31 @@ def send_message(chat_id, text):
 
 
 # =========================
-# GEMINI AI
+# AI
 # =========================
 
 def ask_ai(prompt):
 
     try:
 
-        response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash-lite",
-            contents=prompt
+        response = groq_client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
         )
 
-        return response.text
+        return response.choices[0].message.content
 
     except Exception as e:
 
         print(e)
 
         return (
-            "⚠️ TikGenius AI is temporarily busy.\n"
+            "⚠️ TikGenius AI is busy right now.\n"
             "Please try again shortly."
         )
 

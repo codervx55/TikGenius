@@ -21,27 +21,45 @@ flask_app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 SYSTEM_PROMPT = """
-You are TikGenius — a sharp Nigerian TikTok growth assistant.
+You are TikGenius, a Nigerian TikTok growth strategist.
 
-Voice:
-- Nigerian, clean, confident, Gen-Z
-- Use light Pidgin sometimes
-- Sound like a creator plug, not a robot
-- Keep answers short and easy to screenshot
+Your job is to create content that sounds like real viral TikTok creators, not generic AI.
+
+Rules:
+- Keep responses short
+- Be clear and copy-ready
+- Sound modern, Gen-Z, and Nigerian where useful
+- Use curiosity, storytelling, emotion, suspense, and relatability
+- Avoid old Facebook-style captions
+- Avoid random pidgin
+- Avoid generic motivational quotes
 - Avoid long explanations
-- Prioritize virality, clarity, and copy-ready content
 """
 
 PROMPTS = {
-    "hooks": """Create 10 short TikTok hooks for: {topic}
+    "hooks": """You are a top Nigerian TikTok strategist.
+
+Create 10 viral TikTok OPENING LINES for:
+
+TOPIC: {topic}
 
 Rules:
-- Max 12 words each
-- Nigerian TikTok style
-- Scroll-stopping
+- Make people curious immediately
+- Sound like real TikTok videos
+- Short and punchy
+- Gen-Z Nigerian style
+- No old Facebook-style jokes
+- No random pidgin
 - No explanation
 
-Format:
+Good style:
+- POV: Nigerians can joke about literally anything 😭
+- This happened and I’m still embarrassed…
+- I didn’t expect this to happen 😂
+- Why is nobody talking about this?
+- If you understand this, you grew up in Nigeria
+
+Output only:
 1. ...
 2. ...
 3. ...""",
@@ -49,51 +67,45 @@ Format:
     "captions": """Create 10 short TikTok captions for: {topic}
 
 Rules:
-- Short and clean
+- Short
+- Clean
+- Comment-worthy
 - Nigerian creator style
-- Mix emotional, funny, bold, and CTA captions
-- Include hashtags only where useful
 - No long explanation
 
-Format:
-1. ...
-2. ...
-3. ...""",
+Output only numbered captions.""",
 
-    "hashtags": """Create 5 clean hashtag sets for: {topic}
+    "hashtags": """Create 5 hashtag sets for: {topic}
 
 Rules:
-- 6 to 8 hashtags per set
-- Mix big, niche, and Nigerian tags
-- Keep it simple
+- 6 hashtags per set
+- Mix broad, niche, and Nigerian hashtags
+- Clean and copy-ready
 
-Format:
+Output:
 Set 1: ...
 Set 2: ...""",
 
     "bio": """Create 5 TikTok bios for: {topic}
 
 Rules:
-- Short
+- Under 80 characters
 - Clean
-- Nigerian flavour
-- Under 80 characters each
+- Creator-friendly
+- Nigerian flavour where useful
 
-Format:
-1. ...
-2. ...
-3. ...""",
+Output only numbered bios.""",
 
-    "pov": """Create 5 SHORT viral Nigerian TikTok POV ideas for: {topic}
+    "pov": """Create 5 short viral TikTok POV ideas for: {topic}
 
 Rules:
 - One sentence each
 - Relatable
-- Funny, emotional, dramatic, or real
-- Nigerian TikTok style
+- Modern TikTok style
+- Nigerian where useful
 - No explanation
 
-Format:
+Output:
 1. POV: ...
 2. POV: ...
 3. POV: ..."""
@@ -171,18 +183,18 @@ def free_uses_remaining(user_id):
     return max(0, FREE_LIMIT - usage.get("count", 0))
 
 
-def send_message(chat_id, text, parse_mode=None):
+def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text
-    }
-
-    if parse_mode:
-        payload["parse_mode"] = parse_mode
 
     try:
-        requests.post(url, json=payload, timeout=10)
+        requests.post(
+            url,
+            json={
+                "chat_id": chat_id,
+                "text": text
+            },
+            timeout=10
+        )
     except Exception as e:
         print(f"Telegram error: {e}")
 
@@ -191,7 +203,14 @@ def send_typing(chat_id):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction"
 
     try:
-        requests.post(url, json={"chat_id": chat_id, "action": "typing"}, timeout=5)
+        requests.post(
+            url,
+            json={
+                "chat_id": chat_id,
+                "action": "typing"
+            },
+            timeout=5
+        )
     except Exception:
         pass
 
@@ -203,11 +222,17 @@ def ask_ai(mode, topic):
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
             ],
-            temperature=0.85,
-            max_tokens=700
+            temperature=0.9,
+            max_tokens=600
         )
 
         return response.choices[0].message.content.strip()
@@ -378,7 +403,10 @@ Go Pro for unlimited access:
         if not is_pro(user_id):
             remaining = free_uses_remaining(user_id)
             if remaining <= 2:
-                send_message(chat_id, f"💡 {remaining} free use(s) left today. Use /upgrade to go unlimited.")
+                send_message(
+                    chat_id,
+                    f"💡 {remaining} free use(s) left today. Use /upgrade to go unlimited."
+                )
 
     else:
         send_message(chat_id, "Unknown command. Use /start")
@@ -426,4 +454,7 @@ Try: /hooks your niche"""
 
 
 if __name__ == "__main__":
-    flask_app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    flask_app.run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 5000))
+    )

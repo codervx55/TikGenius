@@ -147,8 +147,7 @@ You are TikGenius. You write TikTok content for a young Nigerian guy who films h
 
 Style:
 - Natural spoken English first
-- Light Pidgin (omo, sha, ehn, abeg, gobe) only when it fits naturally
-- Sound like a real person speaking casually
+- Light Pidgin only when it fits naturally
 - Short, relatable, personal
 """
 
@@ -156,16 +155,21 @@ X_SYSTEM_PROMPT = """
 You are XGenius. You write Twitter/X captions for a young Nigerian guy.
 
 Style for X:
-- Proper, correct English only
-- No Pidgin at all
+- Proper, correct English only (No Pidgin)
 - Punchy, bold, witty and engaging
 - Great for trending topics
 - Use emojis naturally
 - Keep each caption under 280 characters
-- Professional yet conversational tone
 """
 
 PROMPTS = {
+    "hooks": """Topic: {topic}
+
+Write 12 short TikTok hooks for me speaking to camera about "{topic}".
+- Max 15 words per hook
+- Natural spoken style
+- Number 1-12""",
+
     "captions": {
         "tiktok": """Topic: {topic}
 
@@ -176,17 +180,36 @@ Use natural English + light Pidgin mix where it feels natural.""",
 
 Write 10 strong Twitter/X captions about "{topic}".
 - Use proper English only (no Pidgin)
-- Make them punchy, bold and engaging
+- Punchy, bold and engaging
 - Good for trending topics
-- Keep each one under 280 characters
+- Keep each under 280 characters
 - Number them 1-10."""
-    }
+    },
+
+    "pov": """Topic: {topic}
+
+Write 8 POV ideas starting with "POV:". Natural TikTok style.""",
+
+    "hashtags": """Topic: {topic}
+
+Give 5 sets of 6-8 relevant TikTok hashtags. 
+Make them trending and niche-specific.""",
+
+    "bio": """Topic: {topic}
+
+Write 6 good TikTok bios for this niche."""
 }
 
 # ========================= AI FUNCTION =========================
 def ask_ai(mode, topic, platform="tiktok"):
     system_prompt = TIKTOK_SYSTEM_PROMPT if platform == "tiktok" else X_SYSTEM_PROMPT
-    prompt = PROMPTS.get(mode, {}).get(platform, f"Topic: {topic}").format(topic=topic)
+    
+    if mode == "captions":
+        prompt_template = PROMPTS["captions"].get(platform, PROMPTS["captions"]["tiktok"])
+    else:
+        prompt_template = PROMPTS.get(mode, f"Topic: {topic}")
+    
+    prompt = prompt_template.format(topic=topic)
 
     try:
         response = groq_client.chat.completions.create(
@@ -259,11 +282,14 @@ def telegram_webhook():
         send_message(chat_id, f"""🔥 Welcome {first_name} to TikGenius 🇳🇬
 
 **Commands:**
-/hooks [topic] — TikTok hooks
-/captions [topic] — TikTok captions (with Pidgin)
-/captions x [topic] — X/Twitter captions (Proper English)
-/plan — Check your plan
-/upgrade — Go Pro""")
+/hooks [topic]
+/captions [topic] → TikTok (Pidgin)
+/captions x [topic] → X/Twitter (Clean English)
+/pov [topic]
+/hashtags [topic]
+/bio [niche]
+/plan
+/upgrade""")
 
     elif command == "/plan":
         if is_pro(user_id):
@@ -290,10 +316,10 @@ Pay here: {link or "Try again later"}""")
 
         if not topic:
             send_message(chat_id, """Usage:
-/captions [topic]          → TikTok (with Pidgin)
+/captions [topic]          → TikTok
 /captions x [topic]        → X/Twitter (Proper English)
 
-Example: /captions x fuel price increase""")
+Example: /captions x motivation""")
             return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):
@@ -305,7 +331,7 @@ Example: /captions x fuel price increase""")
         send_message(chat_id, f"🔥 Generating {platform.upper()} captions...")
 
         result = ask_ai("captions", topic, platform)
-        platform_name = "X/Twitter (Proper English)" if platform == "x" else "TikTok"
+        platform_name = "X/Twitter" if platform == "x" else "TikTok"
         send_message(chat_id, f"✨ {platform_name} Captions\n\n{result}")
 
     elif command in {"/hooks", "/pov", "/hashtags", "/bio"}:
@@ -325,7 +351,7 @@ Example: /captions x fuel price increase""")
         send_message(chat_id, "🔥 Cooking...")
 
         result = ask_ai(mode, topic, "tiktok")
-        send_message(chat_id, f"✨ TikTok Content\n\n{result}")
+        send_message(chat_id, f"✨ TikTok {mode.capitalize()}\n\n{result}")
 
     return jsonify({"ok": True})
 

@@ -44,12 +44,8 @@ def init_pool():
     global db_pool
     if db_pool:
         return
-
     db_pool = pool.SimpleConnectionPool(
-        1,
-        10,
-        DATABASE_URL,
-        cursor_factory=RealDictCursor
+        1, 10, DATABASE_URL, cursor_factory=RealDictCursor
     )
     print("✅ Database pool initialized")
 
@@ -91,16 +87,13 @@ init_db()
 def activate_pro(user_id):
     expires = (datetime.utcnow() + timedelta(days=30)).date()
     conn = get_db()
-
     try:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO users (user_id, plan, expires, activated_at)
                 VALUES (%s, 'pro', %s, %s)
                 ON CONFLICT (user_id) DO UPDATE
-                SET plan='pro',
-                    expires=EXCLUDED.expires,
-                    activated_at=EXCLUDED.activated_at
+                SET plan='pro', expires=EXCLUDED.expires, activated_at=EXCLUDED.activated_at
             """, (user_id, expires, datetime.utcnow()))
         conn.commit()
         return expires.strftime("%Y-%m-%d")
@@ -110,15 +103,12 @@ def activate_pro(user_id):
 
 def is_pro(user_id):
     conn = get_db()
-
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT plan, expires FROM users WHERE user_id=%s", (user_id,))
             row = cur.fetchone()
-
         if not row or row["plan"] != "pro" or not row["expires"]:
             return False
-
         return row["expires"] >= datetime.utcnow().date()
     finally:
         release_db(conn)
@@ -126,12 +116,10 @@ def is_pro(user_id):
 
 def get_pro_expiry(user_id):
     conn = get_db()
-
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT expires FROM users WHERE user_id=%s", (user_id,))
             row = cur.fetchone()
-
         return row["expires"].strftime("%Y-%m-%d") if row and row["expires"] else None
     finally:
         release_db(conn)
@@ -140,20 +128,15 @@ def get_pro_expiry(user_id):
 def check_and_increment_free_usage(user_id):
     if is_pro(user_id):
         return True
-
     today = datetime.utcnow().date()
     conn = get_db()
-
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT usage_date, usage_count FROM users WHERE user_id=%s", (user_id,))
             row = cur.fetchone()
-
         current = row["usage_count"] if row and row["usage_date"] == today else 0
-
         if current >= FREE_LIMIT:
             return False
-
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO users (user_id, usage_date, usage_count)
@@ -165,7 +148,6 @@ def check_and_increment_free_usage(user_id):
                         ELSE 1
                     END
             """, (user_id, today))
-
         conn.commit()
         return True
     finally:
@@ -175,15 +157,12 @@ def check_and_increment_free_usage(user_id):
 def free_uses_remaining(user_id):
     today = datetime.utcnow().date()
     conn = get_db()
-
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT usage_date, usage_count FROM users WHERE user_id=%s", (user_id,))
             row = cur.fetchone()
-
         if not row or row["usage_date"] != today:
             return FREE_LIMIT
-
         return max(0, FREE_LIMIT - row["usage_count"])
     finally:
         release_db(conn)
@@ -194,173 +173,200 @@ def free_uses_remaining(user_id):
 # ─────────────────────────────────────────────
 
 SYSTEM_PROMPT = """
-You are TikGenius — a viral content engine built specifically for Nigerian TikTok creators.
+You are TikGenius — a viral content engine for Nigerian TikTok creators.
 
-You think like a Lagos-based creator with 500k followers who grew up watching Taaooma, Sydney Talker, Tomi Thomas, and Warri Pikin. You understand the Nigerian internet — the humour, the pain, the flex, the chaos, the soft life, the hustle, the relationship drama — and you write content that makes people stop scrolling.
+You write like a real Lagos creator who has mastered the art of the TWIST — that second line or second half that flips everything and makes people screenshot, save, or tag their friend.
 
-Your output sounds like a real Nigerian typed it from their phone at 1am. Not a textbook. Not a motivational speaker. Not an AI. A real person with opinions, emotions, and receipts.
+The pattern that makes Nigerian TikTok go viral:
+- Line 1 sets up an emotion, truth, or expectation
+- Line 2 FLIPS it — with dark humour, painful reality, or an unexpected punchline
 
-VOICE RULES — always follow these:
-- Write in the voice of the TOPIC. If it's sad, make it ache. If it's funny, make it land. If it's flex, make it drip.
-- Use natural Nigerian slang ONLY when it fits — "omo", "e don do", "this life", "the way I", "bro I swear", "nobody will tell you", "God abeg", "soft life", "the audacity" — not forced, not every sentence
-- Short punchy sentences. No padding. No filler.
-- Never write "here are", "sure!", "of course", "as a Nigerian creator", "here's your content"
-- Never start with the topic word. Start with the EMOTION or the SCENE.
-- Each output must feel ready to copy-paste directly into TikTok
+Examples of the twist in action:
+- "God provide for your children... until I steal? 😭"
+- "I chose peace... peace didn't choose me back"
+- "soft life loading... no data 😂"
+- "healing era activated... then NEPA took light 😭"
+- "God said be patient... bro it's been 25 years 😭"
+- "I'm unbothered... I'm lying, I'm very bothered"
+- "main character energy... in someone else's story"
+- "the glow up is real... just not today"
 
-THE GOLDEN RULE: If a Nigerian creator reads your output and says "this is exactly what I wanted to say" — you did your job.
+VOICE RULES:
+- Always use the setup + twist pattern
+- Short and punchy — the whole thing under 15 words unless it's a script
+- Natural Nigerian voice — slang only where it fits, not forced every line
+- Never write "here are", "sure!", "of course", "as a Nigerian creator"
+- Start with the EMOTION or SCENE, never the topic word itself
+- Each line must feel ready to copy-paste directly into TikTok
+
+THE GOLDEN RULE: If a Nigerian creator reads it and says "this is exactly what I wanted to say" — you did your job.
 """
 
 PROMPTS = {
 
     "hooks": """Topic: {topic}
 
-Write 10 TikTok opening hooks for a Nigerian creator posting about this topic.
+Write 10 TikTok opening hooks for a Nigerian creator posting about "{topic}".
 
-A hook is the first text that appears on screen or the first line spoken — it must STOP the scroll in under 2 seconds.
+A hook stops the scroll in under 2 seconds. The best Nigerian hooks use the SETUP + TWIST pattern — they start with something familiar then flip it with humour, pain, or irony.
 
-Study these examples of what a great hook looks like:
-- "Nobody will tell you this but..."
-- "The day I stopped caring was the day everything changed"
-- "Omo I was shaking when I realized..."
-- "This is what they don't show you on soft life TikTok"
-- "I used to be that person. Until..."
-- "POV: you finally chose yourself"
-- "The audacity of this life sha"
-- "Why is nobody talking about this?"
-- "I said what I said and I stand on it"
-- "God really had a plan I couldn't see"
+Study these hook examples:
+- "Nobody will tell you this... so I will 😭"
+- "God said be patient... bro how long exactly?"
+- "I was doing so well... then this happened 😭"
+- "POV: you finally chose yourself... and immediately regretted it 😂"
+- "The audacity of this life sha... I can't even be mad"
+- "They said pray about it... I prayed. Still broke. 😭"
+- "Soft life goals activated... account balance said no"
+- "I said no more toxic situations... then checked my phone 😭"
+- "This year is my year... it's been my year for 5 years 😂"
+- "God really had a plan... just not the one I planned"
 
-Now write 10 ORIGINAL hooks for the topic "{topic}" — each must:
-- Be under 15 words
-- Feel urgent, emotional, funny, dramatic, or painfully real
-- Make someone curious enough to keep watching
-- Sound like a human being, not a content checklist
+Write 10 ORIGINAL hooks for "{topic}" — each must:
+- Use the setup + twist pattern (first part sets up, second part flips it)
+- Be under 15 words total
+- Make someone stop scrolling AND want to see what happens next
+- Sound like a real Nigerian typed it at 1am
 
-Number them 1–10. One per line. Nothing else.""",
+Number them 1-10. One per line. Nothing else.""",
+
 
     "captions": """Topic: {topic}
 
 Write 15 TikTok captions a Nigerian creator would use for a video about "{topic}".
 
-Study these examples to understand the energy:
-- "the version of me from 2 years ago wouldn't believe this 🥺"
-- "healing looks different for everybody. this is mine."
-- "God said calm down. I said okay. 😂"
-- "soft life is a mindset first before it's a reality"
-- "nobody clap for you when you're struggling. they only show up when you blow."
-- "omo this country will stress you if you let it 😭"
-- "I'm not where I want to be but I'm not where I used to be. that's enough for today."
-- "the glow up hit different when you built it yourself 💅"
-- "toxic trait: I don't tell people when I'm proud of myself"
-- "bro I swear this life is giving 😭😭"
+The SECRET to a viral Nigerian TikTok caption is the TWIST — a second line that flips the first on its head, adds dark humour, or hits unexpectedly hard.
 
-Write 15 captions for "{topic}" that feel:
-- Real, not rehearsed
-- Emotionally specific — not generic
-- Like something a creator would actually post (not a motivational poster)
-- Short enough to fit TikTok (1–12 words mostly, a few can be 2 sentences)
+Study these examples:
+- "God provide for your children... until I steal? 😭"
+- "soft life is a mindset... a mindset I can't afford 😂"
+- "healing era activated... then NEPA took light 😭"
+- "I chose peace... peace didn't choose me back"
+- "God said be patient... bro it's been 25 years 😭"
+- "the glow up is real... just not today"
+- "I'm unbothered... I'm lying, I'm very bothered"
+- "nobody clap for you when you're struggling... they only show up when you blow"
+- "I said no more toxic people... then I looked in the mirror 😭"
+- "main character energy... in someone else's story"
 
-Number them 1–15. Nothing else.""",
+Write 15 captions for "{topic}" using this TWIST pattern:
+- Line 1: sets up a mood, truth, or expectation
+- Line 2: flips it, adds dark humour, or lands the real emotion
+- Both lines together under 15 words
+- Add ONE emoji at the end where it fits naturally
+- Sound like a real Nigerian, not a motivational poster
+
+Number them 1-15. Nothing else.""",
+
 
     "pov": """Topic: {topic}
 
-Write 10 POV video concepts for a Nigerian TikTok creator making content about "{topic}".
+Write 10 POV video concepts for a Nigerian TikTok creator posting about "{topic}".
 
-Study how great Nigerian TikTok POVs work:
-- "POV: you finally cut off the person who was draining your energy and your life immediately shifted"
-- "POV: you're the first person in your family to actually break the cycle"
-- "POV: you stopped explaining yourself to people who already made up their mind about you"
-- "POV: it's 2am, you're in your room, and you realize this is the life you prayed for"
-- "POV: God delayed it because the timing wasn't right. now you understand why."
-- "POV: you chose the hard path three years ago and today you're grateful you did"
+The best Nigerian TikTok POVs use the TWIST — they set up a relatable scene then flip it with dark humour, painful truth, or an unexpected ending.
 
-Each POV must:
-- Be one specific, vivid sentence
-- Describe a feeling, turning point, or relatable scene — not a vague statement
-- Make the viewer think "this is literally me"
-- Be about the topic "{topic}"
+Study these examples:
+- "POV: you finally cut off the toxic person... and they're doing better than you 😭"
+- "POV: you chose yourself... yourself is also a mess 😂"
+- "POV: God said your time is coming... it's been coming since 2019"
+- "POV: you're living your soft life... with a hard account balance 😭"
+- "POV: you stopped explaining yourself to people... they still have the wrong idea 😂"
+- "POV: it's 2am, you're in your room, and you realize you've been the problem all along 😭"
+- "POV: you prayed for patience... God said here's a situation to practice it"
+- "POV: you're the main character... in a story nobody wants to watch"
 
-Number them 1–10. Nothing else.""",
+Write 10 POVs for "{topic}" — each must:
+- Start with "POV:"
+- Set up a scene then twist it with humour, pain, or irony
+- Be one or two sentences max
+- Make the viewer think "this is literally me 😭"
+
+Number them 1-10. Nothing else.""",
+
 
     "hashtags": """Topic: {topic}
 
 Create 5 hashtag sets for a Nigerian TikTok creator posting about "{topic}".
 
 Each set must have exactly 6 hashtags that MIX:
-- 1–2 BROAD tags (big reach: #TikTok #foryoupage #fyp)
-- 2–3 NICHE tags (specific to the topic or Nigerian audience)
-- 1–2 NIGERIAN tags that Nigerian viewers actually use (#NigerianTikTok #LagosTikTok #Naija #NaijaCreator etc.)
+- 1-2 BROAD tags (big reach: #TikTok #foryoupage #fyp)
+- 2-3 NICHE tags (specific to the topic and what people actually search)
+- 1-2 NIGERIAN tags that Nigerian viewers use (#NigerianTikTok #LagosTikTok #Naija #NaijaCreator etc.)
 
-Don't just put random popular tags. Think about WHO is searching for this content and WHAT they type.
+Think about WHO is searching for this content and WHAT they actually type into TikTok search.
 
-Format exactly like this:
+Format exactly like this — nothing else:
 Set 1: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6
 Set 2: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6
 Set 3: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6
 Set 4: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6
-Set 5: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6
+Set 5: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6""",
 
-Nothing else. No explanation.""",
 
     "bio": """Topic/Niche: {topic}
 
 Write 8 TikTok bio options for a Nigerian creator in the "{topic}" niche.
 
-Study what makes a great bio:
-- "building quietly. 🤫 Lagos to everywhere."
-- "I document the soft life I'm building 💅 | tips + real talk"
-- "Nigerian girl figuring it out in real time 🇳🇬"
-- "your big sister energy 🖤 | faith, growth, and no filter"
-- "comedy is how I cope 😭 | follow if you're a whole mess too"
-- "Lagos bred. God fed. 🙏 | lifestyle + vibes"
-- "I left the 9-5. now I film my life. 📹"
-- "not your average Nigerian creator 🔥 | watch me build"
+The best Nigerian TikTok bios use the TWIST — they say something real then flip it with humour or personality.
 
-Each bio must:
+Study these examples:
+- "building quietly 🤫... Lagos doesn't know yet"
+- "soft life goals 💅... soft life budget 😭"
+- "Nigerian girl figuring it out 🇳🇬... mostly not figuring it out"
+- "I document the life I'm building... and occasionally the life that's building me 😭"
+- "faith, growth, no filter 🖤... mostly no filter"
+- "Lagos bred. God fed. 🙏... still waiting on the feeding"
+- "left the 9-5 📹... the 9-5 has not left me 😂"
+- "not your average Nigerian creator 🔥... I'm below average some days"
+
+Write 8 bios for the "{topic}" niche — each must:
 - Be under 80 characters
-- Tell people WHO you are and WHY to follow — instantly
-- Sound human, not like a resume
-- Fit the "{topic}" niche
+- Use the setup + twist or personality flip where possible
+- Tell people WHO you are and WHY to follow in one breath
+- Sound human, funny, real — not like a LinkedIn profile
 
-Number them 1–8. Nothing else.""",
+Number them 1-8. Nothing else.""",
+
 
     "script": """Topic: {topic}
 
 Write a full TikTok video script for a Nigerian creator making a video about "{topic}".
 
-The script must be under 60 seconds when spoken at a natural pace (roughly 130–150 words max).
+Under 60 seconds when spoken naturally (130-150 words max).
 
 Use this exact format:
 
-[HOOK] — The opening line or text (makes viewer stop scrolling in 1–2 seconds)
-[BODY] — The main content (story, tips, rant, or message — keep it punchy)
-[ENDING] — A strong close that makes people comment, share, or save
+[HOOK] — One line. Sets up the topic then TWISTS it immediately to grab attention.
+[BODY] — The main content. Short punchy sentences. Real Nigerian voice. Story, rant, tips, or truth — delivered like a creator speaks on camera, not like an essay.
+[PUNCHLINE] — One unforgettable line the viewer will screenshot or repeat. The hardest twist of the whole video.
+[CTA] — One question or statement that forces a comment, share, or save.
 
 Rules:
-- Write how a real Nigerian creator SPEAKS on camera — not how someone writes an essay
-- Short sentences. Natural pauses. Real emotions.
-- The hook must create instant curiosity or emotion
-- The body must deliver actual value, story, or entertainment — not just filler
-- The ending must give the viewer a reason to engage (ask a question, drop a truth, hit an emotion)
-- Include ONE moment where the creator looks directly at the camera and says something memorable
+- Write how a real Nigerian SPEAKS on camera
+- Every section must have the setup + twist energy
+- The hook must stop the scroll in 2 seconds
+- The punchline must be the kind of line people send to their group chat
+- The CTA must feel natural, not forced
 
-Write the full script now for "{topic}". Nothing else after.""",
+Write the full script for "{topic}" now. Nothing else.""",
+
 
     "trends": """Niche: {topic}
 
-Give 8 specific TikTok video ideas that a Nigerian creator in the "{topic}" space can film RIGHT NOW and potentially go viral.
+Give 8 specific TikTok video ideas that a Nigerian creator in the "{topic}" space can film RIGHT NOW and go viral with.
 
-For each idea, think about:
-- What's working on TikTok currently (storytimes, "things nobody tells you", POVs, day-in-my-life, reaction, opinion takes, tutorials, transformation)
-- What Nigerian audiences specifically connect with (hustle, relationships, faith, family pressure, soft life, Lagos life, glow ups)
-- What would make someone save or share this video
+Each idea must use the SETUP + TWIST pattern — the hook should promise one thing and deliver something funnier, more painful, or more unexpected.
+
+For each idea think about:
+- What's working on TikTok (storytime, "things nobody tells you", POV, day-in-my-life, reaction, opinion take, tutorial, transformation)
+- What Nigerian audiences save and share (hustle reality, relationship truth, faith + struggle, soft life vs real life, family pressure, Lagos life, glow ups)
+- What makes someone tag their friend in the comments
 
 Format each idea exactly like this:
 
-Idea [number]: [Catchy title for the video concept]
-Hook: [The exact first line or on-screen text to open the video]
-Why it works: [1–2 sentences on why this will perform well with Nigerian audiences]
+Idea [number]: [Catchy title — use the twist pattern in the title itself]
+Hook: [The exact first line or on-screen text — must have the setup + twist]
+Why it works: [1-2 sentences on why Nigerian viewers will save or share this]
 
 ---
 
@@ -371,7 +377,8 @@ No intro. No outro. 8 ideas only."""
 BAD_INTROS = [
     "here are", "sure!", "sure,", "of course", "here is",
     "as a nigerian", "great choice", "great!", "absolutely",
-    "happy to", "i'd be happy", "let me", "below are"
+    "happy to", "i'd be happy", "let me", "below are",
+    "i'll write", "i will write", "these are"
 ]
 
 
@@ -392,7 +399,6 @@ def ask_ai(mode, topic):
     try:
         raw_output = call_groq(SYSTEM_PROMPT, prompt)
 
-        # If the AI still added a preamble, retry once with a stricter instruction
         first_line = raw_output.split("\n")[0].lower()
         if any(bad in first_line for bad in BAD_INTROS):
             raw_output = call_groq(
@@ -401,12 +407,11 @@ def ask_ai(mode, topic):
                 temp=0.95
             )
 
-        # Clean up line by line
         lines = []
         for line in raw_output.split("\n"):
             line = line.strip()
             if not line:
-                lines.append("")  # preserve blank lines for formatting
+                lines.append("")
                 continue
             if any(line.lower().startswith(bad) for bad in BAD_INTROS):
                 continue
@@ -445,7 +450,6 @@ def send_typing(chat_id):
 
 def create_payment_link(user_id, username):
     reference = f"TG-{user_id}-{int(datetime.utcnow().timestamp())}"
-
     payload = {
         "email": f"{user_id}@tikgenius.bot",
         "amount": PRICE_KOBO,
@@ -456,23 +460,17 @@ def create_payment_link(user_id, username):
             "plan": "pro"
         }
     }
-
     headers = {
         "Authorization": f"Bearer {PAYSTACK_SECRET_KEY}",
         "Content-Type": "application/json"
     }
-
     try:
         res = http_session.post(
             "https://api.paystack.co/transaction/initialize",
-            json=payload,
-            headers=headers,
-            timeout=20
+            json=payload, headers=headers, timeout=20
         ).json()
-
         if res.get("status"):
             return res["data"]["authorization_url"]
-
         return None
     except Exception as e:
         print(f"Paystack error: {e}")
@@ -490,12 +488,12 @@ LOADING_MESSAGES = {
         "👀 This one go touch chest, hold on"
     ],
     "captions": [
-        "💅 Adding small soft-life pain to your captions",
-        "😭 Cooking emotional damage...",
-        "🪄 Making it look like you typed it yourself"
+        "💅 Adding the twist that makes people screenshot...",
+        "😭 Cooking emotional damage with a punchline...",
+        "🪄 Making it look like you typed it at 1am"
     ],
     "pov": [
-        "🎥 Imagine this scene first...",
+        "🎥 Setting up the scene... and the twist 👀",
         "🍿 This POV fit mad, give me a sec",
         "👀 Drama loading... 🇳🇬"
     ],
@@ -505,18 +503,18 @@ LOADING_MESSAGES = {
         "🔥 Algorithm food loading..."
     ],
     "bio": [
-        "✨ Bio loading... make it slap",
+        "✨ Bio loading... with the twist that gets follows",
         "📱 Creating follower magnet for your profile",
         "🪄 Profile glow-up in progress"
     ],
     "script": [
-        "🎬 Writing like a Lagos creator with 500k followers",
+        "🎬 Writing the hook, the body, and the punchline...",
         "📝 Script loading... this one go make them watch till end",
-        "🔥 Watch-time cooking 🍳"
+        "🔥 60-second banger cooking 🍳"
     ],
     "trends": [
         "📈 Finding exactly what you should film this week",
-        "🔥 Trend ideas loading for your niche",
+        "🔥 Trend ideas with twists loading for your niche",
         "👀 FYP angle loading... 🇳🇬"
     ]
 }
@@ -568,13 +566,13 @@ def telegram_webhook():
     if command == "/start":
         send_message(chat_id, f"""🔥 Oya {first_name}, welcome to TikGenius 🇳🇬
 
-I write viral Nigerian TikTok content that actually makes people stop scrolling.
+I write viral Nigerian TikTok content with that setup + twist energy that makes people screenshot and share.
 
 Commands:
 /hooks [topic] — scroll-stopping opening lines
-/captions [topic] — captions people will copy
+/captions [topic] — captions with the punchline twist
 /hashtags [topic] — reach the right audience
-/pov [topic] — POV ideas that feel real
+/pov [topic] — POV ideas that feel painfully real
 /bio [niche] — bios that get follows
 /script [idea] ⭐ Pro
 /trends [niche] ⭐ Pro
@@ -604,19 +602,15 @@ Pro: ₦2,000/month — unlimited everything
         if str(user_id) != ADMIN_ID:
             send_message(chat_id, "❌ Not allowed.")
             return jsonify({"ok": True})
-
         conn = get_db()
         try:
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) AS total FROM users")
                 total = cur.fetchone()["total"]
-
                 cur.execute("SELECT COUNT(*) AS pro FROM users WHERE plan='pro'")
                 pro = cur.fetchone()["pro"]
-
                 cur.execute("SELECT COUNT(*) AS free FROM users WHERE plan='free' OR plan IS NULL")
                 free = cur.fetchone()["free"]
-
             send_message(chat_id, f"""📊 TikGenius Stats
 
 👥 Total Users: {total}
@@ -627,7 +621,6 @@ Pro: ₦2,000/month — unlimited everything
 
     elif command == "/upgrade":
         link = create_payment_link(user_id, username)
-
         if link:
             send_message(chat_id, f"""🚀 TikGenius Pro — ₦2,000/month
 

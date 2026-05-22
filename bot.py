@@ -41,34 +41,29 @@ db_pool = None
 # ========================= DATABASE =========================
 def init_pool():
     global db_pool
-    if db_pool:
-        return
+    if db_pool: return
     db_pool = pool.SimpleConnectionPool(1, 10, DATABASE_URL, cursor_factory=RealDictCursor)
     print("✅ Database pool initialized")
 
 def get_db():
-    if not db_pool:
-        init_pool()
+    if not db_pool: init_pool()
     return db_pool.getconn()
 
 def release_db(conn):
-    if db_pool and conn:
-        db_pool.putconn(conn)
+    if db_pool and conn: db_pool.putconn(conn)
 
 def init_db():
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    user_id BIGINT PRIMARY KEY,
-                    plan TEXT DEFAULT 'free',
-                    expires DATE,
-                    activated_at TIMESTAMP,
-                    usage_date DATE,
-                    usage_count INTEGER DEFAULT 0
-                )
-            """)
+            cur.execute("""CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY,
+                plan TEXT DEFAULT 'free',
+                expires DATE,
+                activated_at TIMESTAMP,
+                usage_date DATE,
+                usage_count INTEGER DEFAULT 0
+            )""")
         conn.commit()
         print("✅ Database schema ready")
     finally:
@@ -116,8 +111,7 @@ def get_pro_expiry(user_id):
         release_db(conn)
 
 def check_and_increment_free_usage(user_id):
-    if is_pro(user_id):
-        return True
+    if is_pro(user_id): return True
     today = datetime.utcnow().date()
     conn = get_db()
     try:
@@ -125,170 +119,104 @@ def check_and_increment_free_usage(user_id):
             cur.execute("SELECT usage_date, usage_count FROM users WHERE user_id=%s", (user_id,))
             row = cur.fetchone()
         current = row["usage_count"] if row and row["usage_date"] == today else 0
-        if current >= FREE_LIMIT:
-            return False
+        if current >= FREE_LIMIT: return False
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO users (user_id, usage_date, usage_count)
                 VALUES (%s, %s, 1)
                 ON CONFLICT (user_id) DO UPDATE
                 SET usage_date=EXCLUDED.usage_date,
-                    usage_count=CASE
-                        WHEN users.usage_date=EXCLUDED.usage_date THEN users.usage_count + 1
-                        ELSE 1
-                    END
+                    usage_count=CASE WHEN users.usage_date=EXCLUDED.usage_date THEN users.usage_count + 1 ELSE 1 END
             """, (user_id, today))
         conn.commit()
         return True
     finally:
         release_db(conn)
 
+def free_uses_remaining(user_id):
+    today = datetime.utcnow().date()
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT usage_date, usage_count FROM users WHERE user_id=%s", (user_id,))
+            row = cur.fetchone()
+        if not row or row["usage_date"] != today:
+            return FREE_LIMIT
+        return max(0, FREE_LIMIT - row["usage_count"])
+    finally:
+        release_db(conn)
+
 # ========================= AI PROMPTS =========================
 SYSTEM_PROMPT = """
-You are TikGenius — the best Nigerian TikTok content ghostwriter.
-
-You understand real Nigerian internet language. You mix **English and Pidgin naturally** like actual Nigerian creators on TikTok and Twitter.
-
-**Language Style (Very Important):**
-- Use mostly clear English with natural Pidgin sprinkles (omo, ehn, sha, abeg, wetin, gobe, e don do, etc.)
-- Do NOT overuse Pidgin in every sentence. Make it flow naturally.
-- Example of good balance: "Omo, this life is not easy sha... but God abeg provide"
-- Sound like a real young Nigerian typing — emotional, relatable, funny, not forced Pidgin.
-
-THE VIRAL FORMULA:
-Every content must have **Setup + Twist** — relatable truth followed by painful/funny Nigerian reality.
-
-STRICT RULES:
-- Never sound like full Pidgin or broken English.
-- Never start with "Here are", "Sure", "As a Nigerian", etc.
-- Make it feel like "Na me write this one" for Nigerian creators.
-- Keep it emotional and screenshot-worthy.
+You are TikGenius. Mix clear English with natural Pidgin (omo, sha, abeg, ehn, gobe, e don do) — not too much Pidgin.
 """
 
 PROMPTS = {
     "hooks": """Topic: {topic}
 
-Write 12 powerful TikTok hooks about "{topic}".
+Write 12 very short TikTok hooks (max 15 words each) for "{topic}".
 
-Use natural mix of English + light Pidgin. Make them emotional and scroll-stopping with setup + twist.
+Punchy, scroll-stopping with setup + twist.
+Natural English + light Pidgin.
 
-Number 1-12. One per line. Nothing else.""",
+Number 1-12. One per line.""",
 
     "captions": """Topic: {topic}
 
-Write 15 viral TikTok captions for "{topic}".
-
-Rules:
-- Mostly English with natural Pidgin touches
-- Line 1: Setup (relatable)
-- Line 2: Twist (pain/humor/reality)
-- Add one emoji where it fits
-
-Example good style:
-"God abeg provide for me... but my village people don collect the alert 😭"
-"Soft life is calling... but my account balance said not yet sha"
-
-Number them 1-15. Only the captions.""",
+Write 15 captions. Line 1 setup, Line 2 twist. Natural mix.""",
 
     "pov": """Topic: {topic}
 
-Write 10 relatable POV ideas for "{topic}".
-
-Start each with "POV:". Use natural English + Pidgin mix. Make them feel very Nigerian.
-
-Number 1-10.""",
+Write 10 POVs starting with "POV:". Natural mix.""",
 
     "hashtags": """Topic: {topic}
 
-Create 5 strong hashtag sets (exactly 6 each) for "{topic}".
-
-Format:
-Set 1: #tag1 #tag2 ...""",
+5 sets of exactly 6 hashtags.""",
 
     "bio": """Topic/Niche: {topic}
 
-Write 8 fire TikTok bios. Natural English + Pidgin mix. Under 75 characters each.
-
-Number 1-8.""",
+8 short bios with personality.""",
 
     "script": """Topic: {topic}
 
-Write a full TikTok script about "{topic}".
-
-Use this format:
-
-[HOOK] — Strong scroll-stopper with twist
-
-[BODY] — 4-6 short natural sentences (speak like real Nigerian on camera)
-
-[PUNCHLINE] — One hard-hitting line
-
-[CTA] — Call to action
-
-Natural English + Pidgin mix.""",
+Full script format: [HOOK] [BODY] [PUNCHLINE] [CTA]""",
 
     "trends": """Niche: {topic}
 
-Give 8 fresh viral TikTok video ideas for "{topic}".
-
-Format:
-Idea 1: [Title with twist]
-Hook: [First line]
-Why it works: [Short reason]"""
+8 viral video ideas."""
 }
 
-BAD_INTROS = ["here are", "sure!", "of course", "as a nigerian", "i will", "let me", "below are"]
+BAD_INTROS = ["here are", "sure!", "of course", "as a nigerian"]
 
-# ========================= AI FUNCTION =========================
 def ask_ai(mode, topic):
     prompt = PROMPTS[mode].format(topic=topic)
-
-    def call_groq(system, user_prompt, temp=0.88):
-        return groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=temp,
-            max_tokens=1500
-        ).choices[0].message.content.strip()
-
     try:
-        raw_output = call_groq(SYSTEM_PROMPT, prompt)
-
-        lines = [line.strip() for line in raw_output.split("\n") if line.strip()]
-        cleaned = []
-        for line in lines:
-            if any(bad in line.lower() for bad in BAD_INTROS):
-                continue
-            cleaned.append(line)
-
-        final = "\n".join(cleaned).strip()
-
-        if len(final) < 100:
-            final = call_groq(SYSTEM_PROMPT, prompt, temp=0.92)
-
-        return final
-
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+            temperature=0.85,
+            max_tokens=1200
+        )
+        raw = response.choices[0].message.content.strip()
+        lines = [line.strip() for line in raw.split("\n") if line.strip()]
+        cleaned = [line for line in lines if not any(bad in line.lower() for bad in BAD_INTROS)]
+        return "\n".join(cleaned)
     except Exception as e:
         print(f"Groq Error: {e}")
-        return "⚠️ TikGenius brain dey buffer. Try again."
+        return "⚠️ Try again."
 
-# ========================= TELEGRAM HELPERS =========================
+# ========================= TELEGRAM =========================
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
         http_session.post(url, json={"chat_id": chat_id, "text": text}, timeout=10)
-    except Exception as e:
-        print(f"Telegram error: {e}")
+    except: pass
 
 def send_typing(chat_id):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction"
     try:
-        http_session.post(url, json={"chat_id": chat_id, "action": "typing"}, timeout=5)
-    except Exception:
-        pass
+        http_session.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction", 
+                         json={"chat_id": chat_id, "action": "typing"}, timeout=5)
+    except: pass
 
 # ========================= PAYSTACK =========================
 def create_payment_link(user_id, username):
@@ -297,88 +225,54 @@ def create_payment_link(user_id, username):
         "email": f"{user_id}@tikgenius.bot",
         "amount": PRICE_KOBO,
         "reference": reference,
-        "metadata": {
-            "telegram_id": user_id,
-            "username": username or "",
-            "plan": "pro"
-        }
+        "metadata": {"telegram_id": user_id, "username": username or "", "plan": "pro"}
     }
-    headers = {
-        "Authorization": f"Bearer {PAYSTACK_SECRET_KEY}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}", "Content-Type": "application/json"}
     try:
-        res = http_session.post(
-            "https://api.paystack.co/transaction/initialize",
-            json=payload, headers=headers, timeout=20
-        ).json()
-        if res.get("status"):
-            return res["data"]["authorization_url"]
-        return None
-    except Exception as e:
-        print(f"Paystack error: {e}")
-        return None
+        res = http_session.post("https://api.paystack.co/transaction/initialize", json=payload, headers=headers, timeout=20).json()
+        return res["data"]["authorization_url"] if res.get("status") else None
+    except: return None
 
-# ========================= LOADING MESSAGES =========================
-LOADING_MESSAGES = {
-    "hooks": ["🧠 Cooking strong hooks...", "🔥 Making them scroll-stopping..."],
-    "captions": ["💅 Adding the perfect twist..."],
-    "pov": ["🎥 POV ideas loading..."],
-    "hashtags": ["📊 Hashtags wey go blow..."],
-    "bio": ["✨ Fire bios incoming..."],
-    "script": ["🎬 Full script cooking..."],
-    "trends": ["📈 Fresh ideas dey load..."]
-}
+# ========================= LOADING & COMMANDS =========================
+LOADING_MESSAGES = {"hooks": ["🔥 Cooking short hooks..."], "captions": ["💅 Captions with twist..."]}
 
 FREE_COMMANDS = {"/hooks", "/captions", "/hashtags", "/pov", "/bio"}
 PRO_COMMANDS = {"/script", "/trends"}
 ALL_CONTENT = FREE_COMMANDS | PRO_COMMANDS
 
-EXAMPLES = {
-    "hooks": "/hooks motivation",
-    "captions": "/captions soft life",
-    "hashtags": "/hashtags Nigerian food",
-    "pov": "/pov toxic relationship",
-    "bio": "/bio content creator",
-    "script": "/script how I started making money",
-    "trends": "/trends motivation"
-}
+EXAMPLES = {"hooks": "/hooks motivation"}
 
 # ========================= ROUTES =========================
 @app.route("/", methods=["GET"])
 def home():
-    return "TikGenius is running ✅", 200
+    return "TikGenius running ✅", 200
 
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
     data = request.json or {}
     message = data.get("message", {})
-    chat = message.get("chat", {})
-    user = message.get("from", {})
-
-    chat_id = chat.get("id")
-    user_id = user.get("id")
-    username = user.get("username", "")
-    first_name = user.get("first_name", "Creator")
+    chat_id = message.get("chat", {}).get("id")
+    user_id = message.get("from", {}).get("id")
+    username = message.get("from", {}).get("username", "")
+    first_name = message.get("from", {}).get("first_name", "Creator")
     text = message.get("text", "").strip()
 
-    if not chat_id or not text:
-        return jsonify({"ok": True})
+    if not chat_id or not text: return jsonify({"ok": True})
 
     parts = text.split(" ", 1)
     command = parts[0].lower().split("@")[0]
     topic = parts[1].strip() if len(parts) > 1 else ""
 
     if command == "/start":
-        send_message(chat_id, f"""🔥 Welcome to TikGenius {first_name} 🇳🇬
+        send_message(chat_id, f"""🔥 Oya {first_name}, welcome to TikGenius 🇳🇬
 
-I create viral Nigerian TikTok content with natural English + Pidgin mix.
+I write viral Nigerian TikTok content.
 
-Commands:
-/hooks [topic]
-/captions [topic]
-/pov [topic]
+**Commands:**
+/hooks [topic] — short scroll-stopping lines
+/captions [topic] — full captions
 /hashtags [topic]
+/pov [topic]
 /bio [niche]
 /script [idea] ⭐ Pro
 /trends [niche] ⭐ Pro
@@ -386,6 +280,40 @@ Commands:
 Free: {FREE_LIMIT} uses/day | Pro: ₦2,000/month
 
 Use /plan or /upgrade""")
+
+    elif command == "/stats":
+        if str(user_id) != ADMIN_ID:
+            send_message(chat_id, "❌ Admin only.")
+            return jsonify({"ok": True})
+        conn = get_db()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) AS total FROM users")
+                total = cur.fetchone()["total"]
+                cur.execute("SELECT COUNT(*) AS pro FROM users WHERE plan='pro'")
+                pro = cur.fetchone()["pro"]
+                free = total - pro
+            send_message(chat_id, f"""📊 TikGenius Stats
+
+👥 Total Users: {total}
+💎 Pro Users: {pro}
+🆓 Free Users: {free}""")
+        finally:
+            release_db(conn)
+
+    elif command == "/plan":
+        if is_pro(user_id):
+            send_message(chat_id, f"✅ Pro Active\nExpires: {get_pro_expiry(user_id)}")
+        else:
+            send_message(chat_id, f"🆓 Free Plan\nUses left: {free_uses_remaining(user_id)}/{FREE_LIMIT}\n\n/upgrade")
+
+    elif command == "/upgrade":
+        link = create_payment_link(user_id, username)
+        send_message(chat_id, f"""🚀 TikGenius Pro — ₦2,000/month
+
+Unlimited access
+
+Pay: {link or 'Try again'}""")
 
     elif command == "/activatepro":
         if str(user_id) == ADMIN_ID:
@@ -395,33 +323,16 @@ Use /plan or /upgrade""")
         else:
             send_message(chat_id, "❌ Admin only.")
 
-    elif command == "/plan":
-        if is_pro(user_id):
-            send_message(chat_id, f"✅ You are on Pro\nExpires: {get_pro_expiry(user_id)}")
-        else:
-            send_message(chat_id, f"🆓 Free Plan\nUses left: {free_uses_remaining(user_id)}/{FREE_LIMIT}\n\nUpgrade → /upgrade")
-
-    elif command == "/upgrade":
-        link = create_payment_link(user_id, username)
-        if link:
-            send_message(chat_id, f"""🚀 Go Pro for ₦2,000/month
-
-Unlimited access + scripts & trends
-
-Pay here: {link}""")
-        else:
-            send_message(chat_id, "⚠️ Failed to generate link. Try again.")
-
     elif command in ALL_CONTENT:
         mode = command.replace("/", "")
 
         if command in PRO_COMMANDS and not is_pro(user_id):
             link = create_payment_link(user_id, username)
-            send_message(chat_id, f"🔒 This is Pro only.\nUpgrade here: {link or '/upgrade'}")
+            send_message(chat_id, f"🔒 Pro feature only.\nUpgrade: {link or '/upgrade'}")
             return jsonify({"ok": True})
 
         if not topic:
-            send_message(chat_id, f"Add a topic.\nExample: {EXAMPLES.get(mode)}")
+            send_message(chat_id, f"Example: {EXAMPLES.get(mode, '/hooks motivation')}")
             return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):
@@ -435,34 +346,27 @@ Pay here: {link}""")
         result = ask_ai(mode, topic)
         send_message(chat_id, f"✨ TikGenius\n\n{result[:3800]}")
 
-        if not is_pro(user_id):
-            remaining = free_uses_remaining(user_id)
-            if remaining <= 2:
-                send_message(chat_id, f"💡 {remaining} free uses left today.\nGo Pro → /upgrade")
-
-    else:
-        send_message(chat_id, "Unknown command. Send /start")
+        if not is_pro(user_id) and free_uses_remaining(user_id) <= 2:
+            send_message(chat_id, f"💡 {free_uses_remaining(user_id)} uses left today.")
 
     return jsonify({"ok": True})
 
 @app.route("/paystack-webhook", methods=["POST"])
 def paystack_webhook():
+    # Your existing paystack logic here (unchanged)
     signature = request.headers.get("x-paystack-signature", "")
     body = request.get_data()
-
     expected = hmac.new(PAYSTACK_SECRET_KEY.encode(), body, hashlib.sha512).hexdigest()
-
     if not hmac.compare_digest(signature, expected):
-        return jsonify({"error": "invalid signature"}), 400
+        return jsonify({"error": "invalid"}), 400
 
     event = request.json or {}
     if event.get("event") == "charge.success":
         metadata = event["data"].get("metadata", {})
-        telegram_id = metadata.get("telegram_id")
-        if telegram_id:
-            expires = activate_pro(int(telegram_id))
-            send_message(int(telegram_id), f"🎉 Pro activated successfully!\nExpires: {expires}\nTry /script now.")
-
+        tid = metadata.get("telegram_id")
+        if tid:
+            expires = activate_pro(int(tid))
+            send_message(int(tid), f"🎉 Pro activated till {expires}! Try /script now.")
     return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":

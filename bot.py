@@ -14,6 +14,7 @@ from groq import Groq
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+# ========================= CONFIG =========================
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
@@ -26,7 +27,7 @@ ADMIN_ID = "6415641863"
 app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-
+# ========================= HTTP SESSION =========================
 def get_session():
     session = requests.Session()
     retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
@@ -35,31 +36,25 @@ def get_session():
     session.mount("https://", adapter)
     return session
 
-
 http_session = get_session()
 db_pool = None
 
-
+# ========================= DATABASE =========================
 def init_pool():
     global db_pool
     if db_pool:
         return
-    db_pool = pool.SimpleConnectionPool(
-        1, 10, DATABASE_URL, cursor_factory=RealDictCursor
-    )
+    db_pool = pool.SimpleConnectionPool(1, 10, DATABASE_URL, cursor_factory=RealDictCursor)
     print("✅ Database pool initialized")
-
 
 def get_db():
     if not db_pool:
         init_pool()
     return db_pool.getconn()
 
-
 def release_db(conn):
     if db_pool and conn:
         db_pool.putconn(conn)
-
 
 def init_db():
     conn = get_db()
@@ -80,10 +75,9 @@ def init_db():
     finally:
         release_db(conn)
 
-
 init_db()
 
-
+# ========================= USER MANAGEMENT =========================
 def activate_pro(user_id):
     expires = (datetime.utcnow() + timedelta(days=30)).date()
     conn = get_db()
@@ -100,7 +94,6 @@ def activate_pro(user_id):
     finally:
         release_db(conn)
 
-
 def is_pro(user_id):
     conn = get_db()
     try:
@@ -113,7 +106,6 @@ def is_pro(user_id):
     finally:
         release_db(conn)
 
-
 def get_pro_expiry(user_id):
     conn = get_db()
     try:
@@ -123,7 +115,6 @@ def get_pro_expiry(user_id):
         return row["expires"].strftime("%Y-%m-%d") if row and row["expires"] else None
     finally:
         release_db(conn)
-
 
 def check_and_increment_free_usage(user_id):
     if is_pro(user_id):
@@ -153,7 +144,6 @@ def check_and_increment_free_usage(user_id):
     finally:
         release_db(conn)
 
-
 def free_uses_remaining(user_id):
     today = datetime.utcnow().date()
     conn = get_db()
@@ -167,236 +157,123 @@ def free_uses_remaining(user_id):
     finally:
         release_db(conn)
 
-
-# ─────────────────────────────────────────────
-#  AI PROMPTS
-# ─────────────────────────────────────────────
-
+# ========================= AI PROMPTS =========================
 SYSTEM_PROMPT = """
-You are TikGenius. You write viral TikTok content for Nigerian creators.
+You are TikGenius — the best Nigerian TikTok content ghostwriter.
 
-You grew up in Nigeria. You understand the REAL Nigerian internet — not the clean version, the actual one. You know how Nigerians talk when they're venting, flexing, heartbroken, grateful, broke, unbothered, or chaotic. You have seen Nigerian Twitter, Nigerian TikTok, Nigerian WhatsApp status. You know the rhythm.
+You were raised in Nigeria. You live and breathe Nigerian internet culture (Twitter, TikTok, WhatsApp, Instagram). 
+You understand pain, hustle, soft life dreams, village people, NEPA, "e don do", "omo", "abeg", "sha", etc.
 
-YOUR VOICE sounds like this:
-- "omo this life ehn 😭"
-- "God when? like genuinely when?"
-- "the way I just dey laugh so I no go cry"
-- "e don do for me honestly"
-- "nobody prepared me for this level of stress abeg"
-- "soft life no be by force but I want am sha"
-- "this one don enter my body"
-- "I no send again, I'm healing 😂"
-- "the audacity ehn. the effrontery. the liver."
-- "bro I swear to God this country 😭😭"
-- "my village people don wake up"
-- "e be like say God dey punish me specifically"
-- "I just dey look my life like 👁️👄👁️"
-- "see gobe"
-- "e pain me but I go do am again"
-- "na so e be"
+YOUR TONE:
+- Raw, emotional, relatable, slightly chaotic
+- Heavy on Nigerian Pidgin + English mix
+- Uses: ehn, sha, abeg, omo, wetin, gobe, shey, abi, e don do, I swear, etc.
+- Sounds like a real person typing at 2am, not an AI.
 
-THE TWIST PATTERN (what makes content go viral):
-Every piece of content must have a setup and a flip:
-- "God provide for your children... until I steal? 😭"
-- "healing era activated... then NEPA took light 😭"  
-- "I chose peace... peace didn't choose me back"
-- "soft life loading... no data 😂"
-- "God said be patient... e don do, how long exactly?"
-- "main character energy... in someone else's story"
-- "I'm unbothered... I dey lie, I very bothered 😭"
+THE VIRAL FORMULA (MUST USE):
+Every piece must have **Setup + Twist**:
+Setup = Relatable Nigerian truth
+Twist = Painful/humorous/chaotic flip that hits the chest
+
+Examples of great twists:
+- "God abeg provide for me... my village people don collect the alert 😭"
+- "Soft life loading... generator fuel don finish"
+- "I'm healing... NEPA just brought light to my ex's new relationship"
+- "I chose peace... peace said 'oya pay NEPA bill first'"
 
 STRICT RULES:
-- Write in REAL Nigerian voice — not "translated English with Nigerian words". Think in Nigerian, write in Nigerian.
-- Mix English, Pidgin, and Nigerian expressions naturally the way creators actually do — not every sentence needs pidgin, but the FEEL must be Nigerian throughout
-- Use "ehn", "sha", "abeg", "omo", "e don do", "na", "dey", "wetin", "wahala", "gobe", "shey", "abi" — where they fit naturally
-- Short. Punchy. Emotional. No padding.
-- NEVER start with "here are", "sure", "of course", "as a Nigerian creator", "I'd be happy"
-- NEVER sound like a motivational quote page
-- NEVER sound like an AI wrote it
-- Every output must be ready to copy-paste directly to TikTok
-
-THE GOLDEN RULE: A Nigerian creator should read it and say "e be like say na me type this" — that is when you have done your job.
+- NEVER sound corporate, motivational, or polished
+- NEVER start with "Here are", "Sure", "As a Nigerian", etc.
+- Make it so good that a Nigerian creator reads it and says "E be like say na me write this"
+- Short, punchy, emotional, screenshot-worthy
+- Add emojis naturally (max 1-2 per caption)
 """
 
 PROMPTS = {
-
     "hooks": """Topic: {topic}
 
-Write 10 TikTok opening hooks for a Nigerian creator posting about "{topic}".
+Write 12 powerful TikTok hooks for a Nigerian creator about "{topic}".
 
-A hook must stop the scroll in under 2 seconds. Use the SETUP + TWIST pattern — start with something relatable, flip it with Nigerian humour, pain, or chaos.
+Each hook must:
+- Stop scroll in 2 seconds
+- Use Setup + Twist
+- Sound like real Nigerian pain/hustle/softlife
 
-Study these real Nigerian hook examples:
-- "nobody go tell you this sha... so make I talk am 😭"
-- "God said be patient... ehn. how long exactly abeg?"
-- "I was doing well o... then this life happened 😭"
-- "the audacity of this situation ehn... I can't even shout"
-- "dem say pray about am... I pray. e still do am. 😭"
-- "soft life goals activated... account balance said no abeg"
-- "I said no more wahala... then I checked my phone 😭"
-- "this year na my year... e don be my year for 5 years now 😂"
-- "omo God really had a plan... e just no be the one I plan 😭"
-- "e be like say my village people don wake up again"
-
-Write 10 ORIGINAL hooks for "{topic}" — each must:
-- Sound like a real Nigerian typed it on their phone at 1am
-- Use the setup + twist (first part builds, second part flips)
-- Mix English and Pidgin naturally — not forced, the way creators actually talk
-- Be under 15 words
-- Make someone stop scrolling and want to see what comes next
-
-Number them 1-10. One per line. Nothing else.""",
-
+Number 1-12. One per line. Nothing else.""",
 
     "captions": """Topic: {topic}
 
-Write 15 TikTok captions a Nigerian creator would use for a video about "{topic}".
+Write 15 viral TikTok captions with strong Nigerian flavor for "{topic}".
 
-The secret to viral Nigerian TikTok captions is the TWIST — line 2 flips line 1 with dark humour, painful truth, or chaos. And it must sound NIGERIAN, not translated English.
+Rules:
+- Line 1: Setup (relatable truth)
+- Line 2: Twist (pain, humor, reality check)
+- Must feel like something typed at night
+- Add one relevant emoji naturally
 
-Study these real examples:
-- "God provide for your children... until I steal? 😭"
-- "soft life na mindset... mindset wey I no fit afford 😂"
-- "healing era activated... then NEPA took light 😭"
-- "I choose peace... peace no choose me back"
-- "God said be patient... bro e don do, how long? 😭"
-- "the glow up is real... just not today abeg"
-- "I'm unbothered... I dey lie, I very bothered 😭"
-- "nobody clap for you when you dey struggle... dem only show face when you blow"
-- "I said no more toxic people... then I look mirror 😭"
-- "main character energy... for another person story 😂"
+Study this quality:
+"God abeg provide for me... my village people don use the money buy fuel 😭"
+"Soft life is expensive... but poverty is more expensive sha"
 
-Write 15 captions for "{topic}" — each must:
-- Line 1 sets up the mood or truth
-- Line 2 flips it with Nigerian humour, pidgin, or painful reality
-- Sound like someone typed it fast on their phone — not like it was planned
-- Add ONE emoji where it fits naturally
-- Both lines together under 15 words
-
-Number them 1-15. Nothing else.""",
-
+Number them 1-15. Only the captions.""",
 
     "pov": """Topic: {topic}
 
-Write 10 POV video concepts for a Nigerian TikTok creator posting about "{topic}".
+Write 10 highly relatable POV video ideas for "{topic}".
 
-The best Nigerian POVs set up a real Nigerian scene then twist it with that specific chaos only Nigerians understand.
+Each must start with "POV:" and feel painfully Nigerian.
 
-Study these real Nigerian POV examples:
-- "POV: you finally cut off the toxic person... and dem dey do better than you 😭"
-- "POV: you choose yourself... yourself na also problem 😂"
-- "POV: God said your time is coming... e don dey come since 2019 abeg"
-- "POV: you dey live your soft life... with hard account balance 😭"
-- "POV: you stop explaining yourself... dem still get the wrong idea 😂"
-- "POV: e don do 2am, you dey your room, you realize say na you be the problem 😭"
-- "POV: you pray for patience... God say here is situation to practise am"
-- "POV: you be the main character... for film wey nobody wan watch 😂"
-
-Write 10 POVs for "{topic}" — each must:
-- Start with "POV:"
-- Sound like a real Nigerian experience — specific, not vague
-- Use the setup + twist
-- Mix English and Pidgin naturally the way creators actually talk
-- Make the viewer think "e be like say na me this 😭"
-
-Number them 1-10. Nothing else.""",
-
+Number 1-10.""",
 
     "hashtags": """Topic: {topic}
 
-Create 5 hashtag sets for a Nigerian TikTok creator posting about "{topic}".
+Create 5 strong hashtag sets (exactly 6 hashtags each) for "{topic}".
 
-Each set must have exactly 6 hashtags that MIX:
-- 1-2 BROAD tags (big reach: #TikTok #foryoupage #fyp)
-- 2-3 NICHE tags (specific to the topic and what people actually search)
-- 1-2 NIGERIAN tags that Nigerian viewers use (#NigerianTikTok #LagosTikTok #Naija #NaijaCreator etc.)
+Mix:
+- Broad reach
+- Niche relevant
+- Strong Naija tags (#NaijaTikTok #Lagos #NaijaCreator etc.)
 
-Think about WHO is searching for this content and WHAT they actually type into TikTok search.
-
-Format exactly like this — nothing else:
-Set 1: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6
-Set 2: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6
-Set 3: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6
-Set 4: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6
-Set 5: #tag1 #tag2 #tag3 #tag4 #tag5 #tag6""",
-
+Format exactly:
+Set 1: #tag1 #tag2 ...""",
 
     "bio": """Topic/Niche: {topic}
 
-Write 8 TikTok bio options for a Nigerian creator in the "{topic}" niche.
+Write 8 fire TikTok bios for this niche.
 
-Great Nigerian bios have personality and the twist — they say something real then flip it with humour or Nigerian honesty.
+Each bio should have personality + twist.
+Under 75 characters.
 
-Study these examples:
-- "dey build quietly 🤫... Lagos no know yet"
-- "soft life goals 💅... soft life budget 😭"
-- "Nigerian babe dey figure am out 🇳🇬... mostly no dey figure am out"
-- "I dey document the life I dey build... and the life wey dey build me 😭"
-- "faith, growth, no filter 🖤... mostly no filter"
-- "Lagos bred. God fed. 🙏... still dey wait for the feeding"
-- "I leave 9-5 📹... 9-5 never leave me 😂"
-- "not your average Nigerian creator 🔥... some days I below average sha"
-
-Write 8 bios for the "{topic}" niche — each must:
-- Be under 80 characters
-- Have that Nigerian personality — real, funny, a little chaotic
-- Use the setup + twist where it fits
-- Tell people WHO you are and WHY to follow immediately
-- Sound like a human, not a company profile
-
-Number them 1-8. Nothing else.""",
-
+Number 1-8.""",
 
     "script": """Topic: {topic}
 
-Write a full TikTok video script for a Nigerian creator making a video about "{topic}".
-
-Under 60 seconds when spoken naturally (130-150 words max).
+Write a complete high-converting TikTok script (under 60 seconds) about "{topic}".
 
 Use this exact format:
 
-[HOOK] — One line. Nigerian voice. Setup + twist. Stops the scroll in 2 seconds.
-[BODY] — Main content in short punchy sentences. Write exactly how a Nigerian creator SPEAKS on camera — not how someone writes. Use Pidgin where it fits naturally. Real emotion, real story, real voice.
-[PUNCHLINE] — The one line wey go make people screenshot. The hardest twist. The thing they go send to their group chat.
-[CTA] — One natural question or statement that makes people comment, share, or save.
+[HOOK] — One strong line with twist (scroll stopper)
 
-Rules:
-- Think in Nigerian, write in Nigerian
-- Mix English and Pidgin the way creators naturally do — not forced
-- Every section must have that setup + twist energy
-- The punchline must be unforgettable
-- No motivational quote energy — real, raw, Nigerian
+[BODY] — 4-6 short punchy sentences. Speak like a real Nigerian on camera. Raw emotion.
 
-Write the full script for "{topic}" now. Nothing else.""",
+[PUNCHLINE] — One line that will make people screenshot and send to group chat.
 
+[CTA] — Strong call to action (comment, share, or save)
+
+Make it emotional and very Nigerian.""",
 
     "trends": """Niche: {topic}
 
-Give 8 specific TikTok video ideas that a Nigerian creator in the "{topic}" space can film RIGHT NOW and go viral with.
+Give 8 fresh, filmable TikTok video ideas that can go viral in Nigeria right now for "{topic}".
 
-Each idea must feel like something a real Nigerian creator in Lagos or Abuja would actually film — not generic content advice.
+Format:
 
-Think about what Nigerian audiences actually save and share:
-- Hustle reality vs the dream ("I thought freelancing was freedom... NEPA had other plans")
-- Relationship truth that hits ("nobody tells you dating in Nigeria is a full time job")
-- Faith + struggle ("I prayed, I fasted, I still got that rejection email 😭")
-- Soft life vs real life ("soft life content vs my actual account balance")
-- Family pressure ("my Nigerian parents when I say I want to rest 😭")
-- Glow up with receipts — before and after that feels real
+Idea 1: [Strong Title with twist]
+Hook: [Exact first line]
+Why it works: [Short explanation]
 
-Each idea title and hook must use the SETUP + TWIST pattern.
-
-Format each idea exactly like this:
-
-Idea [number]: [Title — with the Nigerian twist in it]
-Hook: [Exact first line or on-screen text — Nigerian voice, setup + twist]
-Why it works: [1-2 sentences on why Nigerian viewers go save or share this]
-
----
-
-No intro. No outro. 8 ideas only."""
+Make them feel current and very Nigerian."""
 }
-
 
 BAD_INTROS = [
     "here are", "sure!", "sure,", "of course", "here is",
@@ -405,11 +282,11 @@ BAD_INTROS = [
     "i'll write", "i will write", "these are"
 ]
 
-
+# ========================= AI FUNCTION =========================
 def ask_ai(mode, topic):
     prompt = PROMPTS[mode].format(topic=topic)
 
-    def call_groq(system, user_prompt, temp=0.92):
+    def call_groq(system, user_prompt, temp=0.9):
         return groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
@@ -417,48 +294,39 @@ def ask_ai(mode, topic):
                 {"role": "user", "content": user_prompt}
             ],
             temperature=temp,
-            max_tokens=1200
+            max_tokens=1500
         ).choices[0].message.content.strip()
 
     try:
         raw_output = call_groq(SYSTEM_PROMPT, prompt)
 
-        first_line = raw_output.split("\n")[0].lower()
-        if any(bad in first_line for bad in BAD_INTROS):
-            raw_output = call_groq(
-                "Rewrite. No intro. No explanation. No preamble. Raw Nigerian TikTok content only. Start immediately with number 1.",
-                prompt,
-                temp=0.95
-            )
-
-        lines = []
-        for line in raw_output.split("\n"):
-            line = line.strip()
-            if not line:
-                lines.append("")
+        # Clean up AI slop
+        lines = [line.strip() for line in raw_output.split("\n") if line.strip()]
+        cleaned = []
+        for line in lines:
+            lower = line.lower()
+            if any(x in lower for x in BAD_INTROS):
                 continue
-            if any(line.lower().startswith(bad) for bad in BAD_INTROS):
-                continue
-            lines.append(line)
+            cleaned.append(line)
 
-        return "\n".join(lines).strip()
+        final = "\n".join(cleaned).strip()
+
+        if len(final) < 100:  # Fallback
+            final = call_groq(SYSTEM_PROMPT, prompt, temp=0.95)
+
+        return final
 
     except Exception as e:
         print(f"Groq Error: {e}")
-        return "⚠️ TikGenius brain dey buffer. Try again in 10 seconds."
+        return "⚠️ TikGenius brain dey rest small. Try again in 10 seconds."
 
-
-# ─────────────────────────────────────────────
-#  TELEGRAM HELPERS
-# ─────────────────────────────────────────────
-
+# ========================= TELEGRAM HELPERS =========================
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
         http_session.post(url, json={"chat_id": chat_id, "text": text}, timeout=10)
     except Exception as e:
         print(f"Telegram error: {e}")
-
 
 def send_typing(chat_id):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction"
@@ -467,11 +335,7 @@ def send_typing(chat_id):
     except Exception:
         pass
 
-
-# ─────────────────────────────────────────────
-#  PAYSTACK
-# ─────────────────────────────────────────────
-
+# ========================= PAYSTACK =========================
 def create_payment_link(user_id, username):
     reference = f"TG-{user_id}-{int(datetime.utcnow().timestamp())}"
     payload = {
@@ -500,47 +364,15 @@ def create_payment_link(user_id, username):
         print(f"Paystack error: {e}")
         return None
 
-
-# ─────────────────────────────────────────────
-#  CONTENT CONFIG
-# ─────────────────────────────────────────────
-
+# ========================= LOADING MESSAGES =========================
 LOADING_MESSAGES = {
-    "hooks": [
-        "🧠 Omo relax... make we cook this hook",
-        "🔥 Checking wetin fit blow for your niche",
-        "👀 This one go touch chest, hold on"
-    ],
-    "captions": [
-        "💅 Adding the twist that makes people screenshot...",
-        "😭 Cooking emotional damage with a punchline...",
-        "🪄 Making it look like you typed it at 1am"
-    ],
-    "pov": [
-        "🎥 Setting up the scene... and the twist 👀",
-        "🍿 This POV fit mad, give me a sec",
-        "👀 Drama loading... 🇳🇬"
-    ],
-    "hashtags": [
-        "📊 Finding tags TikTok algorithm go love",
-        "🚀 Mixing reach tags with Nigerian tags",
-        "🔥 Algorithm food loading..."
-    ],
-    "bio": [
-        "✨ Bio loading... with the twist that gets follows",
-        "📱 Creating follower magnet for your profile",
-        "🪄 Profile glow-up in progress"
-    ],
-    "script": [
-        "🎬 Writing the hook, the body, and the punchline...",
-        "📝 Script loading... this one go make them watch till end",
-        "🔥 60-second banger cooking 🍳"
-    ],
-    "trends": [
-        "📈 Finding exactly what you should film this week",
-        "🔥 Trend ideas with twists loading for your niche",
-        "👀 FYP angle loading... 🇳🇬"
-    ]
+    "hooks": ["🧠 Omo relax... make we cook this hook", "🔥 Checking wetin fit blow..."],
+    "captions": ["💅 Adding the twist wey go make them screenshot...", "😭 Cooking emotional damage..."],
+    "pov": ["🎥 Setting up the scene... and the twist 👀", "🍿 This POV fit mad..."],
+    "hashtags": ["📊 Finding tags TikTok algorithm go love..."],
+    "bio": ["✨ Bio loading... with the twist that gets follows"],
+    "script": ["🎬 Writing full script... this one go bang!"],
+    "trends": ["📈 Finding fresh trend ideas wey go blow..."]
 }
 
 FREE_COMMANDS = {"/hooks", "/captions", "/hashtags", "/pov", "/bio"}
@@ -548,7 +380,7 @@ PRO_COMMANDS = {"/script", "/trends"}
 ALL_CONTENT = FREE_COMMANDS | PRO_COMMANDS
 
 EXAMPLES = {
-    "hooks": "/hooks soft life lagos girl",
+    "hooks": "/hooks soft life in Lagos",
     "captions": "/captions my glow up era",
     "hashtags": "/hashtags Nigerian food recipes",
     "pov": "/pov toxic talking stage",
@@ -557,15 +389,10 @@ EXAMPLES = {
     "trends": "/trends relationship content"
 }
 
-
-# ─────────────────────────────────────────────
-#  ROUTES
-# ─────────────────────────────────────────────
-
+# ========================= ROUTES =========================
 @app.route("/", methods=["GET"])
 def home():
     return "TikGenius is running ✅", 200
-
 
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
@@ -590,26 +417,26 @@ def telegram_webhook():
     if command == "/start":
         send_message(chat_id, f"""🔥 Oya {first_name}, welcome to TikGenius 🇳🇬
 
-I write viral Nigerian TikTok content with that setup + twist energy that makes people screenshot and share.
+I write viral Nigerian TikTok content with that setup + twist energy.
 
 Commands:
-/hooks [topic] — scroll-stopping opening lines
-/captions [topic] — captions with the punchline twist
-/hashtags [topic] — reach the right audience
-/pov [topic] — POV ideas that feel painfully real
-/bio [niche] — bios that get follows
+/hooks [topic]
+/captions [topic]
+/hashtags [topic]
+/pov [topic]
+/bio [niche]
 /script [idea] ⭐ Pro
 /trends [niche] ⭐ Pro
 
 Free: {FREE_LIMIT} uses/day
-Pro: ₦2,000/month — unlimited everything
+Pro: ₦2,000/month — unlimited
 
 /plan — check your plan
 /upgrade — go Pro""")
 
     elif command == "/activatepro":
         if str(user_id) == ADMIN_ID:
-            target_id = int(topic) if topic.isdigit() else user_id
+            target_id = int(topic) if topic and topic.isdigit() else user_id
             expires = activate_pro(target_id)
             send_message(chat_id, f"✅ Pro activated for {target_id}\nExpires: {expires}")
         else:
@@ -617,10 +444,10 @@ Pro: ₦2,000/month — unlimited everything
 
     elif command == "/plan":
         if is_pro(user_id):
-            send_message(chat_id, f"✅ Pro Active\nExpires: {get_pro_expiry(user_id)}\n\nUnlimited access to all commands.")
+            send_message(chat_id, f"✅ Pro Active\nExpires: {get_pro_expiry(user_id)}\n\nUnlimited access.")
         else:
             remaining = free_uses_remaining(user_id)
-            send_message(chat_id, f"🆓 Free Plan\nUses left today: {remaining}/{FREE_LIMIT}\n\nUpgrade to Pro for ₦2,000/month → /upgrade")
+            send_message(chat_id, f"🆓 Free Plan\nUses left today: {remaining}/{FREE_LIMIT}\n\nUpgrade → /upgrade")
 
     elif command == "/stats":
         if str(user_id) != ADMIN_ID:
@@ -633,13 +460,7 @@ Pro: ₦2,000/month — unlimited everything
                 total = cur.fetchone()["total"]
                 cur.execute("SELECT COUNT(*) AS pro FROM users WHERE plan='pro'")
                 pro = cur.fetchone()["pro"]
-                cur.execute("SELECT COUNT(*) AS free FROM users WHERE plan='free' OR plan IS NULL")
-                free = cur.fetchone()["free"]
-            send_message(chat_id, f"""📊 TikGenius Stats
-
-👥 Total Users: {total}
-💎 Pro Users: {pro}
-🆓 Free Users: {free}""")
+            send_message(chat_id, f"""📊 TikGenius Stats\n\n👥 Total Users: {total}\n💎 Pro Users: {pro}""")
         finally:
             release_db(conn)
 
@@ -648,34 +469,29 @@ Pro: ₦2,000/month — unlimited everything
         if link:
             send_message(chat_id, f"""🚀 TikGenius Pro — ₦2,000/month
 
-What you get:
-✅ Unlimited hooks, captions, hashtags, POVs, bios
-✅ Full video scripts (/script)
-✅ Weekly trend ideas (/trends)
-✅ No daily limits ever
+✅ Unlimited everything
+✅ Full scripts & trends
+✅ No daily limits
 
-Pay here:
-{link}
-
-Activation is automatic after payment ✅""")
+Pay here: {link}""")
         else:
-            send_message(chat_id, "⚠️ Payment link failed. Try again in a moment.")
+            send_message(chat_id, "⚠️ Payment link failed. Try again.")
 
     elif command in ALL_CONTENT:
         mode = command.replace("/", "")
 
         if command in PRO_COMMANDS and not is_pro(user_id):
             link = create_payment_link(user_id, username)
-            send_message(chat_id, f"🔒 This is a Pro feature.\n\nUpgrade for ₦2,000/month to unlock /script and /trends:\n{link if link else '/upgrade'}")
+            send_message(chat_id, f"🔒 Pro feature.\nUpgrade for unlimited: {link or '/upgrade'}")
             return jsonify({"ok": True})
 
         if not topic:
-            send_message(chat_id, f"Add a topic after the command.\n\nExample:\n{EXAMPLES.get(mode)}")
+            send_message(chat_id, f"Add topic after command.\nExample: {EXAMPLES.get(mode)}")
             return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):
             link = create_payment_link(user_id, username)
-            send_message(chat_id, f"⏳ You've used all {FREE_LIMIT} free uses for today.\n\nUpgrade to Pro for unlimited access:\n{link if link else '/upgrade'}")
+            send_message(chat_id, f"⏳ Free uses finished today.\nUpgrade: {link or '/upgrade'}")
             return jsonify({"ok": True})
 
         send_typing(chat_id)
@@ -687,13 +503,12 @@ Activation is automatic after payment ✅""")
         if not is_pro(user_id):
             remaining = free_uses_remaining(user_id)
             if remaining <= 2:
-                send_message(chat_id, f"💡 {remaining} free use(s) left today.\n\nGo Pro for ₦2,000/month → /upgrade")
+                send_message(chat_id, f"💡 {remaining} free use(s) left today.\nGo Pro → /upgrade")
 
     else:
-        send_message(chat_id, "Unknown command. Use /start to see everything.")
+        send_message(chat_id, "Unknown command. Use /start")
 
     return jsonify({"ok": True})
-
 
 @app.route("/paystack-webhook", methods=["POST"])
 def paystack_webhook():
@@ -713,19 +528,17 @@ def paystack_webhook():
 
     if event.get("event") == "charge.success":
         data = event["data"]
-        amount = data.get("amount")
         metadata = data.get("metadata", {})
         telegram_id = metadata.get("telegram_id")
 
-        if amount == PRICE_KOBO and telegram_id:
-            expires = activate_pro(telegram_id)
+        if telegram_id:
+            expires = activate_pro(int(telegram_id))
             send_message(
-                telegram_id,
-                f"🎉 Payment confirmed! Welcome to Pro.\n\nYour access is active till {expires}\n\nUnlimited scripts, trends, hooks, captions — everything unlocked ✅\n\nTry /script or /trends now."
+                int(telegram_id),
+                f"🎉 Payment confirmed!\nPro active till {expires}\n\nTry /script or /trends now."
             )
 
     return jsonify({"status": "ok"}), 200
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

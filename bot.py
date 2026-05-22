@@ -648,6 +648,9 @@ Activation is automatic after payment ✅""")
         if not topic:
             send_message(chat_id, f"Add a topic after the command.\n\nExample:\n{EXAMPLES.get(mode)}")
             return jsonify({"ok": True})
+            if len(topic.split()) == 1:
+    send_message(chat_id, f"⚠️ Topic too short — be more specific for better results.\n\nInstead of: /{mode} {topic}\nTry: /{mode} {topic} [add the feeling or situation]\n\nExample:\n{EXAMPLES.get(mode)}")
+    return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):
             link = create_payment_link(user_id, username)

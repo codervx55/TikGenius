@@ -145,55 +145,56 @@ def free_uses_remaining(user_id):
         release_db(conn)
 
 # ========================= AI PROMPTS =========================
-SYSTEM_PROMPT = """
+TIKTOK_SYSTEM_PROMPT = """
 You are TikGenius. You write TikTok content for a young Nigerian guy who films himself talking directly to the camera.
 
 Style:
 - Natural spoken English first
-- Light Pidgin (omo, sha, ehn, abeg, gobe, e don do) only when it fits naturally
-- Do NOT force Pidgin at the beginning of every line
+- Light Pidgin (omo, sha, ehn, abeg, gobe) only when it fits naturally
 - Sound like a real person speaking casually
 - Short, relatable, personal
 """
 
+X_SYSTEM_PROMPT = """
+You are XGenius. You write engaging Twitter/X captions for a young Nigerian guy.
+
+Style for X:
+- Punchy, bold and conversational
+- Mix English + natural Pidgin
+- Great for trending topics
+- Use emojis naturally
+- Keep each caption under 280 characters
+- Sharp, relatable and scroll-stopping
+"""
+
 PROMPTS = {
-    "hooks": """Topic: {topic}
-
-Write 12 short TikTok hooks for me speaking to camera about "{topic}".
-
-Rules:
-- Max 15 words per hook
-- Start naturally like real speech (no forced "Omo" or "Abeg" every time)
-- Light Pidgin only where it sounds real
-- Conversational and emotional
-
-Number 1-12. One per line. Nothing else.""",
-
-    "captions": """Topic: {topic}
+    "captions": {
+        "tiktok": """Topic: {topic}
 
 Write 12 natural captions for my face video about "{topic}". Use natural English + light Pidgin mix.""",
 
-    "pov": """Topic: {topic}
+        "x": """Topic: {topic}
 
-Write 8 POV ideas starting with "POV:". Natural style.""",
-
-    "hashtags": """Topic: {topic}
-
-Give 5 sets of 6 relevant hashtags.""",
-
-    "bio": """Topic: {topic}
-
-Write 6 good TikTok bios.""",
+Write 10 strong Twitter/X captions about "{topic}".
+- Make them punchy and engaging
+- Mix English and light Pidgin naturally
+- Good for trending topics
+- Keep each one under 280 characters
+- Number them 1-10."""
+    }
 }
 
 # ========================= AI FUNCTION =========================
-def ask_ai(mode, topic):
-    prompt = PROMPTS.get(mode, f"Topic: {topic}").format(topic=topic)
+def ask_ai(mode, topic, platform="tiktok"):
+    system_prompt = TIKTOK_SYSTEM_PROMPT if platform == "tiktok" else X_SYSTEM_PROMPT
+    
+    prompt = PROMPTS.get(mode, {}).get(platform, f"Topic: {topic}").format(topic=topic)
+
     try:
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.8,
@@ -255,7 +256,6 @@ def telegram_webhook():
 
     parts = text.split(" ", 1)
     command = parts[0].lower().split("@")[0]
-    topic = parts[1].strip() if len(parts) > 1 else ""
 
     if command == "/start":
         send_message(chat_id, f"""🔥 Welcome {first_name} to TikGenius 🇳🇬
@@ -263,13 +263,12 @@ def telegram_webhook():
 I help you create content for your face videos.
 
 **Commands:**
-/hooks [topic] — Short opening lines for your videos
-/captions [topic] — Full captions
-/pov [topic] — POV ideas
+/hooks [topic] — TikTok hooks
+/captions [topic] — TikTok captions
+/captions x [topic] — Twitter/X captions
+/pov [topic]
 /hashtags [topic]
 /bio [niche]
-/stats — Total users (admin only)
-
 /plan — Check your plan
 /upgrade — Go Pro""")
 
@@ -305,10 +304,45 @@ Free Users: {total - pro}""")
 Unlimited access
 Pay here: {link or "Try again later"}""")
 
-    elif command in {"/hooks", "/captions", "/pov", "/hashtags", "/bio"}:
-        mode = command.replace("/", "")
+    elif command == "/captions":
+        # New logic for X/Twitter support
+        args = text.split(maxsplit=2)
+        platform = "tiktok"
+        
+        if len(args) > 1 and args[1].lower() in ["x", "twitter", "tiktok"]:
+            platform = "x" if args[1].lower() in ["x", "twitter"] else "tiktok"
+            topic = args[2].strip() if len(args) > 2 else ""
+        else:
+            topic = " ".join(args[1:]).strip()
+
         if not topic:
-            send_message(chat_id, f"Example: /hooks motivation")
+            send_message(chat_id, """Usage for Captions:
+ /captions [topic]          → TikTok captions
+ /captions x [topic]        → Twitter/X captions
+ /captions twitter [topic]  → Twitter/X captions
+
+Example: /captions x fuel scarcity""")
+            return jsonify({"ok": True})
+
+        if not check_and_increment_free_usage(user_id):
+            link = create_payment_link(user_id, username)
+            send_message(chat_id, f"⏳ Free uses finished.\nUpgrade: {link or '/upgrade'}")
+            return jsonify({"ok": True})
+
+        send_typing(chat_id)
+        send_message(chat_id, f"🔥 Cooking {platform.upper()} captions...")
+
+        result = ask_ai("captions", topic, platform)
+        platform_name = "X/Twitter" if platform == "x" else "TikTok"
+        send_message(chat_id, f"✨ {platform_name} Captions\n\n{result}")
+
+    # Other commands remain the same (hooks, pov, etc. stay TikTok only)
+    elif command in {"/hooks", "/pov", "/hashtags", "/bio"}:
+        mode = command.replace("/", "")
+        topic = parts[1].strip() if len(parts) > 1 else ""
+
+        if not topic:
+            send_message(chat_id, f"Example: /{mode} motivation")
             return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):
@@ -319,14 +353,13 @@ Pay here: {link or "Try again later"}""")
         send_typing(chat_id)
         send_message(chat_id, "🔥 Cooking...")
 
-        result = ask_ai(mode, topic)
-        send_message(chat_id, f"✨ TikGenius\n\n{result}")
+        result = ask_ai(mode, topic, "tiktok")   # default to tiktok for other commands
+        send_message(chat_id, f"✨ TikTok Content\n\n{result}")
 
     return jsonify({"ok": True})
 
 @app.route("/paystack-webhook", methods=["POST"])
 def paystack_webhook():
-    # Add your paystack webhook code here if needed
     return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":

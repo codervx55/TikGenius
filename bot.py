@@ -39,7 +39,7 @@ def init_pool():
     global db_pool
     if db_pool: return
     db_pool = pool.SimpleConnectionPool(1, 10, DATABASE_URL, cursor_factory=RealDictCursor)
-    print("✅ Database pool initialized")
+    print("Database pool initialized")
 
 def get_db():
     if not db_pool: init_pool()
@@ -158,7 +158,7 @@ Style for X:
 - Proper, correct English only (No Pidgin)
 - Punchy, bold, witty and engaging
 - Great for trending topics
-- Use emojis naturally
+- Use emojis naturally but sparingly
 - Keep each caption under 280 characters
 """
 
@@ -227,7 +227,7 @@ def ask_ai(mode, topic, platform="tiktok"):
         return "\n".join(cleaned)
     except Exception as e:
         print(f"Groq Error: {e}")
-        return "⚠️ Try again."
+        return "Try again."
 
 # ========================= HELPERS =========================
 def send_message(chat_id, text):
@@ -261,7 +261,7 @@ def create_payment_link(user_id, username):
 # ========================= ROUTES =========================
 @app.route("/", methods=["GET"])
 def home():
-    return "TikGenius running ✅", 200
+    return "TikGenius running", 200
 
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
@@ -279,12 +279,12 @@ def telegram_webhook():
     command = text.split()[0].lower().split("@")[0]
 
     if command == "/start":
-        send_message(chat_id, f"""🔥 Welcome {first_name} to TikGenius 🇳🇬
+        send_message(chat_id, f"""Welcome {first_name} to TikGenius
 
-**Commands:**
+Commands:
 /hooks [topic]
-/captions [topic] → TikTok (Pidgin)
-/captions x [topic] → X/Twitter (Clean English)
+/captions [topic] → TikTok
+/captions x [topic] → X/Twitter (Proper English)
 /pov [topic]
 /hashtags [topic]
 /bio [niche]
@@ -293,13 +293,13 @@ def telegram_webhook():
 
     elif command == "/plan":
         if is_pro(user_id):
-            send_message(chat_id, f"✅ Pro Active until {get_pro_expiry(user_id)}")
+            send_message(chat_id, f"Pro Active until {get_pro_expiry(user_id)}")
         else:
-            send_message(chat_id, f"🆓 Free Plan\nUses left today: {free_uses_remaining(user_id)}/{FREE_LIMIT}\n\n/upgrade")
+            send_message(chat_id, f"Free Plan\nUses left today: {free_uses_remaining(user_id)}/{FREE_LIMIT}\n\n/upgrade")
 
     elif command == "/upgrade":
         link = create_payment_link(user_id, username)
-        send_message(chat_id, f"""🚀 TikGenius Pro — ₦2,000/month
+        send_message(chat_id, f"""TikGenius Pro — ₦2,000/month
 
 Unlimited access
 Pay here: {link or "Try again later"}""")
@@ -324,15 +324,15 @@ Example: /captions x motivation""")
 
         if not check_and_increment_free_usage(user_id):
             link = create_payment_link(user_id, username)
-            send_message(chat_id, f"⏳ Free uses finished.\nUpgrade: {link or '/upgrade'}")
+            send_message(chat_id, f"Free uses finished.\nUpgrade: {link or '/upgrade'}")
             return jsonify({"ok": True})
 
         send_typing(chat_id)
-        send_message(chat_id, f"🔥 Generating {platform.upper()} captions...")
+        send_message(chat_id, f"Generating {platform.upper()} captions...")
 
         result = ask_ai("captions", topic, platform)
         platform_name = "X/Twitter" if platform == "x" else "TikTok"
-        send_message(chat_id, f"✨ {platform_name} Captions\n\n{result}")
+        send_message(chat_id, f"{platform_name} Captions\n\n{result}")
 
     elif command in {"/hooks", "/pov", "/hashtags", "/bio"}:
         mode = command.replace("/", "")
@@ -344,14 +344,14 @@ Example: /captions x motivation""")
 
         if not check_and_increment_free_usage(user_id):
             link = create_payment_link(user_id, username)
-            send_message(chat_id, f"⏳ Free uses finished.\nUpgrade: {link or '/upgrade'}")
+            send_message(chat_id, f"Free uses finished.\nUpgrade: {link or '/upgrade'}")
             return jsonify({"ok": True})
 
         send_typing(chat_id)
-        send_message(chat_id, "🔥 Cooking...")
+        send_message(chat_id, "Generating content...")
 
         result = ask_ai(mode, topic, "tiktok")
-        send_message(chat_id, f"✨ TikTok {mode.capitalize()}\n\n{result}")
+        send_message(chat_id, f"TikTok {mode.capitalize()}\n\n{result}")
 
     return jsonify({"ok": True})
 

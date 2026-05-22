@@ -26,7 +26,7 @@ ADMIN_ID = "6415641863"
 app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# ========================= HTTP & DB =========================
+# ========================= HTTP & DB (same) =========================
 def get_session():
     session = requests.Session()
     retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
@@ -69,7 +69,7 @@ def init_db():
 
 init_db()
 
-# ========================= USER MANAGEMENT =========================
+# ========================= USER MANAGEMENT (same) =========================
 def activate_pro(user_id):
     expires = (datetime.utcnow() + timedelta(days=30)).date()
     conn = get_db()
@@ -144,60 +144,53 @@ def free_uses_remaining(user_id):
     finally:
         release_db(conn)
 
-# ========================= AI PROMPTS =========================
+# ========================= IMPROVED AI PROMPTS =========================
 SYSTEM_PROMPT = """
-You are TikGenius. You write content for a young Nigerian guy who films himself talking to camera on TikTok.
+You are TikGenius. You write TikTok content for a young Nigerian guy who films himself talking directly to the camera.
 
-Style:
-- Natural spoken English with light Pidgin (omo, sha, ehn, abeg, gobe, e don do)
-- Conversational, like real speech
-- Short, emotional, relatable
-- Perfect for personal vlogs, motivation, hustle, daily life, rent struggle, soft life
-
-NEVER sound like a quote page. Sound like a real person talking.
+**Very Important Style:**
+- Start naturally like real spoken English.
+- Do NOT force "Omo", "Abeg", "Sha", "Ehn" at the beginning of every hook.
+- Use light Pidgin naturally only when it fits the flow.
+- Sound like a real person speaking casually to camera.
+- Keep hooks short (8-15 words max).
+- Make them personal and relatable.
 """
 
 PROMPTS = {
     "hooks": """Topic: {topic}
 
-Write 12 very short TikTok hooks for me talking to camera about "{topic}".
+Write 12 short, natural TikTok hooks for me speaking to camera about "{topic}".
 
 Rules:
-- Maximum 15 words each
-- Starts naturally like spoken words
-- Light Pidgin + English mix
-- Has small twist or emotion
+- Start naturally (no forced Pidgin at the beginning)
+- Maximum 15 words
+- Conversational spoken style
+- Light Pidgin only where it sounds natural
+- Has small emotion or twist
 
 Number 1-12. One per line. Nothing else.""",
 
     "captions": """Topic: {topic}
 
-Write 12 good captions for my video about "{topic}". Natural mix.""",
+Write 12 natural captions for my face video about "{topic}".""",
 
     "pov": """Topic: {topic}
 
-Write 8 POV ideas starting with "POV:". Natural style.""",
+Write 8 POV ideas starting with "POV:".""",
 
     "hashtags": """Topic: {topic}
 
-Give 5 sets of 6 good hashtags.""",
+Give 5 sets of 6 relevant hashtags.""",
 
     "bio": """Topic: {topic}
 
-Write 6 good TikTok bio options.""",
-
-    "script": """Topic: {topic}
-
-Write a full short script for me talking to camera.""",
-
-    "trends": """Niche: {topic}
-
-Give 6 fresh video ideas I can film myself."""
+Write 6 good TikTok bios.""",
 }
 
 # ========================= AI FUNCTION =========================
 def ask_ai(mode, topic):
-    prompt = PROMPTS[mode].format(topic=topic)
+    prompt = PROMPTS.get(mode, f"Topic: {topic}").format(topic=topic)
     try:
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -205,35 +198,33 @@ def ask_ai(mode, topic):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.82,
+            temperature=0.8,
             max_tokens=1000
         )
         raw = response.choices[0].message.content.strip()
-
-        # Clean output
+        
         lines = [line.strip() for line in raw.split("\n") if line.strip()]
-        cleaned = [line for line in lines if not line.lower().startswith(("here are", "sure", "as a"))]
+        cleaned = []
+        for line in lines:
+            if any(x in line.lower() for x in ["here are", "sure!", "as a"]):
+                continue
+            cleaned.append(line)
         return "\n".join(cleaned)
     except Exception as e:
         print(f"Groq Error: {e}")
-        return "⚠️ Try again in few seconds."
+        return "⚠️ Try again."
 
 # ========================= HELPERS =========================
 def send_message(chat_id, text):
     try:
-        http_session.post(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-            json={"chat_id": chat_id, "text": text},
-            timeout=10
-        )
+        http_session.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                         json={"chat_id": chat_id, "text": text}, timeout=10)
     except: pass
 
 def send_typing(chat_id):
     try:
-        http_session.post(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction",
-            json={"chat_id": chat_id, "action": "typing"}
-        )
+        http_session.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction",
+                         json={"chat_id": chat_id, "action": "typing"}, timeout=5)
     except: pass
 
 def create_payment_link(user_id, username):
@@ -246,17 +237,14 @@ def create_payment_link(user_id, username):
     }
     headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}", "Content-Type": "application/json"}
     try:
-        res = http_session.post(
-            "https://api.paystack.co/transaction/initialize",
-            json=payload, headers=headers, timeout=20
-        ).json()
+        res = http_session.post("https://api.paystack.co/transaction/initialize", json=payload, headers=headers, timeout=20).json()
         return res["data"]["authorization_url"] if res.get("status") else None
     except: return None
 
 # ========================= ROUTES =========================
 @app.route("/", methods=["GET"])
 def home():
-    return "TikGenius is running ✅", 200
+    return "TikGenius running ✅", 200
 
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
@@ -276,17 +264,14 @@ def telegram_webhook():
     topic = parts[1].strip() if len(parts) > 1 else ""
 
     if command == "/start":
-        send_message(chat_id, f"""🔥 Oya {first_name}, welcome to TikGenius 🇳🇬
+        send_message(chat_id, f"""🔥 Welcome {first_name}!
 
-I help you create content for your own face videos.
+/hooks [topic] — Short opening lines for your videos
+/captions [topic] — Full captions
+/stats — Total users (admin)
 
-**Main Commands:**
-/hooks [topic] — Short opening lines
-/captions [topic] — Full caption
-/stats — Check total users (admin only)
-
-/plan — Check your plan
-/upgrade — Go Pro""")
+/plan
+/upgrade""")
 
     elif command == "/stats":
         if str(user_id) != ADMIN_ID:
@@ -299,41 +284,32 @@ I help you create content for your own face videos.
                 total = cur.fetchone()["total"]
                 cur.execute("SELECT COUNT(*) as pro FROM users WHERE plan='pro'")
                 pro = cur.fetchone()["pro"]
-            send_message(chat_id, f"""📊 TikGenius Stats
+            send_message(chat_id, f"""📊 Stats
 
-👥 Total Users: {total}
-💎 Pro Users: {pro}
-🆓 Free Users: {total - pro}""")
+Total Users: {total}
+Pro Users: {pro}
+Free Users: {total - pro}""")
         finally:
             release_db(conn)
 
     elif command == "/plan":
         if is_pro(user_id):
-            send_message(chat_id, f"✅ Pro Active\nExpires: {get_pro_expiry(user_id)}")
+            send_message(chat_id, f"✅ Pro Active until {get_pro_expiry(user_id)}")
         else:
-            send_message(chat_id, f"🆓 Free Plan\nUses left: {free_uses_remaining(user_id)}/{FREE_LIMIT}\n\n/upgrade")
+            send_message(chat_id, f"🆓 Free - {free_uses_remaining(user_id)} uses left today\n\n/upgrade")
 
     elif command == "/upgrade":
         link = create_payment_link(user_id, username)
-        send_message(chat_id, f"""🚀 Go Pro - ₦2,000/month
+        send_message(chat_id, f"Pro ₦2,000/month\nPay: {link or 'Try again'}")
 
-Unlimited hooks & captions
-Pay here: {link or "Try again later"}""")
-
-    elif command in {"/hooks", "/captions", "/pov", "/hashtags", "/bio", "/script", "/trends"}:
+    elif command in {"/hooks", "/captions", "/pov", "/hashtags", "/bio"}:
         mode = command.replace("/", "")
-        if command in {"/script", "/trends"} and not is_pro(user_id):
-            link = create_payment_link(user_id, username)
-            send_message(chat_id, f"🔒 Pro feature only.\nUpgrade: {link or '/upgrade'}")
-            return jsonify({"ok": True})
-
         if not topic:
-            send_message(chat_id, f"Add topic.\nExample: /hooks motivation")
+            send_message(chat_id, f"Example: /hooks motivation")
             return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):
-            link = create_payment_link(user_id, username)
-            send_message(chat_id, f"⏳ Free uses finished today.\nUpgrade: {link or '/upgrade'}")
+            send_message(chat_id, "Free uses finished today. /upgrade")
             return jsonify({"ok": True})
 
         send_typing(chat_id)
@@ -346,7 +322,7 @@ Pay here: {link or "Try again later"}""")
 
 @app.route("/paystack-webhook", methods=["POST"])
 def paystack_webhook():
-    # Keep your existing paystack code here
+    # Your existing webhook code
     pass
 
 if __name__ == "__main__":

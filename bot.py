@@ -147,32 +147,36 @@ You are TikGenius. You write TikTok content for a young Nigerian guy who films h
 
 Style:
 - Natural spoken English first
-- Light Pidgin (omo, sha, ehn, abeg, gobe) only when natural
+- Light Pidgin (omo, sha, ehn, abeg, gobe) only when it fits naturally
+- Sound like a real person speaking casually
 - Short, relatable, personal
 """
 
 X_SYSTEM_PROMPT = """
-You are XGenius. You write engaging Twitter/X captions for a young Nigerian guy.
+You are XGenius. You write Twitter/X captions for a young Nigerian guy.
 
 Style for X:
-- Punchy, bold and conversational
-- Mix English + natural Pidgin
+- Proper, correct English only
+- No Pidgin at all
+- Punchy, bold, witty and engaging
 - Great for trending topics
 - Use emojis naturally
 - Keep each caption under 280 characters
+- Professional yet conversational tone
 """
 
 PROMPTS = {
     "captions": {
         "tiktok": """Topic: {topic}
 
-Write 12 natural captions for my face video about "{topic}". Use natural English + light Pidgin mix.""",
+Write 12 natural captions for my face video about "{topic}". 
+Use natural English + light Pidgin mix where it feels natural.""",
 
         "x": """Topic: {topic}
 
 Write 10 strong Twitter/X captions about "{topic}".
-- Make them punchy and engaging
-- Mix English and light Pidgin naturally
+- Use proper English only (no Pidgin)
+- Make them punchy, bold and engaging
 - Good for trending topics
 - Keep each one under 280 characters
 - Number them 1-10."""
@@ -256,19 +260,10 @@ def telegram_webhook():
 
 **Commands:**
 /hooks [topic] — TikTok hooks
-/captions [topic] — TikTok captions
-/captions x [topic] — X/Twitter captions
-/pov [topic]
-/hashtags [topic]
-/bio [niche]
-/plan — Check plan
+/captions [topic] — TikTok captions (with Pidgin)
+/captions x [topic] — X/Twitter captions (Proper English)
+/plan — Check your plan
 /upgrade — Go Pro""")
-
-    elif command == "/stats":
-        if str(user_id) != ADMIN_ID:
-            send_message(chat_id, "❌ Admin only.")
-            return jsonify({"ok": True})
-        # ... (your original stats code)
 
     elif command == "/plan":
         if is_pro(user_id):
@@ -295,11 +290,10 @@ Pay here: {link or "Try again later"}""")
 
         if not topic:
             send_message(chat_id, """Usage:
-/captions [topic]          → TikTok
-/captions x [topic]        → X/Twitter
-/captions twitter [topic]  → X/Twitter
+/captions [topic]          → TikTok (with Pidgin)
+/captions x [topic]        → X/Twitter (Proper English)
 
-Example: /captions x fuel price""")
+Example: /captions x fuel price increase""")
             return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):
@@ -311,7 +305,7 @@ Example: /captions x fuel price""")
         send_message(chat_id, f"🔥 Generating {platform.upper()} captions...")
 
         result = ask_ai("captions", topic, platform)
-        platform_name = "X/Twitter" if platform == "x" else "TikTok"
+        platform_name = "X/Twitter (Proper English)" if platform == "x" else "TikTok"
         send_message(chat_id, f"✨ {platform_name} Captions\n\n{result}")
 
     elif command in {"/hooks", "/pov", "/hashtags", "/bio"}:
@@ -337,7 +331,6 @@ Example: /captions x fuel price""")
 
 @app.route("/paystack-webhook", methods=["POST"])
 def paystack_webhook():
-    # TODO: Add verification logic here later if needed
     return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":

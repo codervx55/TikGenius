@@ -26,7 +26,7 @@ ADMIN_ID = "6415641863"
 app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# ========================= HTTP & DB (same) =========================
+# ========================= HTTP & DB =========================
 def get_session():
     session = requests.Session()
     retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
@@ -69,7 +69,7 @@ def init_db():
 
 init_db()
 
-# ========================= USER MANAGEMENT (same) =========================
+# ========================= USER MANAGEMENT =========================
 def activate_pro(user_id):
     expires = (datetime.utcnow() + timedelta(days=30)).date()
     conn = get_db()
@@ -144,40 +144,38 @@ def free_uses_remaining(user_id):
     finally:
         release_db(conn)
 
-# ========================= IMPROVED AI PROMPTS =========================
+# ========================= AI PROMPTS =========================
 SYSTEM_PROMPT = """
 You are TikGenius. You write TikTok content for a young Nigerian guy who films himself talking directly to the camera.
 
-**Very Important Style:**
-- Start naturally like real spoken English.
-- Do NOT force "Omo", "Abeg", "Sha", "Ehn" at the beginning of every hook.
-- Use light Pidgin naturally only when it fits the flow.
-- Sound like a real person speaking casually to camera.
-- Keep hooks short (8-15 words max).
-- Make them personal and relatable.
+Style:
+- Natural spoken English first
+- Light Pidgin (omo, sha, ehn, abeg, gobe, e don do) only when it fits naturally
+- Do NOT force Pidgin at the beginning of every line
+- Sound like a real person speaking casually
+- Short, relatable, personal
 """
 
 PROMPTS = {
     "hooks": """Topic: {topic}
 
-Write 12 short, natural TikTok hooks for me speaking to camera about "{topic}".
+Write 12 short TikTok hooks for me speaking to camera about "{topic}".
 
 Rules:
-- Start naturally (no forced Pidgin at the beginning)
-- Maximum 15 words
-- Conversational spoken style
-- Light Pidgin only where it sounds natural
-- Has small emotion or twist
+- Max 15 words per hook
+- Start naturally like real speech (no forced "Omo" or "Abeg" every time)
+- Light Pidgin only where it sounds real
+- Conversational and emotional
 
 Number 1-12. One per line. Nothing else.""",
 
     "captions": """Topic: {topic}
 
-Write 12 natural captions for my face video about "{topic}".""",
+Write 12 natural captions for my face video about "{topic}". Use natural English + light Pidgin mix.""",
 
     "pov": """Topic: {topic}
 
-Write 8 POV ideas starting with "POV:".""",
+Write 8 POV ideas starting with "POV:". Natural style.""",
 
     "hashtags": """Topic: {topic}
 
@@ -204,11 +202,7 @@ def ask_ai(mode, topic):
         raw = response.choices[0].message.content.strip()
         
         lines = [line.strip() for line in raw.split("\n") if line.strip()]
-        cleaned = []
-        for line in lines:
-            if any(x in line.lower() for x in ["here are", "sure!", "as a"]):
-                continue
-            cleaned.append(line)
+        cleaned = [line for line in lines if not any(x in line.lower() for x in ["here are", "sure!", "as a"])]
         return "\n".join(cleaned)
     except Exception as e:
         print(f"Groq Error: {e}")
@@ -264,14 +258,20 @@ def telegram_webhook():
     topic = parts[1].strip() if len(parts) > 1 else ""
 
     if command == "/start":
-        send_message(chat_id, f"""🔥 Welcome {first_name}!
+        send_message(chat_id, f"""🔥 Welcome {first_name} to TikGenius 🇳🇬
 
+I help you create content for your face videos.
+
+**Commands:**
 /hooks [topic] — Short opening lines for your videos
 /captions [topic] — Full captions
-/stats — Total users (admin)
+/pov [topic] — POV ideas
+/hashtags [topic]
+/bio [niche]
+/stats — Total users (admin only)
 
-/plan
-/upgrade""")
+/plan — Check your plan
+/upgrade — Go Pro""")
 
     elif command == "/stats":
         if str(user_id) != ADMIN_ID:
@@ -284,7 +284,7 @@ def telegram_webhook():
                 total = cur.fetchone()["total"]
                 cur.execute("SELECT COUNT(*) as pro FROM users WHERE plan='pro'")
                 pro = cur.fetchone()["pro"]
-            send_message(chat_id, f"""📊 Stats
+            send_message(chat_id, f"""📊 TikGenius Stats
 
 Total Users: {total}
 Pro Users: {pro}
@@ -296,11 +296,14 @@ Free Users: {total - pro}""")
         if is_pro(user_id):
             send_message(chat_id, f"✅ Pro Active until {get_pro_expiry(user_id)}")
         else:
-            send_message(chat_id, f"🆓 Free - {free_uses_remaining(user_id)} uses left today\n\n/upgrade")
+            send_message(chat_id, f"🆓 Free Plan\nUses left today: {free_uses_remaining(user_id)}/{FREE_LIMIT}\n\n/upgrade")
 
     elif command == "/upgrade":
         link = create_payment_link(user_id, username)
-        send_message(chat_id, f"Pro ₦2,000/month\nPay: {link or 'Try again'}")
+        send_message(chat_id, f"""🚀 TikGenius Pro — ₦2,000/month
+
+Unlimited access
+Pay here: {link or "Try again later"}""")
 
     elif command in {"/hooks", "/captions", "/pov", "/hashtags", "/bio"}:
         mode = command.replace("/", "")
@@ -309,7 +312,8 @@ Free Users: {total - pro}""")
             return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):
-            send_message(chat_id, "Free uses finished today. /upgrade")
+            link = create_payment_link(user_id, username)
+            send_message(chat_id, f"⏳ Free uses finished.\nUpgrade: {link or '/upgrade'}")
             return jsonify({"ok": True})
 
         send_typing(chat_id)
@@ -322,8 +326,8 @@ Free Users: {total - pro}""")
 
 @app.route("/paystack-webhook", methods=["POST"])
 def paystack_webhook():
-    # Your existing webhook code
-    pass
+    # Add your paystack webhook code here if needed
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

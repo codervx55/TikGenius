@@ -496,6 +496,7 @@ def create_payment_link(email, user_id, source="web"):
         "email": email,
         "amount": PRICE_KOBO,
         "reference": reference,
+        "callback_url": request.host_url.rstrip("/") + "/paystack/callback",
         "metadata": {"web_user_id": user_id if source == "web" else None,
                      "telegram_id": user_id if source == "telegram" else None,
                      "source": source}
@@ -749,8 +750,68 @@ def admin_audience_count():
     finally:
         release_db(conn)
 
+
+def verify_paystack_reference(reference):
+    """Verify a Paystack transaction and activate the correct user if paid."""
+    if not PAYSTACK_SECRET_KEY:
+        return False, "Paystack secret key missing"
+    if not reference:
+        return False, "Missing payment reference"
+
+    headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}"}
+    try:
+        res = http_session.get(
+            f"https://api.paystack.co/transaction/verify/{reference}",
+            headers=headers,
+            timeout=20
+        )
+        data = res.json()
+    except Exception as e:
+        print(f"Paystack verify error: {e}")
+        return False, "Could not verify payment"
+
+    if not data.get("status") or data.get("data", {}).get("status") != "success":
+        return False, "Payment not successful yet"
+
+    tx = data["data"]
+    if int(tx.get("amount", 0)) < PRICE_KOBO:
+        return False, "Payment amount is too low"
+
+    metadata = tx.get("metadata") or {}
+    source = metadata.get("source", "web")
+
+    if source == "web":
+        web_user_id = metadata.get("web_user_id")
+        if not web_user_id:
+            return False, "Missing web user ID"
+        expires = activate_web_pro(int(web_user_id))
+        return True, f"Premium activated until {expires}"
+
+    telegram_id = metadata.get("telegram_id")
+    if telegram_id:
+        expires = activate_pro(telegram_id)
+        send_telegram_message(telegram_id, f"Payment confirmed. Welcome to Pro. Access active till {expires}.")
+        return True, f"Telegram premium activated until {expires}"
+
+    return False, "Missing user metadata"
+
+@app.route("/paystack/callback")
+def paystack_callback():
+    reference = request.args.get("reference") or request.args.get("trxref")
+    ok, message = verify_paystack_reference(reference)
+    if ok:
+        # If the payer is logged in, refresh their session and return to dashboard.
+        return redirect("/dashboard?payment=success")
+    return f"Payment verification failed: {message}", 400
+
+@app.route("/api/payment-status")
+@login_required
+def payment_status():
+    return jsonify({"premium": is_web_pro(session["user_id"])})
+
 # ========================= PAYSTACK WEBHOOK =========================
 @app.route("/paystack-webhook", methods=["POST"])
+@app.route("/paystack/webhook", methods=["POST"])
 def paystack_webhook():
     signature = request.headers.get("x-paystack-signature", "")
     body = request.get_data()

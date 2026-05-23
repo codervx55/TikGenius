@@ -148,44 +148,46 @@ def free_uses_remaining(user_id):
 TIKTOK_SYSTEM_PROMPT = """
 You are TikGenius. You write viral TikTok content for Nigerian creators.
 
-You understand Nigerian life deeply — the hustle, the struggle, NEPA, soft life dreams, family pressure, broke seasons, glow ups, relationships, faith, and chaos. You use that understanding to write content that hits people in the chest.
+You understand Nigerian life deeply — the hustle, the struggle, NEPA, soft life dreams, family pressure, broke seasons, glow ups, relationships, faith, and chaos. You write content that hits people in the chest.
 
 YOUR LANGUAGE:
-- Write in clean, simple English that everyone can understand
-- Occasionally drop ONE natural Nigerian word or reference where it genuinely fits — like "NEPA", "soft life", "this country", "wahala", "village people" — but NEVER force Pidgin into every sentence
+- Clean, simple English that everyone can understand
+- Occasionally use ONE natural Nigerian word where it genuinely fits — "NEPA", "soft life", "this country", "wahala" — but never force it
 - The goal is: globally understandable, Nigerian at heart
-- Think of how Nigerian creators like Tomi Thomas or Fisayo Longe caption their posts — clean English, deep feeling, Nigerian reference points
 
-THE TWIST PATTERN — what makes content go viral:
-Every caption must have a setup and a flip. Line 1 builds the expectation. Line 2 destroys it with humour, painful truth, or irony.
+THE TWIST PATTERN — this is what makes content go viral:
+Two lines. Line 1 sets up an emotion or truth. Line 2 flips it completely with humour, irony, or painful reality.
+The two lines connect with a dash ( — ) or just flow naturally on a new line. NEVER use "..."
 
-GREAT examples (study these carefully):
-- "God provide for your children... until I steal? 😭"
-- "healing era activated... then NEPA took light 😭"
-- "I chose peace... peace didn't choose me back"
-- "soft life is a mindset... a mindset I can't afford 😂"
-- "God said be patient... bro, it's been 25 years 😭"
-- "main character energy... in someone else's story 😂"
-- "I'm unbothered... I'm lying, I'm very bothered 😭"
-- "nobody claps for you when you're struggling... they only show up when you blow"
-- "the glow up is real... just not today"
-- "I said no more toxic people... then I looked in the mirror 😭"
+GREAT examples — study these and match this exact quality:
+- "God will provide for his children — I just didn't expect to be the one stealing 😭"
+- "Healing era activated. Then NEPA took the light 😭"
+- "I chose peace. Peace clearly did not choose me back"
+- "Soft life is a mindset — a mindset I genuinely cannot afford 😂"
+- "God said be patient. It has been 25 years 😭"
+- "Main character energy — in someone else's story 😂"
+- "I'm unbothered. I am lying. I am very bothered 😭"
+- "Nobody claps when you're struggling. They show up the moment you blow"
+- "The glow up is real. Just not today"
+- "I said no more toxic people. Then I looked in the mirror 😭"
+- "Rest era activated. The bills did not get the memo 😭"
+- "I stopped caring what people think. They're still thinking it anyway 😂"
 
-BAD examples (never write like this):
-- "Am tired... e don do" ❌ — broken English, not punchy
-- "I no get strength... but suffering get" ❌ — forced Pidgin, hard to read
-- "Am weak... but stress no weak" ❌ — sounds like a translation error
+BAD examples — never write like this:
+- "Am tired... e don do" — broken English, not punchy
+- "I no get strength... but suffering get" — forced Pidgin, unreadable
+- "Healing era... NEPA light..." — ellipsis makes it feel unfinished and lazy
 
 STRICT RULES:
-- Clean English. Simple. Punchy. Every word earns its place.
-- Always use the setup + twist pattern
+- NEVER use "..." (ellipsis) — use a dash, a full stop, or a new line instead
+- Clean English. Simple. Every word earns its place.
 - Short — both lines together under 15 words
-- Add ONE emoji where it fits naturally
-- NEVER sound like a motivational poster, a life coach, or an AI
-- NEVER start with "here are", "sure", "of course", "as a Nigerian creator"
+- ONE emoji where it fits naturally
+- Never sound like a motivational poster, a life coach, or an AI
+- Never start with "here are", "sure", "of course", "as a Nigerian creator"
 - Every output must be ready to copy-paste directly to TikTok
 
-THE GOLDEN RULE: A Nigerian creator should read it and say "this is exactly what I wanted to say" — that is when you have done your job.
+THE GOLDEN RULE: A Nigerian creator should read it and say "this is exactly what I wanted to say."
 """
 
 X_SYSTEM_PROMPT = """
@@ -229,16 +231,16 @@ Write 10 TikTok opening hooks for a Nigerian creator posting about "{topic}".
 A hook must stop the scroll in under 2 seconds. Use the SETUP + TWIST — start with something relatable, flip it with humour, pain, or irony.
 
 Study these GREAT hook examples — match this quality exactly:
-- "Nobody will tell you this... so I will 😭"
-- "God said be patient... bro, how long exactly?"
-- "I was doing so well... then life happened 😭"
-- "The audacity of this situation... I can't even be mad"
-- "They said pray about it... I prayed. Nothing changed. 😭"
-- "Soft life goals activated... account balance said no"
-- "I said no more stress... then I checked my phone 😭"
-- "This year is my year... it's been my year for 5 years 😂"
-- "God really had a plan... just not the one I planned 😭"
-- "I chose myself... myself also has problems 😂"
+- "Nobody will tell you this. So I will 😭"
+- "God said be patient. Bro, how long exactly?"
+- "I was doing so well. Then life happened 😭"
+- "The audacity of this situation. I cannot even be mad"
+- "They said pray about it. I prayed. Nothing changed 😭"
+- "Soft life goals activated — account balance said absolutely not"
+- "I said no more stress. Then I checked my phone 😭"
+- "This year is my year. It has been my year for five years 😂"
+- "God really had a plan — just not the one I had in mind 😭"
+- "I chose myself. Myself also has problems 😂"
 
 Write 10 ORIGINAL hooks for "{topic}" — each must:
 - Use the setup + twist (first part builds, second part flips it)
@@ -256,21 +258,21 @@ Write 15 TikTok captions for a Nigerian creator posting about "{topic}".
 The secret to viral Nigerian TikTok captions is the TWIST — Line 1 sets up an emotion or truth, Line 2 flips it with humour, irony, or painful reality.
 
 Study these GREAT examples carefully — this is exactly the quality and style you must match:
-- "God provide for your children... until I steal? 😭"
-- "healing era activated... then NEPA took light 😭"
-- "I chose peace... peace didn't choose me back"
-- "soft life is a mindset... a mindset I can't afford 😂"
-- "God said be patient... bro, it's been 25 years 😭"
-- "main character energy... in someone else's story 😂"
-- "I'm unbothered... I'm lying, I'm very bothered 😭"
-- "nobody claps for you when you're struggling... they only show up when you blow"
-- "the glow up is real... just not today"
-- "I said no more toxic people... then I looked in the mirror 😭"
-- "this year is my year... it's been my year for 5 years 😂"
-- "God really had a plan... just not the one I had in mind 😭"
-- "chose myself... myself also has issues 😭"
-- "I stopped caring what people think... they're still thinking it anyway 😂"
-- "rest era activated... bills didn't get the memo 😭"
+- "God will provide for his children — I just didn't expect to be the one stealing 😭"
+- "Healing era activated. Then NEPA took the light 😭"
+- "I chose peace. Peace clearly did not choose me back"
+- "Soft life is a mindset — a mindset I genuinely cannot afford 😂"
+- "God said be patient. It has been 25 years 😭"
+- "Main character energy — in someone else's story 😂"
+- "I'm unbothered. I am lying. I am very bothered 😭"
+- "Nobody claps when you're struggling. They show up the moment you blow"
+- "The glow up is real. Just not today"
+- "I said no more toxic people. Then I looked in the mirror 😭"
+- "This year is my year. It has been my year for five years now 😂"
+- "God really had a plan. Just not the one I submitted 😭"
+- "I chose myself. Myself also has issues 😭"
+- "I stopped caring what people think. They are still thinking it anyway 😂"
+- "Rest era activated. The bills did not get the memo 😭"
 
 Write 15 ORIGINAL captions for "{topic}" that match this exact quality — each must:
 - Line 1: set up a mood, truth, or expectation clearly
@@ -289,14 +291,14 @@ Write 10 POV video concepts for a Nigerian TikTok creator posting about "{topic}
 The best POVs set up a real relatable scene then twist it with humour, painful truth, or irony.
 
 Study these GREAT examples — match this quality exactly:
-- "POV: you finally cut off the toxic person... and they're doing better than you 😭"
-- "POV: you chose yourself... yourself also has issues 😂"
-- "POV: God said your time is coming... it's been coming since 2019"
-- "POV: you're living your soft life... with a very hard account balance 😭"
-- "POV: you stopped explaining yourself to people... they still have the wrong idea 😂"
-- "POV: it's 2am, you're in your room, and you realize you've been the problem all along 😭"
-- "POV: you prayed for patience... God sent you a situation to practice it"
-- "POV: you're the main character... in a story nobody asked for 😂"
+- "POV: you finally cut off the toxic person. They are doing better than you 😭"
+- "POV: you chose yourself. Yourself also has issues 😂"
+- "POV: God said your time is coming. It has been coming since 2019"
+- "POV: you are living your soft life — with a very hard account balance 😭"
+- "POV: you stopped explaining yourself to people. They still have the wrong idea 😂"
+- "POV: it is 2am, you are in your room, and you realise you have been the problem all along 😭"
+- "POV: you prayed for patience. God sent you a situation to practice it"
+- "POV: you are the main character — in a story nobody asked for 😂"
 
 Write 10 POVs for "{topic}" — each must:
 - Start with "POV:"
@@ -616,14 +618,14 @@ LOADING = {
 }
 
 EXAMPLES = {
-    "hooks":    "/hooks when you're broke but still acting unbothered",
+    "hooks":    "/hooks I prayed for this life — God had a different version in mind",
     "captions": "/captions data finish at the worst time",
     "hashtags": "/hashtags Nigerian food recipes Lagos",
-    "pov":      "/pov your Nigerian parents when you fail one exam",
+    "pov":      "/pov you finally got everything you prayed for and you're still not happy",
     "bio":      "/bio Nigerian lifestyle and soft life creator",
-    "script":   "/script how I saved my first 100k earning in Nigeria",
-    "trends":   "/trends Nigerian relationship and dating content",
-    "threads":  "/threads x hustle culture in Nigeria is a lie"
+    "script":   "/script things I wish someone told me before I started hustling alone",
+    "trends":   "/trends Nigerian money and hustle creator content",
+    "threads":  "/threads x why resting in Nigeria feels like a crime"
 }
 
 TIKTOK_COMMANDS = {"/hooks", "/captions", "/pov", "/hashtags", "/bio", "/script", "/trends"}
@@ -680,9 +682,12 @@ The kind wey people screenshot, save, and tag their friends.
 Free: {FREE_LIMIT} uses/day
 Pro: ₦2,000/month — unlimited everything
 
-Be specific with your topic for better results 🔥
-❌ Bad: /captions data
-✅ Good: /captions data finish when I needed it most""")
+Be specific — the more real your topic, the harder it hits 🔥
+
+❌ Too vague: /captions tired
+✅ Try this: /captions I work so hard but I'm still broke
+✅ Try this: /hooks I prayed for this life and I'm still not happy
+✅ Try this: /pov you finally made it and nobody who doubted you said sorry""")
 
     # ── /plan ──
     elif command == "/plan":

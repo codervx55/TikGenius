@@ -27,6 +27,8 @@ PRICE_KOBO = 200000
 FREE_LIMIT = 5
 ADMIN_ID = "6415641863"
 ADMIN_EXPORT_KEY = os.getenv("ADMIN_EXPORT_KEY", SECRET_KEY)
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@tikgenius.app")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", ADMIN_EXPORT_KEY)
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -720,18 +722,52 @@ def set_region():
 
 # ========================= ADMIN PANEL =========================
 def admin_allowed():
+    if session.get("admin_authed") is True:
+        return True
     key = request.args.get("key") or request.headers.get("X-Admin-Key")
     return bool(ADMIN_EXPORT_KEY and key and hmac.compare_digest(str(key), str(ADMIN_EXPORT_KEY)))
+
+def admin_login_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not admin_allowed():
+            return redirect(url_for("admin_login", next=request.path))
+        return fn(*args, **kwargs)
+    return wrapper
 
 def money_ngn(kobo):
     return f"₦{(int(kobo or 0) / 100):,.0f}"
 
+ADMIN_LOGIN_HTML = """<!doctype html>
+<html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>TikGenius Admin Login</title>
+<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
+<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap' rel='stylesheet'>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,system-ui,sans-serif;background:radial-gradient(circle at 20% 0,#18345a 0,#08111e 34%,#05070c 100%);color:#f8fbff;display:grid;place-items:center;padding:18px}.login{width:min(440px,100%);background:rgba(10,18,32,.82);border:1px solid rgba(125,167,255,.22);box-shadow:0 30px 90px rgba(0,0,0,.42);border-radius:28px;padding:26px;backdrop-filter:blur(16px)}.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:24px;letter-spacing:-.04em}.mark{width:38px;height:38px;border-radius:14px;background:linear-gradient(135deg,#22d3ee,#10b981,#f59e0b);display:grid;place-items:center;color:#061018;font-weight:900}.muted{color:#98a9c4;line-height:1.6;margin:8px 0 22px}label{font-size:13px;color:#b8c7dd;font-weight:700;display:block;margin:14px 0 7px}input{width:100%;padding:15px 16px;border-radius:16px;border:1px solid #263852;background:#070d16;color:#fff;font:600 16px Inter;outline:none}input:focus{border-color:#38bdf8;box-shadow:0 0 0 4px rgba(56,189,248,.10)}button{width:100%;margin-top:18px;border:0;border-radius:16px;padding:15px;background:linear-gradient(135deg,#22d3ee,#10b981,#f6b21a);font-weight:900;color:#061018;font-size:16px}.err{display:%ERRDISPLAY%;margin-top:14px;color:#fecdd3;background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.3);padding:12px;border-radius:14px;font-weight:700}.foot{font-size:12px;color:#77859a;margin-top:16px;text-align:center}
+</style></head><body><form class='login' method='post'><div class='brand'><div class='mark'>TG</div><div>TikGenius Admin</div></div><p class='muted'>Private dashboard for revenue, premium users, free users, email list and payments.</p><label>Admin email</label><input name='email' type='email' autocomplete='username' required><label>Password</label><input name='password' type='password' autocomplete='current-password' required><button>Unlock Dashboard</button><div class='err'>%ERROR%</div><div class='foot'>Protected by session login. Do not share your admin password.</div></form></body></html>"""
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    error = ""
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+        if hmac.compare_digest(email, (ADMIN_EMAIL or "").strip().lower()) and hmac.compare_digest(password, str(ADMIN_PASSWORD or "")):
+            session["admin_authed"] = True
+            return redirect(url_for("admin_panel"))
+        error = "Wrong admin email or password."
+    html = ADMIN_LOGIN_HTML.replace("%ERROR%", escape(error)).replace("%ERRDISPLAY%", "block" if error else "none")
+    return html
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("admin_authed", None)
+    return redirect(url_for("admin_login"))
+
 @app.route("/admin")
 @app.route("/admin/emails")
+@admin_login_required
 def admin_panel():
-    if not admin_allowed():
-        return "Unauthorized", 401
-    key = request.args.get("key", "")
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -759,32 +795,29 @@ def admin_panel():
     finally:
         release_db(conn)
 
+    conversion = round((premium_users / total_users * 100), 1) if total_users else 0
     payment_rows = "".join(
-        f"<tr><td>{escape(str(p['paid_at'] or ''))}</td><td>{escape(p['email'] or '')}</td><td>{money_ngn(p['amount_kobo'])}</td><td>{escape(p['source'] or '')}</td><td class='muted'>{escape(p['reference'] or '')}</td></tr>"
+        f"<tr><td>{escape(str(p['paid_at'] or ''))}</td><td>{escape(p['email'] or '')}</td><td>{money_ngn(p['amount_kobo'])}</td><td>{escape(p['source'] or '')}</td><td class='muted ref'>{escape(p['reference'] or '')}</td></tr>"
         for p in payments
     ) or "<tr><td colspan='5' class='muted'>No payment recorded yet. New successful Paystack payments will appear here.</td></tr>"
 
     user_rows = "".join(
         f"<tr><td>{u['id']}</td><td>{escape(u['name'] or '')}</td><td>{escape(u['email'])}</td><td><span class='pill {('pro' if u['plan']=='pro' and u['expires'] else 'free')}'>{escape(u['plan'] or 'free')}</span></td><td>{escape(str(u['expires'] or ''))}</td><td>{escape(u['region'] or '')}</td><td>{u['usage_count'] or 0}</td><td>{escape(str(u['created_at'] or ''))}</td><td>{escape(str(u['last_login_at'] or ''))}</td></tr>"
         for u in users
-    )
+    ) or "<tr><td colspan='9' class='muted'>No users yet.</td></tr>"
 
     return f"""<!doctype html>
 <html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>TikGenius Admin</title>
+<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
+<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap' rel='stylesheet'>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-*{{box-sizing:border-box}}body{{margin:0;font-family:Inter,Arial,sans-serif;background:#0b1020;color:#eef2ff}}
-.wrap{{max-width:1240px;margin:auto;padding:22px}}.top{{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:18px;flex-wrap:wrap}}
-h1{{font-size:1.65rem;margin:0}}.muted{{color:#94a3b8;font-size:.9rem}}a.btn{{background:#2563eb;color:white;text-decoration:none;padding:11px 14px;border-radius:12px;font-weight:700;display:inline-block}}
-.grid{{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:18px 0}}.card{{background:linear-gradient(180deg,#121a33,#0f172a);border:1px solid #263452;border-radius:18px;padding:18px;box-shadow:0 12px 30px rgba(0,0,0,.22)}}
-.label{{color:#a5b4fc;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800}}.num{{font-size:1.75rem;font-weight:800;margin-top:8px}}
-.section{{margin-top:18px}}.tablebox{{overflow:auto;border-radius:16px;border:1px solid #263452}}table{{width:100%;border-collapse:collapse;min-width:900px;background:#0f172a}}th,td{{padding:12px 13px;border-bottom:1px solid #1e293b;text-align:left;font-size:.9rem;white-space:nowrap}}th{{color:#bfdbfe;background:#111c35;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em}}
-.pill{{padding:5px 9px;border-radius:999px;font-weight:800;font-size:.75rem}}.pill.pro{{background:#064e3b;color:#6ee7b7}}.pill.free{{background:#312e81;color:#c4b5fd}}
-.search{{width:100%;padding:13px 14px;border-radius:12px;border:1px solid #334155;background:#08111f;color:white;margin:10px 0 14px}}
-@media(max-width:900px){{.grid{{grid-template-columns:repeat(2,1fr)}}.wrap{{padding:15px}}}}@media(max-width:520px){{.grid{{grid-template-columns:1fr}}h1{{font-size:1.35rem}}}}
+:root{{--bg:#060a12;--panel:#0d1525;--panel2:#111c31;--line:#243550;--text:#f3f7ff;--muted:#93a4bd;--cyan:#38bdf8;--green:#10b981;--gold:#f6b21a;--red:#fb7185}}
+*{{box-sizing:border-box}}body{{margin:0;font-family:Inter,system-ui,sans-serif;background:radial-gradient(circle at top left,#172b52 0,#081120 34%,#05070c 100%);color:var(--text);min-height:100vh}}.wrap{{max-width:1280px;margin:auto;padding:18px}}.hero{{background:linear-gradient(135deg,rgba(56,189,248,.14),rgba(16,185,129,.10),rgba(246,178,26,.10));border:1px solid rgba(125,167,255,.22);border-radius:26px;padding:18px;box-shadow:0 20px 70px rgba(0,0,0,.26);margin-bottom:14px}}.top{{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}}.brand{{display:flex;gap:12px;align-items:center}}.mark{{width:42px;height:42px;border-radius:15px;background:linear-gradient(135deg,var(--cyan),var(--green),var(--gold));display:grid;place-items:center;color:#061018;font-weight:900}}h1{{font-size:clamp(1.35rem,5vw,2.15rem);letter-spacing:-.055em;margin:0}}.muted{{color:var(--muted);font-size:.92rem;line-height:1.5}}.logout{{font-size:.84rem;color:#dbeafe;text-decoration:none;border:1px solid rgba(148,163,184,.25);padding:9px 12px;border-radius:999px;background:rgba(8,13,23,.56)}}.hero-stats{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}}.mini{{padding:12px;border-radius:18px;background:rgba(5,10,18,.55);border:1px solid rgba(148,163,184,.17)}}.mini b{{display:block;font-size:1.08rem}}.mini span{{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:800}}
+.grid{{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:14px 0}}.card{{background:linear-gradient(180deg,rgba(17,28,49,.92),rgba(10,17,30,.96));border:1px solid rgba(90,119,164,.45);border-radius:22px;padding:17px;box-shadow:0 12px 40px rgba(0,0,0,.20)}}.label{{color:#a5b4fc;font-size:.74rem;text-transform:uppercase;letter-spacing:.11em;font-weight:900}}.num{{font-size:clamp(1.7rem,7vw,2.35rem);font-weight:900;letter-spacing:-.05em;margin-top:8px}}.section{{margin-top:14px}}h2{{margin:0 0 12px;font-size:1.05rem;letter-spacing:-.03em}}.tablebox{{overflow:auto;border-radius:18px;border:1px solid rgba(90,119,164,.38)}}table{{width:100%;border-collapse:collapse;min-width:900px;background:#0b1322}}th,td{{padding:12px 13px;border-bottom:1px solid #1e293b;text-align:left;font-size:.86rem;white-space:nowrap}}th{{color:#bfdbfe;background:#101b30;font-size:.72rem;text-transform:uppercase;letter-spacing:.075em}}.ref{{max-width:210px;overflow:hidden;text-overflow:ellipsis}}.pill{{padding:5px 9px;border-radius:999px;font-weight:900;font-size:.72rem}}.pill.pro{{background:rgba(16,185,129,.16);color:#6ee7b7;border:1px solid rgba(16,185,129,.32)}}.pill.free{{background:rgba(99,102,241,.16);color:#c4b5fd;border:1px solid rgba(99,102,241,.32)}}.search{{width:100%;padding:13px 14px;border-radius:14px;border:1px solid #334155;background:#07101d;color:white;margin:4px 0 14px;outline:none}}.search:focus{{border-color:var(--cyan);box-shadow:0 0 0 4px rgba(56,189,248,.10)}}.download-zone{{margin:18px 0 30px;padding:16px;border-radius:22px;border:1px dashed rgba(148,163,184,.35);background:rgba(8,13,23,.45)}}.download-row{{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}}a.smallbtn{{background:#17243a;color:#dbeafe;text-decoration:none;padding:8px 10px;border-radius:10px;font-weight:800;font-size:.78rem;display:inline-flex;gap:6px;align-items:center;border:1px solid rgba(148,163,184,.24)}}a.smallbtn:hover{{border-color:var(--cyan)}}
+@media(max-width:1000px){{.grid{{grid-template-columns:repeat(2,1fr)}}.hero-stats{{grid-template-columns:1fr 1fr}}}}@media(max-width:560px){{.wrap{{padding:12px}}.hero{{border-radius:22px;padding:15px}}.grid{{grid-template-columns:1fr}}.hero-stats{{grid-template-columns:1fr}}.card{{border-radius:20px}}th,td{{padding:11px 12px;font-size:.82rem}}}}
 </style></head>
 <body><div class='wrap'>
-  <div class='top'><div><h1>TikGenius Admin Panel</h1><div class='muted'>Track revenue, premium users, free users, emails and recent payments.</div></div><div><a class='btn' href='/admin/emails.csv?key={escape(key)}'>Download Emails CSV</a> <a class='btn' href='/admin/payments.csv?key={escape(key)}'>Download Payments CSV</a></div></div>
+  <section class='hero'><div class='top'><div class='brand'><div class='mark'>TG</div><div><h1>TikGenius Admin</h1><div class='muted'>Revenue, premium users, free users, emails, payments and growth activity.</div></div></div><a class='logout' href='/admin/logout'>Log out</a></div><div class='hero-stats'><div class='mini'><span>Revenue</span><b>{money_ngn(pay_stats['revenue'])}</b></div><div class='mini'><span>Premium conversion</span><b>{conversion}%</b></div><div class='mini'><span>Today signups</span><b>{today_signups}</b></div></div></section>
   <div class='grid'>
     <div class='card'><div class='label'>Total Revenue</div><div class='num'>{money_ngn(pay_stats['revenue'])}</div><div class='muted'>{pay_stats['count']} successful payments</div></div>
     <div class='card'><div class='label'>Premium Users</div><div class='num'>{premium_users}</div><div class='muted'>Active Pro accounts</div></div>
@@ -794,12 +827,12 @@ h1{{font-size:1.65rem;margin:0}}.muted{{color:#94a3b8;font-size:.9rem}}a.btn{{ba
   </div>
   <div class='section card'><h2>Recent Payments</h2><div class='tablebox'><table><thead><tr><th>Date</th><th>Email</th><th>Amount</th><th>Source</th><th>Reference</th></tr></thead><tbody>{payment_rows}</tbody></table></div></div>
   <div class='section card'><h2>Audience Emails</h2><input class='search' id='search' placeholder='Search email, name, plan...' onkeyup='filterRows()'><div class='tablebox'><table id='users'><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Plan</th><th>Expires</th><th>Region</th><th>Uses</th><th>Signup Date</th><th>Last Login</th></tr></thead><tbody>{user_rows}</tbody></table></div></div>
+  <div class='download-zone'><div class='label'>Downloads</div><div class='muted'>Export data only when needed. Keep these files private.</div><div class='download-row'><a class='smallbtn' href='/admin/emails.csv'>⬇ Emails CSV</a><a class='smallbtn' href='/admin/payments.csv'>⬇ Payments CSV</a></div></div>
 </div><script>function filterRows(){{let q=document.getElementById('search').value.toLowerCase();document.querySelectorAll('#users tbody tr').forEach(r=>{{r.style.display=r.innerText.toLowerCase().includes(q)?'':'none'}})}}</script></body></html>"""
 
 @app.route("/admin/emails.csv")
+@admin_login_required
 def admin_emails_csv():
-    if not admin_allowed():
-        return "Unauthorized", 401
     import csv, io
     conn = get_db()
     try:
@@ -817,9 +850,8 @@ def admin_emails_csv():
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=tikgenius_emails.csv"})
 
 @app.route("/admin/payments.csv")
+@admin_login_required
 def admin_payments_csv():
-    if not admin_allowed():
-        return "Unauthorized", 401
     import csv, io
     conn = get_db()
     try:

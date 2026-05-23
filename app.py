@@ -1647,6 +1647,3 @@ loadUser();
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
-@app.route("/")
-def index():
-    return HOME_HTML

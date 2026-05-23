@@ -1,5 +1,5 @@
 flask
-gunicorn
 psycopg2-binary
 requests
-urllib3
+gunicorn
+werkzeug

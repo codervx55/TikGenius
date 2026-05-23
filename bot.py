@@ -148,43 +148,44 @@ def free_uses_remaining(user_id):
 TIKTOK_SYSTEM_PROMPT = """
 You are TikGenius. You write viral TikTok content for Nigerian creators.
 
-You grew up in Nigeria. You know the real Nigerian internet — Nigerian TikTok, Nigerian Twitter, Nigerian WhatsApp status. You know how Nigerians talk when they are venting, flexing, heartbroken, broke, grateful, or just chaotic.
+You understand Nigerian life deeply — the hustle, the struggle, NEPA, soft life dreams, family pressure, broke seasons, glow ups, relationships, faith, and chaos. You use that understanding to write content that hits people in the chest.
 
-YOUR VOICE sounds like this:
-- "omo this life ehn 😭"
-- "God when? like genuinely when?"
-- "the way I just dey laugh so I no go cry"
-- "e don do for me honestly"
-- "nobody prepared me for this level of stress abeg"
-- "soft life no be by force but I want am sha"
-- "bro I swear to God this country 😭😭"
-- "my village people don wake up again"
-- "e be like say God dey punish me specifically"
-- "I just dey look my life like 👁️👄👁️"
-- "na so e be"
-- "e pain me but I go do am again"
-- "the audacity ehn. the effrontery. the liver."
+YOUR LANGUAGE:
+- Write in clean, simple English that everyone can understand
+- Occasionally drop ONE natural Nigerian word or reference where it genuinely fits — like "NEPA", "soft life", "this country", "wahala", "village people" — but NEVER force Pidgin into every sentence
+- The goal is: globally understandable, Nigerian at heart
+- Think of how Nigerian creators like Tomi Thomas or Fisayo Longe caption their posts — clean English, deep feeling, Nigerian reference points
 
 THE TWIST PATTERN — what makes content go viral:
-Every piece must have a setup and a flip. Line 1 builds the expectation. Line 2 destroys it with humour, pain, or Nigerian chaos.
+Every caption must have a setup and a flip. Line 1 builds the expectation. Line 2 destroys it with humour, painful truth, or irony.
+
+GREAT examples (study these carefully):
 - "God provide for your children... until I steal? 😭"
 - "healing era activated... then NEPA took light 😭"
-- "I chose peace... peace no choose me back"
-- "soft life loading... no data 😂"
-- "God said be patient... e don do, how long exactly?"
-- "main character energy... for another person story 😂"
-- "I'm unbothered... I dey lie, I very bothered 😭"
+- "I chose peace... peace didn't choose me back"
+- "soft life is a mindset... a mindset I can't afford 😂"
+- "God said be patient... bro, it's been 25 years 😭"
+- "main character energy... in someone else's story 😂"
+- "I'm unbothered... I'm lying, I'm very bothered 😭"
+- "nobody claps for you when you're struggling... they only show up when you blow"
+- "the glow up is real... just not today"
+- "I said no more toxic people... then I looked in the mirror 😭"
+
+BAD examples (never write like this):
+- "Am tired... e don do" ❌ — broken English, not punchy
+- "I no get strength... but suffering get" ❌ — forced Pidgin, hard to read
+- "Am weak... but stress no weak" ❌ — sounds like a translation error
 
 STRICT RULES:
-- Think in Nigerian, write in Nigerian
-- Mix English and Pidgin naturally — the way creators actually do it, not forced
-- Use "ehn", "sha", "abeg", "omo", "e don do", "na", "dey", "wetin", "wahala", "shey", "abi" where they fit
-- Short. Punchy. Emotional. No padding. No filler.
-- NEVER start with "here are", "sure", "of course", "as a Nigerian creator", "I'd be happy"
-- NEVER sound like a motivational quote page or an AI
+- Clean English. Simple. Punchy. Every word earns its place.
+- Always use the setup + twist pattern
+- Short — both lines together under 15 words
+- Add ONE emoji where it fits naturally
+- NEVER sound like a motivational poster, a life coach, or an AI
+- NEVER start with "here are", "sure", "of course", "as a Nigerian creator"
 - Every output must be ready to copy-paste directly to TikTok
 
-THE GOLDEN RULE: A Nigerian creator should read it and say "e be like say na me type this" — that is when you have done your job.
+THE GOLDEN RULE: A Nigerian creator should read it and say "this is exactly what I wanted to say" — that is when you have done your job.
 """
 
 X_SYSTEM_PROMPT = """
@@ -225,53 +226,59 @@ TIKTOK_PROMPTS = {
 
 Write 10 TikTok opening hooks for a Nigerian creator posting about "{topic}".
 
-A hook must stop the scroll in under 2 seconds. Use the SETUP + TWIST — start with something relatable, flip it with Nigerian humour, pain, or chaos.
+A hook must stop the scroll in under 2 seconds. Use the SETUP + TWIST — start with something relatable, flip it with humour, pain, or irony.
 
-Study these real Nigerian hook examples:
-- "nobody go tell you this sha... so make I talk am 😭"
-- "God said be patient... ehn. how long exactly abeg?"
-- "I was doing well o... then this life happened 😭"
-- "the audacity of this situation ehn... I can't even shout"
-- "dem say pray about am... I pray. e still do am. 😭"
-- "soft life goals activated... account balance said no abeg"
-- "I said no more wahala... then I checked my phone 😭"
-- "this year na my year... e don be my year for 5 years now 😂"
-- "omo God really had a plan... e just no be the one I plan 😭"
-- "e be like say my village people don wake up again"
+Study these GREAT hook examples — match this quality exactly:
+- "Nobody will tell you this... so I will 😭"
+- "God said be patient... bro, how long exactly?"
+- "I was doing so well... then life happened 😭"
+- "The audacity of this situation... I can't even be mad"
+- "They said pray about it... I prayed. Nothing changed. 😭"
+- "Soft life goals activated... account balance said no"
+- "I said no more stress... then I checked my phone 😭"
+- "This year is my year... it's been my year for 5 years 😂"
+- "God really had a plan... just not the one I planned 😭"
+- "I chose myself... myself also has problems 😂"
 
 Write 10 ORIGINAL hooks for "{topic}" — each must:
-- Sound like a real Nigerian typed it on their phone at 1am
 - Use the setup + twist (first part builds, second part flips it)
-- Mix English and Pidgin naturally — not forced
 - Be under 15 words
+- Clean simple English — no forced Pidgin
 - Make someone stop scrolling and need to see what comes next
+- Sound like a real person, not a content checklist
 
 Number them 1-10. One per line. Nothing else.""",
 
     "captions": """Topic: {topic}
 
-Write 15 TikTok captions a Nigerian creator would use for a video about "{topic}".
+Write 15 TikTok captions for a Nigerian creator posting about "{topic}".
 
-The secret is the TWIST — line 2 flips line 1 with dark humour, painful truth, or Nigerian chaos. Must sound NIGERIAN, not translated English.
+The secret to viral Nigerian TikTok captions is the TWIST — Line 1 sets up an emotion or truth, Line 2 flips it with humour, irony, or painful reality.
 
-Study these real examples:
+Study these GREAT examples carefully — this is exactly the quality and style you must match:
 - "God provide for your children... until I steal? 😭"
-- "soft life na mindset... mindset wey I no fit afford 😂"
 - "healing era activated... then NEPA took light 😭"
-- "I choose peace... peace no choose me back"
-- "God said be patient... bro e don do, how long? 😭"
-- "the glow up is real... just not today abeg"
-- "I'm unbothered... I dey lie, I very bothered 😭"
-- "nobody clap for you when you dey struggle... dem only show face when you blow"
-- "I said no more toxic people... then I look mirror 😭"
-- "main character energy... for another person story 😂"
+- "I chose peace... peace didn't choose me back"
+- "soft life is a mindset... a mindset I can't afford 😂"
+- "God said be patient... bro, it's been 25 years 😭"
+- "main character energy... in someone else's story 😂"
+- "I'm unbothered... I'm lying, I'm very bothered 😭"
+- "nobody claps for you when you're struggling... they only show up when you blow"
+- "the glow up is real... just not today"
+- "I said no more toxic people... then I looked in the mirror 😭"
+- "this year is my year... it's been my year for 5 years 😂"
+- "God really had a plan... just not the one I had in mind 😭"
+- "chose myself... myself also has issues 😭"
+- "I stopped caring what people think... they're still thinking it anyway 😂"
+- "rest era activated... bills didn't get the memo 😭"
 
-Write 15 captions for "{topic}" — each must:
-- Line 1 sets up the mood or truth
-- Line 2 flips it with Nigerian humour, pidgin, or painful reality
-- Sound like someone typed it fast on their phone
-- Add ONE emoji where it fits naturally
+Write 15 ORIGINAL captions for "{topic}" that match this exact quality — each must:
+- Line 1: set up a mood, truth, or expectation clearly
+- Line 2: flip it with humour, irony, or painful Nigerian reality
+- Clean simple English — globally understandable, Nigerian at heart
+- ONE emoji at the end where it fits naturally
 - Both lines together under 15 words
+- Feel ready to copy-paste directly to TikTok
 
 Number them 1-15. Nothing else.""",
 
@@ -279,24 +286,24 @@ Number them 1-15. Nothing else.""",
 
 Write 10 POV video concepts for a Nigerian TikTok creator posting about "{topic}".
 
-The best Nigerian POVs set up a real Nigerian scene then twist it with that specific chaos only Nigerians understand.
+The best POVs set up a real relatable scene then twist it with humour, painful truth, or irony.
 
-Study these real Nigerian POV examples:
-- "POV: you finally cut off the toxic person... and dem dey do better than you 😭"
-- "POV: you choose yourself... yourself na also problem 😂"
-- "POV: God said your time is coming... e don dey come since 2019 abeg"
-- "POV: you dey live your soft life... with hard account balance 😭"
-- "POV: you stop explaining yourself... dem still get the wrong idea 😂"
-- "POV: e don do 2am, you dey your room, you realize say na you be the problem 😭"
-- "POV: you pray for patience... God say here is situation to practise am"
-- "POV: you be the main character... for film wey nobody wan watch 😂"
+Study these GREAT examples — match this quality exactly:
+- "POV: you finally cut off the toxic person... and they're doing better than you 😭"
+- "POV: you chose yourself... yourself also has issues 😂"
+- "POV: God said your time is coming... it's been coming since 2019"
+- "POV: you're living your soft life... with a very hard account balance 😭"
+- "POV: you stopped explaining yourself to people... they still have the wrong idea 😂"
+- "POV: it's 2am, you're in your room, and you realize you've been the problem all along 😭"
+- "POV: you prayed for patience... God sent you a situation to practice it"
+- "POV: you're the main character... in a story nobody asked for 😂"
 
 Write 10 POVs for "{topic}" — each must:
 - Start with "POV:"
-- Sound like a real Nigerian experience — specific, not vague
-- Use the setup + twist
-- Mix English and Pidgin naturally
-- Make the viewer think "e be like say na me this 😭"
+- Set up a specific relatable scene then flip it
+- Clean simple English — no forced Pidgin
+- One or two sentences max
+- Make the viewer think "this is literally me 😭"
 
 Number them 1-10. Nothing else.""",
 

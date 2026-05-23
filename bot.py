@@ -278,30 +278,74 @@ def telegram_webhook():
     command = text.split()[0].lower().split("@")[0]
 
     if command == "/start":
-        send_message(chat_id, f"""Welcome {first_name} to TikGenius
+        send_message(chat_id, f"""🔥 Welcome {first_name} to TikGenius 🇳🇬
 
-Commands:
+I help you create fire content for your face videos.
+
+**Main Commands:**
 /hooks [topic]
-/captions [topic] → TikTok
-/captions x [topic] → X/Twitter
+/captions [topic] — TikTok
+/captions x [topic] — Twitter/X
 /pov [topic]
 /hashtags [topic]
 /bio [niche]
 /plan
-/upgrade""")
+/upgrade
+
+**❓ FAQ:**
+• /hooks motivation → 4 strong opening lines
+• /captions relationship → 12 TikTok captions
+• /captions x money → 10 Twitter captions
+• /pov school → POV video ideas
+• /hashtags content creation → Hashtag sets
+• /bio fitness → 6 good bios
+
+Just replace the word after the command with your topic.
+
+Type /plan to check your usage.""")
 
     elif command == "/plan":
         if is_pro(user_id):
-            send_message(chat_id, f"Pro Active until {get_pro_expiry(user_id)}")
+            send_message(chat_id, f"✅ Pro Active until {get_pro_expiry(user_id)}")
         else:
             send_message(chat_id, f"Free Plan\nUses left today: {free_uses_remaining(user_id)}/{FREE_LIMIT}\n\n/upgrade")
 
     elif command == "/upgrade":
         link = create_payment_link(user_id, username)
-        send_message(chat_id, f"""TikGenius Pro — ₦2,000/month
+        send_message(chat_id, f"""🔥 TikGenius Pro — ₦2,000/month
 
-Unlimited access
+• Unlimited access
+• Priority generation
+• No daily limits
+
 Pay here: {link or "Try again later"}""")
+
+    elif command == "/stats":
+        if str(user_id) != ADMIN_ID:
+            send_message(chat_id, "❌ This command is for admin only.")
+            return jsonify({"ok": True})
+        
+        conn = get_db()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 
+                        COUNT(*) as total_users,
+                        COUNT(CASE WHEN plan = 'pro' AND expires >= CURRENT_DATE THEN 1 END) as pro_users,
+                        COUNT(CASE WHEN plan IS NULL OR plan = 'free' THEN 1 END) as free_users
+                    FROM users
+                """)
+                stats = cur.fetchone()
+            
+            response = f"""📊 TikGenius Stats
+
+Total Users: {stats['total_users']}
+Pro Users: {stats['pro_users']}
+Free Users: {stats['free_users']}"""
+            
+            send_message(chat_id, response)
+        finally:
+            release_db(conn)
 
     elif command == "/captions":
         args = text.split(maxsplit=2)
@@ -323,7 +367,7 @@ Example: /captions x motivation""")
 
         if not check_and_increment_free_usage(user_id):
             link = create_payment_link(user_id, username)
-            send_message(chat_id, f"Free uses finished.\nUpgrade: {link or '/upgrade'}")
+            send_message(chat_id, f"Free uses finished for today.\nUpgrade to Pro: {link or '/upgrade'}")
             return jsonify({"ok": True})
 
         send_typing(chat_id)
@@ -331,26 +375,26 @@ Example: /captions x motivation""")
 
         result = ask_ai("captions", topic, platform)
         platform_name = "X/Twitter" if platform == "x" else "TikTok"
-        send_message(chat_id, f"{platform_name} Captions\n\n{result}")
+        send_message(chat_id, f"{platform_name} Captions for **{topic}**\n\n{result}")
 
     elif command in {"/hooks", "/pov", "/hashtags", "/bio"}:
         mode = command.replace("/", "")
         topic = text.split(maxsplit=1)[1].strip() if len(text.split()) > 1 else ""
 
         if not topic:
-            send_message(chat_id, f"Example: /{mode} motivation")
+            send_message(chat_id, f"Usage: /{mode} [topic]\nExample: /{mode} motivation")
             return jsonify({"ok": True})
 
         if not check_and_increment_free_usage(user_id):
             link = create_payment_link(user_id, username)
-            send_message(chat_id, f"Free uses finished.\nUpgrade: {link or '/upgrade'}")
+            send_message(chat_id, f"Free uses finished for today.\nUpgrade: {link or '/upgrade'}")
             return jsonify({"ok": True})
 
         send_typing(chat_id)
-        send_message(chat_id, "Generating content...")
+        send_message(chat_id, f"Generating {mode}...")
 
         result = ask_ai(mode, topic, "tiktok")
-        send_message(chat_id, f"TikTok {mode.capitalize()}\n\n{result}")
+        send_message(chat_id, f"TikTok {mode.capitalize()} for **{topic}**\n\n{result}")
 
     return jsonify({"ok": True})
 

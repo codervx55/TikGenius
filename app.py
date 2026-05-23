@@ -16,7 +16,7 @@ from urllib3.util.retry import Retry
 
 # ========================= CONFIG =========================
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
 PAYSTACK_PUBLIC_KEY = os.getenv("PAYSTACK_PUBLIC_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -436,7 +436,7 @@ Rules:
 }
 
 # ========================= AI FUNCTION =========================
-def ask_gemini(mode, topic, platform="tiktok", region="global"):
+def ask_groq(mode, topic, platform="tiktok", region="global"):
     region_voice = REGION_VOICES.get(region, REGION_VOICES["global"])
 
     if platform == "x":
@@ -447,23 +447,32 @@ def ask_gemini(mode, topic, platform="tiktok", region="global"):
         prompt_template = TIKTOK_PROMPTS.get(mode, TIKTOK_PROMPTS["captions"])
 
     prompt = prompt_template.format(topic=topic)
-    full_prompt = f"{system}\n\n{prompt}"
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
     payload = {
-        "contents": [{"parts": [{"text": full_prompt}]}],
-        "generationConfig": {"temperature": 0.9, "maxOutputTokens": 1500, "topP": 0.95}
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.9,
+        "max_tokens": 1500,
+        "top_p": 0.95
     }
 
     try:
-        res = http_session.post(url, json=payload, timeout=30)
+        res = http_session.post(url, json=payload, headers=headers, timeout=30)
         data = res.json()
-        if "candidates" in data and data["candidates"]:
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        print(f"Gemini error: {data}")
+        if "choices" in data and data["choices"]:
+            return data["choices"][0]["message"]["content"].strip()
+        print(f"Groq error: {data}")
         return "Something went wrong. Please try again."
     except Exception as e:
-        print(f"Gemini Error: {e}")
+        print(f"Groq Error: {e}")
         return "Something went wrong. Please try again."
 
 # ========================= PAYMENT =========================
@@ -605,7 +614,7 @@ def generate():
 
     user = get_web_user(user_id)
     region = user["region"] if user else "global"
-    result = ask_gemini(mode, topic, platform, region)
+    result = ask_groq(mode, topic, platform, region)
 
     return jsonify({
         "result": result,
@@ -905,7 +914,7 @@ def telegram_webhook():
         send_typing(chat_id)
         send_telegram_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it..."])))
         region = get_user_region(user_id)
-        result = ask_gemini(mode, topic, "tiktok", region)
+        result = ask_groq(mode, topic, "tiktok", region)
         send_telegram_message(chat_id, f"✨ TikGenius\n\n{result[:3800]}")
 
         if not is_pro(user_id):
@@ -943,7 +952,7 @@ def telegram_webhook():
         send_typing(chat_id)
         send_telegram_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it..."])))
         region = get_user_region(user_id)
-        result = ask_gemini(mode, topic, "x", region)
+        result = ask_groq(mode, topic, "x", region)
         send_telegram_message(chat_id, f"✨ XGenius\n\n{result[:3800]}")
 
         if not is_pro(user_id):

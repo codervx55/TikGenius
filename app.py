@@ -753,218 +753,8 @@ def set_user_region(user_id, region):
 
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
-    data = request.json or {}
-
-    # Handle callback queries (region selection buttons)
-    if "callback_query" in data:
-        cb = data["callback_query"]
-        user_id = cb["from"]["id"]
-        chat_id = cb["message"]["chat"]["id"]
-        cb_data = cb.get("data", "")
-
-        if cb_data.startswith("region_"):
-            region = cb_data.replace("region_", "")
-            set_user_region(user_id, region)
-            region_name = REGION_NAMES.get(region, "Global")
-            send_telegram_message(chat_id,
-                f"✅ Region set to {region_name}\n\nYour content will now be written in that voice.\n\nTry it now:\n{EXAMPLES.get('captions')}")
-            try:
-                http_session.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
-                                 json={"callback_query_id": cb["id"]}, timeout=5)
-            except: pass
-
-        return jsonify({"ok": True})
-
-    message = data.get("message", {})
-    chat_id = message.get("chat", {}).get("id")
-    user_id = message.get("from", {}).get("id")
-    username = message.get("from", {}).get("username", "")
-    first_name = message.get("from", {}).get("first_name", "Creator")
-    text = message.get("text", "").strip()
-
-    if not chat_id or not text:
-        return jsonify({"ok": True})
-
-    parts = text.split(maxsplit=1)
-    command = parts[0].lower().split("@")[0]
-    topic = parts[1].strip() if len(parts) > 1 else ""
-
-    if command == "/start":
-        send_telegram_message(chat_id,
-            f"✨ Welcome {first_name} — you just found TikGenius 🔥\n\n"
-            f"I write viral content for creators worldwide.\n\n"
-            f"First — pick your content style so I write in your voice:")
-        send_telegram_message(chat_id,
-            "Choose your region:", reply_markup=REGION_KEYBOARD)
-
-    elif command == "/region":
-        send_telegram_message(chat_id,
-            "Choose your content region:", reply_markup=REGION_KEYBOARD)
-
-    elif command == "/commands":
-        send_telegram_message(chat_id,
-            f"━━━ TIKTOK ━━━\n"
-            f"/hooks [topic]\n"
-            f"/captions [topic]\n"
-            f"/pov [topic]\n"
-            f"/hashtags [topic]\n"
-            f"/bio [niche]\n"
-            f"/script [idea] ⭐ Pro\n\n"
-            f"━━━ TWITTER / X ━━━\n"
-            f"/xtweets [topic]\n"
-            f"/xhooks [topic]\n"
-            f"/xthread [topic] ⭐ Pro\n\n"
-            f"━━━ OTHER ━━━\n"
-            f"/trends [niche] ⭐ Pro\n"
-            f"/region — change your content region\n"
-            f"/plan — check your plan\n"
-            f"/upgrade — go Pro\n\n"
-            f"Free: {FREE_LIMIT} uses/day\n"
-            f"Pro: ₦2,000/month — unlimited\n\n"
-            f"Be specific with your topic:\n"
-            f"❌ /captions tired\n"
-            f"✅ /captions I work so hard but I am still broke")
-
-    elif command == "/plan":
-        region = get_user_region(user_id)
-        region_name = REGION_NAMES.get(region, "Global")
-        if is_pro(user_id):
-            send_telegram_message(chat_id,
-                f"✅ Pro Active — expires {get_pro_expiry(user_id)}\n"
-                f"Region: {region_name}\n\nUnlimited access to everything.")
-        else:
-            remaining = free_uses_remaining(user_id)
-            send_telegram_message(chat_id,
-                f"🆓 Free Plan — {remaining}/{FREE_LIMIT} uses left today\n"
-                f"Region: {region_name}\n\n"
-                f"Upgrade to Pro for ₦2,000/month → /upgrade")
-
-    elif command == "/upgrade":
-        link = tg_create_payment_link(user_id, username)
-        send_telegram_message(chat_id,
-            f"🚀 TikGenius Pro — ₦2,000/month\n\n"
-            f"✅ Unlimited hooks, captions, POVs, hashtags, bios\n"
-            f"✅ Full video scripts (/script)\n"
-            f"✅ Trend ideas (/trends)\n"
-            f"✅ Full X threads (/xthread)\n"
-            f"✅ All regions supported\n"
-            f"✅ No daily limits ever\n\n"
-            f"Pay here:\n{link or 'Try again in a moment'}\n\n"
-            f"Activation is automatic after payment ✅")
-
-    elif command == "/activatepro":
-        if str(user_id) == ADMIN_ID:
-            target_id = int(topic) if topic.isdigit() else user_id
-            expires = activate_pro(target_id)
-            send_telegram_message(chat_id, f"✅ Pro activated for {target_id}\nExpires: {expires}")
-        else:
-            send_telegram_message(chat_id, "❌ Not allowed.")
-
-    elif command == "/stats":
-        if str(user_id) != ADMIN_ID:
-            send_telegram_message(chat_id, "❌ Not allowed.")
-            return jsonify({"ok": True})
-        conn = get_db()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) AS total FROM users")
-                tg_total = cur.fetchone()["total"]
-                cur.execute("SELECT COUNT(*) AS pro FROM users WHERE plan='pro' AND expires >= CURRENT_DATE")
-                tg_pro = cur.fetchone()["pro"]
-                cur.execute("SELECT COUNT(*) AS total FROM web_users")
-                web_total = cur.fetchone()["total"]
-                cur.execute("SELECT COUNT(*) AS pro FROM web_users WHERE plan='pro' AND expires >= CURRENT_DATE")
-                web_pro = cur.fetchone()["pro"]
-            send_telegram_message(chat_id,
-                f"📊 TikGenius Stats\n\n"
-                f"TELEGRAM\n"
-                f"👥 Users: {tg_total}\n"
-                f"💎 Pro: {tg_pro}\n\n"
-                f"WEBSITE\n"
-                f"👥 Users: {web_total}\n"
-                f"💎 Pro: {web_pro}")
-        finally:
-            release_db(conn)
-
-    elif command in TIKTOK_COMMANDS:
-        mode = command.replace("/", "")
-
-        if command in PRO_COMMANDS and not is_pro(user_id):
-            link = tg_create_payment_link(user_id, username)
-            send_telegram_message(chat_id,
-                f"🔒 Pro feature.\n\nUpgrade for ₦2,000/month:\n{link or '/upgrade'}")
-            return jsonify({"ok": True})
-
-        if not topic:
-            send_telegram_message(chat_id,
-                f"Add a topic after the command.\n\nExample:\n{EXAMPLES.get(mode)}")
-            return jsonify({"ok": True})
-
-        if len(topic.split()) < 3:
-            send_telegram_message(chat_id,
-                f"Be more specific for better results.\n\nTry: {EXAMPLES.get(mode)}")
-            return jsonify({"ok": True})
-
-        if not check_and_increment_free_usage(user_id):
-            link = tg_create_payment_link(user_id, username)
-            send_telegram_message(chat_id,
-                f"⏳ {FREE_LIMIT} free uses used for today.\n\nUpgrade to Pro:\n{link or '/upgrade'}")
-            return jsonify({"ok": True})
-
-        send_typing(chat_id)
-        send_telegram_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it..."])))
-        region = get_user_region(user_id)
-        result = ask_groq(mode, topic, "tiktok", region)
-        send_telegram_message(chat_id, f"✨ TikGenius\n\n{result[:3800]}")
-
-        if not is_pro(user_id):
-            remaining = free_uses_remaining(user_id)
-            if remaining <= 2:
-                send_telegram_message(chat_id,
-                    f"💡 {remaining} free use(s) left today.\n\nGo Pro → /upgrade")
-
-    elif command in X_COMMANDS:
-        mode_map = {"/xtweets": "captions", "/xhooks": "hooks", "/xthread": "threads"}
-        mode = mode_map[command]
-
-        if command == "/xthread" and not is_pro(user_id):
-            link = tg_create_payment_link(user_id, username)
-            send_telegram_message(chat_id,
-                f"🔒 X Threads is Pro.\n\nUpgrade:\n{link or '/upgrade'}")
-            return jsonify({"ok": True})
-
-        if not topic:
-            send_telegram_message(chat_id,
-                f"Add a topic.\n\nExample:\n{EXAMPLES.get('threads' if mode == 'threads' else 'hooks')}")
-            return jsonify({"ok": True})
-
-        if len(topic.split()) < 3:
-            send_telegram_message(chat_id,
-                f"Be more specific.\n\nExample:\n{EXAMPLES.get('threads' if mode == 'threads' else 'hooks')}")
-            return jsonify({"ok": True})
-
-        if not check_and_increment_free_usage(user_id):
-            link = tg_create_payment_link(user_id, username)
-            send_telegram_message(chat_id,
-                f"⏳ Free uses finished.\n\nUpgrade:\n{link or '/upgrade'}")
-            return jsonify({"ok": True})
-
-        send_typing(chat_id)
-        send_telegram_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it..."])))
-        region = get_user_region(user_id)
-        result = ask_groq(mode, topic, "x", region)
-        send_telegram_message(chat_id, f"✨ XGenius\n\n{result[:3800]}")
-
-        if not is_pro(user_id):
-            remaining = free_uses_remaining(user_id)
-            if remaining <= 2:
-                send_telegram_message(chat_id,
-                    f"💡 {remaining} free use(s) left today. Go Pro → /upgrade")
-
-    else:
-        send_telegram_message(chat_id, "Unknown command. Use /commands to see everything.")
-
-    return jsonify({"ok": True})
+    """Telegram bot is disabled. TikGenius now runs website-only."""
+    return jsonify({"ok": True, "message": "Telegram bot disabled. Use the website."})
 
 # ========================= HTML PAGES =========================
 HOME_HTML = """<!DOCTYPE html>
@@ -973,40 +763,40 @@ HOME_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TikGenius — Go Viral. In Your Voice.</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#080810;
-  --surface:#0f0f1a;
-  --card:#141428;
-  --border:#1e1e3a;
-  --purple:#7c3aed;
-  --purple-light:#a855f7;
-  --pink:#ec4899;
-  --text:#f0f0ff;
-  --muted:#6b6b8a;
+  --bg:#05070a;
+  --surface:#0b1117;
+  --card:#101820;
+  --border:#1d2a35;
+  --purple:#14b8a6;
+  --purple-light:#38bdf8;
+  --pink:#f59e0b;
+  --text:#f8fafc;
+  --muted:#8a99a8;
 }
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
-h1,h2,h3,h4{font-family:'Syne',sans-serif}
+body{background:radial-gradient(circle at 50% -10%,rgba(20,184,166,.13),transparent 38%),var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;overflow-x:hidden;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;letter-spacing:-.035em}
 
 /* NAV */
-nav{display:flex;justify-content:space-between;align-items:center;padding:1.2rem 2rem;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;background:rgba(8,8,16,0.9);backdrop-filter:blur(12px)}
-.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;background:linear-gradient(135deg,var(--purple-light),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 1.2rem;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;background:rgba(5,7,10,0.88);backdrop-filter:blur(14px)}
+.logo{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.12rem;background:linear-gradient(135deg,var(--text),var(--purple-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .nav-btns{display:flex;gap:0.75rem}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);padding:0.5rem 1.2rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.9rem;transition:all 0.2s}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);padding:0.5rem 1.2rem;border-radius:8px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.9rem;transition:all 0.2s}
 .btn-ghost:hover{border-color:var(--purple);color:var(--purple-light)}
-.btn-primary{background:linear-gradient(135deg,var(--purple),var(--pink));border:none;color:white;padding:0.5rem 1.4rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.9rem;font-weight:500;transition:opacity 0.2s}
+.btn-primary{background:linear-gradient(135deg,var(--purple),var(--purple-light));border:none;color:#031013;padding:0.55rem 1.15rem;border-radius:10px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;font-weight:700;transition:opacity 0.2s}
 .btn-primary:hover{opacity:0.9}
 
 /* HERO */
-.hero{text-align:center;padding:6rem 2rem 4rem;max-width:800px;margin:0 auto}
+.hero{text-align:center;padding:4.5rem 1.25rem 3rem;max-width:760px;margin:0 auto}
 .hero-badge{display:inline-block;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:var(--purple-light);padding:0.4rem 1rem;border-radius:100px;font-size:0.85rem;margin-bottom:2rem}
-.hero h1{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:800;line-height:1.1;margin-bottom:1.5rem}
-.hero h1 span{background:linear-gradient(135deg,var(--purple-light),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero h1{font-size:clamp(2.15rem,9vw,4.2rem);font-weight:700;line-height:1.04;margin-bottom:1.15rem}
+.hero h1 span{background:linear-gradient(135deg,var(--purple-light),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .hero p{color:var(--muted);font-size:1.15rem;line-height:1.7;max-width:540px;margin:0 auto 2.5rem}
 .hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.btn-large{padding:0.9rem 2rem;border-radius:10px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s}
+.btn-large{padding:0.9rem 2rem;border-radius:10px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s}
 .btn-large.primary{background:linear-gradient(135deg,var(--purple),var(--pink));border:none;color:white}
 .btn-large.primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(124,58,237,0.4)}
 .btn-large.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
@@ -1032,7 +822,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:1.2rem
 /* HOW IT WORKS */
 .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:2rem;margin-top:3rem}
 .step{text-align:center}
-.step-num{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;margin:0 auto 1rem}
+.step-num{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.1rem;margin:0 auto 1rem}
 .step h3{font-size:1.1rem;margin-bottom:0.5rem}
 .step p{color:var(--muted);font-size:0.9rem;line-height:1.6}
 
@@ -1044,9 +834,9 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:1.2rem
 .pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:2rem;margin-top:3rem;max-width:700px;margin-left:auto;margin-right:auto}
 .price-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2rem}
 .price-card.featured{border-color:var(--purple);position:relative}
-.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple),var(--pink));color:white;font-size:0.7rem;font-weight:700;padding:0.25rem 1rem;border-radius:100px;font-family:'Syne',sans-serif;letter-spacing:1px}
+.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple),var(--pink));color:white;font-size:0.7rem;font-weight:700;padding:0.25rem 1rem;border-radius:100px;font-family:'Space Grotesk',sans-serif;letter-spacing:1px}
 .price-label{color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem}
-.price-amount{font-family:'Syne',sans-serif;font-size:2.5rem;font-weight:800;margin-bottom:0.25rem}
+.price-amount{font-family:'Space Grotesk',sans-serif;font-size:2.5rem;font-weight:800;margin-bottom:0.25rem}
 .price-period{color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem}
 .price-features{list-style:none;margin-bottom:2rem}
 .price-features li{padding:0.5rem 0;border-bottom:1px solid var(--border);font-size:0.9rem;color:var(--muted)}
@@ -1060,23 +850,31 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:1.2rem
 .modal h2{font-size:1.5rem;margin-bottom:0.5rem}
 .modal p{color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem}
 .tabs{display:flex;gap:0.5rem;margin-bottom:1.5rem;background:var(--surface);padding:0.25rem;border-radius:8px}
-.tab{flex:1;padding:0.6rem;text-align:center;border-radius:6px;cursor:pointer;font-size:0.9rem;transition:all 0.2s;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif}
+.tab{flex:1;padding:0.6rem;text-align:center;border-radius:6px;cursor:pointer;font-size:0.9rem;transition:all 0.2s;border:none;background:transparent;color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif}
 .tab.active{background:var(--purple);color:white}
 .form-group{margin-bottom:1rem}
 .form-group label{display:block;font-size:0.85rem;color:var(--muted);margin-bottom:0.4rem}
-.form-group input, .form-group select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.75rem 1rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.95rem;outline:none;transition:border-color 0.2s}
+.form-group input, .form-group select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.75rem 1rem;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.95rem;outline:none;transition:border-color 0.2s}
 .form-group input:focus, .form-group select:focus{border-color:var(--purple)}
 .form-error{color:#f87171;font-size:0.85rem;margin-top:0.5rem;display:none}
-.btn-full{width:100%;padding:0.85rem;border-radius:8px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:0.5rem}
+.btn-full{width:100%;padding:0.85rem;border-radius:8px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;margin-top:0.5rem}
 
 /* FOOTER */
 footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:var(--muted);font-size:0.85rem}
 
 /* RESPONSIVE */
 @media(max-width:600px){
-  nav{padding:1rem}
-  .hero{padding:4rem 1.5rem 3rem}
-  .section{padding:3rem 1.5rem}
+  nav{padding:.75rem 1rem}
+  .logo{font-size:1rem}
+  .nav-btns{gap:.5rem}
+  .btn-ghost,.btn-primary{padding:.48rem .82rem;font-size:.82rem;border-radius:9px}
+  .hero{padding:3.15rem 1rem 2.3rem}
+  .hero-badge{font-size:.75rem;margin-bottom:1.1rem;padding:.32rem .78rem}
+  .hero h1{font-size:2.05rem;line-height:1.04;margin-bottom:1rem}
+  .hero p{font-size:.98rem;line-height:1.65}
+  .section{padding:2.45rem 1rem}
+  .section h2{font-size:1.75rem;line-height:1.12}
+  .card,.example-card,.step{border-radius:18px}
 }
 </style>
 </head>
@@ -1225,10 +1023,10 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
 <footer>
   <style>
     .footer-logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:0.75rem}
-    .footer-logo span{font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .footer-logo span{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.4rem;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
     .footer-tagline{color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem}
     .social-links{display:flex;gap:1rem;justify-content:center;margin-bottom:1.5rem;flex-wrap:wrap}
-    .social-link{display:flex;align-items:center;gap:6px;padding:0.45rem 1rem;border-radius:100px;border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.45);font-size:0.82rem;font-family:'DM Sans',sans-serif;text-decoration:none;transition:all 0.2s;background:rgba(255,255,255,0.03)}
+    .social-link{display:flex;align-items:center;gap:6px;padding:0.45rem 1rem;border-radius:100px;border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.45);font-size:0.82rem;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:none;transition:all 0.2s;background:rgba(255,255,255,0.03)}
     .social-link:hover{color:white;border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
     .social-link svg{width:14px;height:14px;flex-shrink:0}
     .footer-copy{color:rgba(255,255,255,0.15);font-size:0.78rem}
@@ -1385,27 +1183,27 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TikGenius — Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0a0a0b;
-  --sidebar:#111113;
-  --surface:#161618;
-  --card:#1c1c1f;
-  --border:#2a2a2e;
-  --border-subtle:#222226;
-  --purple:#7c3aed;
-  --purple-light:#a78bfa;
-  --cyan:#00c8ff;
-  --pink:#ec4899;
-  --text:#f4f4f5;
-  --text-2:#a1a1aa;
-  --text-3:#52525b;
+  --bg:#05070a;
+  --sidebar:#071019;
+  --surface:#0b1117;
+  --card:#101820;
+  --border:#1d2a35;
+  --border-subtle:#14202b;
+  --purple:#14b8a6;
+  --purple-light:#38bdf8;
+  --cyan:#22d3ee;
+  --pink:#f59e0b;
+  --text:#f8fafc;
+  --text-2:#a8b3bf;
+  --text-3:#64748b;
   --green:#34d399;
-  --radius:12px;
+  --radius:14px;
 }
-body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;font-size:14px;line-height:1.5}
+body{background:radial-gradient(circle at 50% -15%,rgba(34,211,238,.10),transparent 36%),var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 
 /* ── LAYOUT ─────────────────────────────────────────── */
 .app{display:flex;min-height:100vh}
@@ -1425,7 +1223,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 
 /* Logo */
 .sb-logo{display:flex;align-items:center;gap:10px;margin-bottom:24px;padding:0 4px}
-.sb-logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;background:linear-gradient(135deg,#fff 30%,var(--purple-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sb-logo-text{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;background:linear-gradient(135deg,#fff 35%,var(--purple-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 
 /* New chat button */
 .btn-new{
@@ -1433,7 +1231,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
   width:100%;padding:10px 12px;
   background:transparent;border:1px solid var(--border);
   border-radius:var(--radius);color:var(--text-2);
-  font-family:'Inter',sans-serif;font-size:13px;font-weight:500;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:500;
   cursor:pointer;transition:all .15s;margin-bottom:24px;
   justify-content:center;
 }
@@ -1449,7 +1247,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
   display:flex;align-items:center;gap:10px;
   width:100%;padding:8px 12px;border-radius:8px;
   background:none;border:none;color:var(--text-2);
-  font-family:'Inter',sans-serif;font-size:13.5px;font-weight:400;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:13.5px;font-weight:400;
   cursor:pointer;transition:all .12s;text-align:left;
   position:relative;
 }
@@ -1498,14 +1296,14 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .btn-upgrade{
   width:100%;background:linear-gradient(135deg,var(--purple),var(--pink));
   border:none;color:white;padding:9px;border-radius:8px;
-  font-family:'Inter',sans-serif;font-size:13px;font-weight:600;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;
   cursor:pointer;transition:opacity .2s;
 }
 .btn-upgrade:hover{opacity:.88}
 
 .btn-logout{
   display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;
-  background:none;border:none;color:var(--text-3);font-family:'Inter',sans-serif;
+  background:none;border:none;color:var(--text-3);font-family:'Plus Jakarta Sans',sans-serif;
   font-size:13px;cursor:pointer;border-radius:8px;transition:all .15s;
 }
 .btn-logout:hover{color:var(--text-2);background:var(--surface)}
@@ -1521,7 +1319,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
   background:var(--bg);z-index:10;
 }
 .topbar-left{display:flex;align-items:center;gap:12px}
-.page-title{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:var(--text)}
+.page-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;color:var(--text);letter-spacing:-.025em}
 .platform-toggle{
   display:flex;background:var(--surface);border:1px solid var(--border-subtle);
   border-radius:8px;padding:3px;gap:2px;
@@ -1529,7 +1327,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .platform-btn{
   padding:5px 14px;border-radius:6px;border:none;
   background:transparent;color:var(--text-3);
-  font-family:'Inter',sans-serif;font-size:12px;font-weight:500;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:500;
   cursor:pointer;transition:all .15s;
 }
 .platform-btn.active{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
@@ -1538,7 +1336,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .region-select{
   background:var(--surface);border:1px solid var(--border-subtle);
   color:var(--text-2);padding:6px 10px;border-radius:8px;
-  font-family:'Inter',sans-serif;font-size:12px;outline:none;cursor:pointer;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;
 }
 .region-select:focus{border-color:var(--purple-light)}
 
@@ -1560,7 +1358,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .topic-input{
   width:100%;background:transparent;border:none;
   color:var(--text);padding:18px 20px 12px;
-  font-family:'Inter',sans-serif;font-size:15px;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;
   outline:none;resize:none;line-height:1.6;
   min-height:120px;
 }
@@ -1577,7 +1375,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
   display:flex;align-items:center;gap:8px;
   background:linear-gradient(135deg,var(--purple),var(--pink));
   border:none;color:white;padding:10px 20px;border-radius:10px;
-  font-family:'Inter',sans-serif;font-size:14px;font-weight:600;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:600;
   cursor:pointer;transition:opacity .2s,transform .15s;flex-shrink:0;
 }
 .btn-generate:hover{opacity:.9;transform:translateY(-1px)}
@@ -1614,7 +1412,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
   display:flex;align-items:center;gap:6px;
   background:var(--surface);border:1px solid var(--border);
   color:var(--text-2);padding:6px 14px;border-radius:8px;
-  font-family:'Inter',sans-serif;font-size:12px;font-weight:500;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:500;
   cursor:pointer;transition:all .15s;
 }
 .btn-copy:hover{border-color:var(--purple-light);color:var(--text)}
@@ -1625,14 +1423,14 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 }
 .output-text{
   white-space:pre-wrap;line-height:1.85;font-size:14.5px;
-  color:var(--text);font-family:'Inter',sans-serif;
+  color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;
 }
 
 /* ── MOBILE ──────────────────────────────────────────── */
 .mob-bar{display:none;align-items:center;justify-content:space-between;
   padding:14px 16px;border-bottom:1px solid var(--border-subtle);
   background:var(--sidebar);position:sticky;top:0;z-index:50}
-.mob-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;
+.mob-logo{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:16px;
   background:linear-gradient(135deg,#fff,var(--purple-light));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .mob-menu-btn{background:none;border:none;color:var(--text-2);cursor:pointer;padding:4px}
@@ -1651,9 +1449,18 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 
 @media(max-width:768px){
   .sidebar{display:none}
-  .mob-bar{display:flex}
-  .main{padding:0 16px}
-  .topbar{position:static;margin-bottom:20px}
+  .mob-bar{display:flex;height:56px;padding:0 14px;background:rgba(5,7,10,.88);backdrop-filter:blur(14px)}
+  .mob-logo{font-family:'Space Grotesk',sans-serif;font-size:17px;letter-spacing:-.02em}
+  .main{padding:0 14px}
+  .topbar{position:static;margin-bottom:16px;padding:12px 0}
+  .page-title{font-size:17px}
+  .platform-btn{padding:5px 10px;font-size:12px}
+  .composer-title{font-size:1.65rem;line-height:1.1}
+  .composer-sub{font-size:.92rem;line-height:1.55}
+  .topic-input{font-size:14px;min-height:110px}
+  .input-footer{padding:10px 12px;gap:10px}
+  .btn-generate{padding:10px 14px;border-radius:10px;font-size:13px}
+  .output-card,.input-card{border-radius:18px}
 }
 </style>
 </head>

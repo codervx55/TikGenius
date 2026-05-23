@@ -10,6 +10,7 @@ from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 import requests
 from flask import Flask, request, jsonify, session, redirect, url_for, Response
+from html import escape
 from werkzeug.security import generate_password_hash, check_password_hash
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -95,6 +96,20 @@ def init_db():
                 result TEXT,
                 created_at TIMESTAMP DEFAULT NOW()
             )""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS web_payments (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES web_users(id) ON DELETE SET NULL,
+                telegram_id BIGINT,
+                reference TEXT UNIQUE NOT NULL,
+                amount_kobo INTEGER NOT NULL DEFAULT 0,
+                currency TEXT DEFAULT 'NGN',
+                status TEXT DEFAULT 'success',
+                source TEXT DEFAULT 'web',
+                paid_at TIMESTAMP DEFAULT NOW(),
+                raw_email TEXT
+            )""")
+            cur.execute("ALTER TABLE web_payments ADD COLUMN IF NOT EXISTS raw_email TEXT")
+            cur.execute("ALTER TABLE web_payments ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'web'")
         conn.commit()
     finally:
         release_db(conn)
@@ -160,6 +175,22 @@ def activate_web_pro(user_id):
             cur.execute("UPDATE web_users SET plan='pro', expires=%s WHERE id=%s", (expires, user_id))
         conn.commit()
         return expires.strftime("%Y-%m-%d")
+    finally:
+        release_db(conn)
+
+def record_payment(reference, amount_kobo, currency="NGN", status="success", source="web", web_user_id=None, telegram_id=None, raw_email=None):
+    """Save successful Paystack payment once. Duplicate callbacks/webhooks are ignored."""
+    if not reference:
+        return
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO web_payments
+                (user_id, telegram_id, reference, amount_kobo, currency, status, source, raw_email)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (reference) DO NOTHING
+            """, (web_user_id, telegram_id, reference, int(amount_kobo or 0), currency or "NGN", status or "success", source or "web", raw_email))
+        conn.commit()
     finally:
         release_db(conn)
 
@@ -687,34 +718,83 @@ def set_region():
         release_db(conn)
 
 
-# ========================= ADMIN EMAIL LIST =========================
+# ========================= ADMIN PANEL =========================
 def admin_allowed():
     key = request.args.get("key") or request.headers.get("X-Admin-Key")
     return bool(ADMIN_EXPORT_KEY and key and hmac.compare_digest(str(key), str(ADMIN_EXPORT_KEY)))
 
+def money_ngn(kobo):
+    return f"₦{(int(kobo or 0) / 100):,.0f}"
+
+@app.route("/admin")
 @app.route("/admin/emails")
-def admin_emails_page():
+def admin_panel():
     if not admin_allowed():
         return "Unauthorized", 401
+    key = request.args.get("key", "")
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute("""SELECT id, COALESCE(name, '') AS name, email, plan, region, created_at, last_login_at
-                           FROM web_users ORDER BY created_at DESC""")
+            cur.execute("SELECT COUNT(*) AS total FROM web_users")
+            total_users = cur.fetchone()["total"]
+            cur.execute("SELECT COUNT(*) AS premium FROM web_users WHERE plan='pro' AND expires >= CURRENT_DATE")
+            premium_users = cur.fetchone()["premium"]
+            cur.execute("SELECT COUNT(*) AS free FROM web_users WHERE NOT (plan='pro' AND expires >= CURRENT_DATE)")
+            free_users = cur.fetchone()["free"]
+            cur.execute("SELECT COUNT(*) AS today FROM web_users WHERE created_at::date = CURRENT_DATE")
+            today_signups = cur.fetchone()["today"]
+            cur.execute("SELECT COUNT(*) AS gens FROM web_generations")
+            total_generations = cur.fetchone()["gens"]
+            cur.execute("SELECT COALESCE(SUM(amount_kobo),0) AS revenue, COUNT(*) AS count FROM web_payments WHERE status='success'")
+            pay_stats = cur.fetchone()
+            cur.execute("""SELECT p.reference, p.amount_kobo, p.currency, p.source, p.paid_at,
+                                  COALESCE(w.email, p.raw_email, '') AS email
+                           FROM web_payments p
+                           LEFT JOIN web_users w ON w.id=p.user_id
+                           ORDER BY p.paid_at DESC LIMIT 20""")
+            payments = cur.fetchall()
+            cur.execute("""SELECT id, COALESCE(name, '') AS name, email, plan, expires, region, usage_count, created_at, last_login_at
+                           FROM web_users ORDER BY created_at DESC LIMIT 300""")
             users = cur.fetchall()
     finally:
         release_db(conn)
 
-    rows = "".join(
-        f"<tr><td>{u['id']}</td><td>{u['name'] or ''}</td><td>{u['email']}</td><td>{u['plan']}</td><td>{u['region']}</td><td>{u['created_at']}</td><td>{u['last_login_at'] or ''}</td></tr>"
+    payment_rows = "".join(
+        f"<tr><td>{escape(str(p['paid_at'] or ''))}</td><td>{escape(p['email'] or '')}</td><td>{money_ngn(p['amount_kobo'])}</td><td>{escape(p['source'] or '')}</td><td class='muted'>{escape(p['reference'] or '')}</td></tr>"
+        for p in payments
+    ) or "<tr><td colspan='5' class='muted'>No payment recorded yet. New successful Paystack payments will appear here.</td></tr>"
+
+    user_rows = "".join(
+        f"<tr><td>{u['id']}</td><td>{escape(u['name'] or '')}</td><td>{escape(u['email'])}</td><td><span class='pill {('pro' if u['plan']=='pro' and u['expires'] else 'free')}'>{escape(u['plan'] or 'free')}</span></td><td>{escape(str(u['expires'] or ''))}</td><td>{escape(u['region'] or '')}</td><td>{u['usage_count'] or 0}</td><td>{escape(str(u['created_at'] or ''))}</td><td>{escape(str(u['last_login_at'] or ''))}</td></tr>"
         for u in users
     )
+
     return f"""<!doctype html>
-<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>TikGenius Emails</title>
-<style>body{{font-family:Inter,Arial,sans-serif;background:#081018;color:#fff;padding:24px}}a{{color:#38bdf8}}table{{width:100%;border-collapse:collapse;margin-top:20px}}td,th{{border-bottom:1px solid #243244;padding:10px;text-align:left}}th{{color:#7dd3fc}}.card{{max-width:1100px;margin:auto}}</style></head>
-<body><div class="card"><h1>TikGenius Audience Emails</h1><p>Total signups: <b>{len(users)}</b></p>
-<p><a href="/admin/emails.csv?key={request.args.get('key','')}">Download CSV</a></p>
-<table><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Plan</th><th>Region</th><th>Signup date</th><th>Last login</th></tr></thead><tbody>{rows}</tbody></table></div></body></html>"""
+<html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>TikGenius Admin</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+*{{box-sizing:border-box}}body{{margin:0;font-family:Inter,Arial,sans-serif;background:#0b1020;color:#eef2ff}}
+.wrap{{max-width:1240px;margin:auto;padding:22px}}.top{{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:18px;flex-wrap:wrap}}
+h1{{font-size:1.65rem;margin:0}}.muted{{color:#94a3b8;font-size:.9rem}}a.btn{{background:#2563eb;color:white;text-decoration:none;padding:11px 14px;border-radius:12px;font-weight:700;display:inline-block}}
+.grid{{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:18px 0}}.card{{background:linear-gradient(180deg,#121a33,#0f172a);border:1px solid #263452;border-radius:18px;padding:18px;box-shadow:0 12px 30px rgba(0,0,0,.22)}}
+.label{{color:#a5b4fc;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800}}.num{{font-size:1.75rem;font-weight:800;margin-top:8px}}
+.section{{margin-top:18px}}.tablebox{{overflow:auto;border-radius:16px;border:1px solid #263452}}table{{width:100%;border-collapse:collapse;min-width:900px;background:#0f172a}}th,td{{padding:12px 13px;border-bottom:1px solid #1e293b;text-align:left;font-size:.9rem;white-space:nowrap}}th{{color:#bfdbfe;background:#111c35;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em}}
+.pill{{padding:5px 9px;border-radius:999px;font-weight:800;font-size:.75rem}}.pill.pro{{background:#064e3b;color:#6ee7b7}}.pill.free{{background:#312e81;color:#c4b5fd}}
+.search{{width:100%;padding:13px 14px;border-radius:12px;border:1px solid #334155;background:#08111f;color:white;margin:10px 0 14px}}
+@media(max-width:900px){{.grid{{grid-template-columns:repeat(2,1fr)}}.wrap{{padding:15px}}}}@media(max-width:520px){{.grid{{grid-template-columns:1fr}}h1{{font-size:1.35rem}}}}
+</style></head>
+<body><div class='wrap'>
+  <div class='top'><div><h1>TikGenius Admin Panel</h1><div class='muted'>Track revenue, premium users, free users, emails and recent payments.</div></div><div><a class='btn' href='/admin/emails.csv?key={escape(key)}'>Download Emails CSV</a> <a class='btn' href='/admin/payments.csv?key={escape(key)}'>Download Payments CSV</a></div></div>
+  <div class='grid'>
+    <div class='card'><div class='label'>Total Revenue</div><div class='num'>{money_ngn(pay_stats['revenue'])}</div><div class='muted'>{pay_stats['count']} successful payments</div></div>
+    <div class='card'><div class='label'>Premium Users</div><div class='num'>{premium_users}</div><div class='muted'>Active Pro accounts</div></div>
+    <div class='card'><div class='label'>Free Users</div><div class='num'>{free_users}</div><div class='muted'>Not premium yet</div></div>
+    <div class='card'><div class='label'>Total Signups</div><div class='num'>{total_users}</div><div class='muted'>{today_signups} today</div></div>
+    <div class='card'><div class='label'>Generations</div><div class='num'>{total_generations}</div><div class='muted'>AI outputs created</div></div>
+  </div>
+  <div class='section card'><h2>Recent Payments</h2><div class='tablebox'><table><thead><tr><th>Date</th><th>Email</th><th>Amount</th><th>Source</th><th>Reference</th></tr></thead><tbody>{payment_rows}</tbody></table></div></div>
+  <div class='section card'><h2>Audience Emails</h2><input class='search' id='search' placeholder='Search email, name, plan...' onkeyup='filterRows()'><div class='tablebox'><table id='users'><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Plan</th><th>Expires</th><th>Region</th><th>Uses</th><th>Signup Date</th><th>Last Login</th></tr></thead><tbody>{user_rows}</tbody></table></div></div>
+</div><script>function filterRows(){{let q=document.getElementById('search').value.toLowerCase();document.querySelectorAll('#users tbody tr').forEach(r=>{{r.style.display=r.innerText.toLowerCase().includes(q)?'':'none'}})}}</script></body></html>"""
 
 @app.route("/admin/emails.csv")
 def admin_emails_csv():
@@ -724,18 +804,36 @@ def admin_emails_csv():
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute("""SELECT id, COALESCE(name, '') AS name, email, plan, region, created_at, last_login_at
+            cur.execute("""SELECT id, COALESCE(name, '') AS name, email, plan, expires, region, usage_count, created_at, last_login_at
                            FROM web_users ORDER BY created_at DESC""")
             users = cur.fetchall()
     finally:
         release_db(conn)
-
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["id", "name", "email", "plan", "region", "created_at", "last_login_at"])
+    writer.writerow(["id", "name", "email", "plan", "expires", "region", "usage_count", "created_at", "last_login_at"])
     for u in users:
-        writer.writerow([u["id"], u["name"], u["email"], u["plan"], u["region"], u["created_at"], u["last_login_at"] or ""])
+        writer.writerow([u["id"], u["name"], u["email"], u["plan"], u["expires"] or "", u["region"], u["usage_count"] or 0, u["created_at"], u["last_login_at"] or ""])
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=tikgenius_emails.csv"})
+
+@app.route("/admin/payments.csv")
+def admin_payments_csv():
+    if not admin_allowed():
+        return "Unauthorized", 401
+    import csv, io
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT p.reference, p.amount_kobo, p.currency, p.status, p.source, p.paid_at, COALESCE(w.email, p.raw_email, '') AS email
+                           FROM web_payments p LEFT JOIN web_users w ON w.id=p.user_id ORDER BY p.paid_at DESC""")
+            payments = cur.fetchall()
+    finally:
+        release_db(conn)
+    output = io.StringIO(); writer = csv.writer(output)
+    writer.writerow(["reference", "email", "amount_naira", "currency", "status", "source", "paid_at"])
+    for p in payments:
+        writer.writerow([p["reference"], p["email"], int(p["amount_kobo"] or 0)/100, p["currency"], p["status"], p["source"], p["paid_at"]])
+    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=tikgenius_payments.csv"})
 
 @app.route("/api/admin/audience-count")
 def admin_audience_count():
@@ -749,7 +847,6 @@ def admin_audience_count():
         return jsonify({"total": total})
     finally:
         release_db(conn)
-
 
 def verify_paystack_reference(reference):
     """Verify a Paystack transaction and activate the correct user if paid."""
@@ -780,15 +877,21 @@ def verify_paystack_reference(reference):
     metadata = tx.get("metadata") or {}
     source = metadata.get("source", "web")
 
+    reference = tx.get("reference") or reference
+    customer = tx.get("customer") or {}
+    paid_email = customer.get("email")
+
     if source == "web":
         web_user_id = metadata.get("web_user_id")
         if not web_user_id:
             return False, "Missing web user ID"
+        record_payment(reference, tx.get("amount"), tx.get("currency", "NGN"), tx.get("status", "success"), "web", int(web_user_id), None, paid_email)
         expires = activate_web_pro(int(web_user_id))
         return True, f"Premium activated until {expires}"
 
     telegram_id = metadata.get("telegram_id")
     if telegram_id:
+        record_payment(reference, tx.get("amount"), tx.get("currency", "NGN"), tx.get("status", "success"), "telegram", None, int(telegram_id), paid_email)
         expires = activate_pro(telegram_id)
         send_telegram_message(telegram_id, f"Payment confirmed. Welcome to Pro. Access active till {expires}.")
         return True, f"Telegram premium activated until {expires}"
@@ -827,13 +930,18 @@ def paystack_webhook():
         source = metadata.get("source", "telegram")
 
         if amount == PRICE_KOBO:
+            reference = data.get("reference")
+            customer = data.get("customer") or {}
+            paid_email = customer.get("email")
             if source == "web":
                 web_user_id = metadata.get("web_user_id")
                 if web_user_id:
+                    record_payment(reference, amount, data.get("currency", "NGN"), data.get("status", "success"), "web", int(web_user_id), None, paid_email)
                     activate_web_pro(web_user_id)
             else:
                 telegram_id = metadata.get("telegram_id")
                 if telegram_id:
+                    record_payment(reference, amount, data.get("currency", "NGN"), data.get("status", "success"), "telegram", None, int(telegram_id), paid_email)
                     expires = activate_pro(telegram_id)
                     send_telegram_message(telegram_id,
                         f"Payment confirmed. Welcome to Pro.\n\nAccess active till {expires}\n\nEverything unlocked. Try /script, /trends, or /xthread now.")

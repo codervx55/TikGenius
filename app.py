@@ -9,7 +9,7 @@ from functools import wraps
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 import requests
-from flask import Flask, request, jsonify, session, redirect, url_for
+from flask import Flask, request, jsonify, session, redirect, url_for, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -25,6 +25,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
 PRICE_KOBO = 200000
 FREE_LIMIT = 5
 ADMIN_ID = "6415641863"
+ADMIN_EXPORT_KEY = os.getenv("ADMIN_EXPORT_KEY", SECRET_KEY)
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -72,6 +73,7 @@ def init_db():
             # Web app users table
             cur.execute("""CREATE TABLE IF NOT EXISTS web_users (
                 id SERIAL PRIMARY KEY,
+                name TEXT,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 plan TEXT DEFAULT 'free',
@@ -79,8 +81,11 @@ def init_db():
                 usage_date DATE,
                 usage_count INTEGER DEFAULT 0,
                 region TEXT DEFAULT 'global',
-                created_at TIMESTAMP DEFAULT NOW()
+                created_at TIMESTAMP DEFAULT NOW(),
+                last_login_at TIMESTAMP
             )""")
+            cur.execute("ALTER TABLE web_users ADD COLUMN IF NOT EXISTS name TEXT")
+            cur.execute("ALTER TABLE web_users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP")
         conn.commit()
     finally:
         release_db(conn)
@@ -527,6 +532,7 @@ def dashboard():
 @app.route("/api/signup", methods=["POST"])
 def signup():
     data = request.json or {}
+    name = data.get("name", "").strip()
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")
     region = data.get("region", "global")
@@ -542,9 +548,9 @@ def signup():
             cur.execute("SELECT id FROM web_users WHERE email=%s", (email,))
             if cur.fetchone():
                 return jsonify({"error": "Email already registered"}), 400
-            cur.execute("""INSERT INTO web_users (email, password_hash, region)
-                VALUES (%s, %s, %s) RETURNING id""",
-                (email, generate_password_hash(password), region))
+            cur.execute("""INSERT INTO web_users (name, email, password_hash, region)
+                VALUES (%s, %s, %s, %s) RETURNING id""",
+                (name, email, generate_password_hash(password), region))
             user_id = cur.fetchone()["id"]
         conn.commit()
         session["user_id"] = user_id
@@ -568,6 +574,9 @@ def login():
             user = cur.fetchone()
         if not user or not check_password_hash(user["password_hash"], password):
             return jsonify({"error": "Invalid email or password"}), 401
+        with conn.cursor() as cur:
+            cur.execute("UPDATE web_users SET last_login_at=NOW() WHERE id=%s", (user["id"],))
+        conn.commit()
         session["user_id"] = user["id"]
         session["email"] = user["email"]
         return jsonify({"success": True, "redirect": "/dashboard"})
@@ -641,6 +650,70 @@ def set_region():
             cur.execute("UPDATE web_users SET region=%s WHERE id=%s", (region, session["user_id"]))
         conn.commit()
         return jsonify({"success": True})
+    finally:
+        release_db(conn)
+
+
+# ========================= ADMIN EMAIL LIST =========================
+def admin_allowed():
+    key = request.args.get("key") or request.headers.get("X-Admin-Key")
+    return bool(ADMIN_EXPORT_KEY and key and hmac.compare_digest(str(key), str(ADMIN_EXPORT_KEY)))
+
+@app.route("/admin/emails")
+def admin_emails_page():
+    if not admin_allowed():
+        return "Unauthorized", 401
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT id, COALESCE(name, '') AS name, email, plan, region, created_at, last_login_at
+                           FROM web_users ORDER BY created_at DESC""")
+            users = cur.fetchall()
+    finally:
+        release_db(conn)
+
+    rows = "".join(
+        f"<tr><td>{u['id']}</td><td>{u['name'] or ''}</td><td>{u['email']}</td><td>{u['plan']}</td><td>{u['region']}</td><td>{u['created_at']}</td><td>{u['last_login_at'] or ''}</td></tr>"
+        for u in users
+    )
+    return f"""<!doctype html>
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>TikGenius Emails</title>
+<style>body{{font-family:Inter,Arial,sans-serif;background:#081018;color:#fff;padding:24px}}a{{color:#38bdf8}}table{{width:100%;border-collapse:collapse;margin-top:20px}}td,th{{border-bottom:1px solid #243244;padding:10px;text-align:left}}th{{color:#7dd3fc}}.card{{max-width:1100px;margin:auto}}</style></head>
+<body><div class="card"><h1>TikGenius Audience Emails</h1><p>Total signups: <b>{len(users)}</b></p>
+<p><a href="/admin/emails.csv?key={request.args.get('key','')}">Download CSV</a></p>
+<table><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Plan</th><th>Region</th><th>Signup date</th><th>Last login</th></tr></thead><tbody>{rows}</tbody></table></div></body></html>"""
+
+@app.route("/admin/emails.csv")
+def admin_emails_csv():
+    if not admin_allowed():
+        return "Unauthorized", 401
+    import csv, io
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT id, COALESCE(name, '') AS name, email, plan, region, created_at, last_login_at
+                           FROM web_users ORDER BY created_at DESC""")
+            users = cur.fetchall()
+    finally:
+        release_db(conn)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "name", "email", "plan", "region", "created_at", "last_login_at"])
+    for u in users:
+        writer.writerow([u["id"], u["name"], u["email"], u["plan"], u["region"], u["created_at"], u["last_login_at"] or ""])
+    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=tikgenius_emails.csv"})
+
+@app.route("/api/admin/audience-count")
+def admin_audience_count():
+    if not admin_allowed():
+        return jsonify({"error": "Unauthorized"}), 401
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS total FROM web_users")
+            total = cur.fetchone()["total"]
+        return jsonify({"total": total})
     finally:
         release_db(conn)
 
@@ -910,7 +983,6 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
     <p>TikGenius writes your TikTok captions, hooks, POVs, scripts, and Twitter threads — in the cultural voice that actually resonates with your audience.</p>
     <div class="hero-btns">
       <button class="btn-large primary" onclick="openModal('signup')">Start Free — No Card Needed</button>
-      <a href="https://t.me/TikGenius_bot" target="_blank"><button class="btn-large ghost">Open in Telegram</button></a>
     </div>
   </div>
 </section>
@@ -1059,14 +1131,6 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
     <a class="social-link" href="https://x.com/tikgenius" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.259 5.631 5.905-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
       Twitter / X
-    </a>
-    <a class="social-link" href="https://t.me/tikgenius" target="_blank" rel="noopener">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-      Community
-    </a>
-    <a class="social-link" href="https://t.me/TikGenius_bot" target="_blank" rel="noopener">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-      Telegram Bot
     </a>
   </div>
 

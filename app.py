@@ -86,6 +86,15 @@ def init_db():
             )""")
             cur.execute("ALTER TABLE web_users ADD COLUMN IF NOT EXISTS name TEXT")
             cur.execute("ALTER TABLE web_users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP")
+            cur.execute("""CREATE TABLE IF NOT EXISTS web_generations (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES web_users(id) ON DELETE CASCADE,
+                mode TEXT,
+                platform TEXT,
+                topic TEXT,
+                result TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )""")
         conn.commit()
     finally:
         release_db(conn)
@@ -604,6 +613,20 @@ def me():
         "unlimited": pro
     })
 
+@app.route("/api/history")
+@login_required
+def history():
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT id, mode, platform, topic, result, created_at
+                FROM web_generations WHERE user_id=%s
+                ORDER BY created_at DESC LIMIT 30""", (session["user_id"],))
+            rows = cur.fetchall()
+        return jsonify({"items": [dict(r) for r in rows]})
+    finally:
+        release_db(conn)
+
 @app.route("/api/generate", methods=["POST"])
 @login_required
 def generate():
@@ -624,6 +647,15 @@ def generate():
     user = get_web_user(user_id)
     region = user["region"] if user else "global"
     result = ask_groq(mode, topic, platform, region)
+
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO web_generations (user_id, mode, platform, topic, result)
+                VALUES (%s, %s, %s, %s, %s)""", (user_id, mode, platform, topic, result))
+        conn.commit()
+    finally:
+        release_db(conn)
 
     return jsonify({
         "result": result,
@@ -1245,638 +1277,59 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TikGenius — Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TikGenius Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#05070a;
-  --sidebar:#071019;
-  --surface:#0b1117;
-  --card:#101820;
-  --border:#1d2a35;
-  --border-subtle:#14202b;
-  --purple:#14b8a6;
-  --purple-light:#38bdf8;
-  --cyan:#22d3ee;
-  --pink:#f59e0b;
-  --text:#f8fafc;
-  --text-2:#a8b3bf;
-  --text-3:#64748b;
-  --green:#34d399;
-  --radius:14px;
-}
-body{background:radial-gradient(circle at 50% -15%,rgba(34,211,238,.10),transparent 36%),var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-
-/* ── LAYOUT ─────────────────────────────────────────── */
-.app{display:flex;min-height:100vh}
-
-/* ── SIDEBAR ─────────────────────────────────────────── */
-.sidebar{
-  width:260px;flex-shrink:0;
-  background:var(--sidebar);
-  border-right:1px solid var(--border-subtle);
-  display:flex;flex-direction:column;
-  height:100vh;position:sticky;top:0;
-  overflow-y:auto;
-}
-.sidebar::-webkit-scrollbar{width:0}
-
-.sb-top{padding:20px 16px 0}
-
-/* Logo */
-.sb-logo{display:flex;align-items:center;gap:10px;margin-bottom:24px;padding:0 4px}
-.sb-logo-text{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;background:linear-gradient(135deg,#fff 35%,var(--purple-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-
-/* New chat button */
-.btn-new{
-  display:flex;align-items:center;gap:8px;
-  width:100%;padding:10px 12px;
-  background:transparent;border:1px solid var(--border);
-  border-radius:var(--radius);color:var(--text-2);
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:500;
-  cursor:pointer;transition:all .15s;margin-bottom:24px;
-  justify-content:center;
-}
-.btn-new:hover{border-color:var(--purple-light);color:var(--text);background:rgba(167,139,250,.06)}
-.btn-new svg{opacity:.6}
-
-/* Section headers */
-.sb-section{padding:0 8px;margin-bottom:4px}
-.sb-section-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding:0 4px;margin-bottom:6px}
-
-/* Nav items */
-.nav-item{
-  display:flex;align-items:center;gap:10px;
-  width:100%;padding:8px 12px;border-radius:8px;
-  background:none;border:none;color:var(--text-2);
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:13.5px;font-weight:400;
-  cursor:pointer;transition:all .12s;text-align:left;
-  position:relative;
-}
-.nav-item:hover{background:var(--surface);color:var(--text)}
-.nav-item.active{background:rgba(124,58,237,.12);color:var(--purple-light)}
-.nav-item.active::before{
-  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
-  width:3px;height:60%;border-radius:0 2px 2px 0;
-  background:var(--purple-light);
-}
-.nav-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;opacity:.75}
-.nav-item.active .nav-icon{opacity:1}
-.pro-badge{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em;
-  background:linear-gradient(135deg,var(--purple),var(--pink));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;flex-shrink:0}
-
-/* Sidebar divider */
-.sb-divider{height:1px;background:var(--border-subtle);margin:12px 16px}
-
-/* Sidebar bottom */
-.sb-bottom{margin-top:auto;padding:16px}
-
-/* User chip */
-.user-chip{
-  background:var(--surface);border:1px solid var(--border-subtle);
-  border-radius:var(--radius);padding:12px;margin-bottom:12px;
-}
-.user-email{font-size:12px;color:var(--text-2);font-weight:500;margin-bottom:6px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.plan-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.plan-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px}
-.plan-free{background:rgba(82,82,91,.25);color:var(--text-3)}
-.plan-pro{background:rgba(124,58,237,.2);color:var(--purple-light)}
-.uses-label{font-size:11px;color:var(--text-3)}
-.bar-track{height:3px;background:var(--border);border-radius:100px;overflow:hidden;margin-top:4px}
-.bar-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple-light));transition:width .4s}
-
-/* Upgrade card */
-.upgrade-card{
-  background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(236,72,153,.1));
-  border:1px solid rgba(124,58,237,.25);border-radius:var(--radius);
-  padding:14px;margin-bottom:10px;
-}
-.upgrade-card-title{font-size:13px;font-weight:600;margin-bottom:3px}
-.upgrade-card-sub{font-size:12px;color:var(--text-2);margin-bottom:10px;line-height:1.5}
-.btn-upgrade{
-  width:100%;background:linear-gradient(135deg,var(--purple),var(--pink));
-  border:none;color:white;padding:9px;border-radius:8px;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;
-  cursor:pointer;transition:opacity .2s;
-}
-.btn-upgrade:hover{opacity:.88}
-
-.btn-logout{
-  display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;
-  background:none;border:none;color:var(--text-3);font-family:'Plus Jakarta Sans',sans-serif;
-  font-size:13px;cursor:pointer;border-radius:8px;transition:all .15s;
-}
-.btn-logout:hover{color:var(--text-2);background:var(--surface)}
-
-/* ── MAIN AREA ────────────────────────────────────────── */
-.main{flex:1;display:flex;flex-direction:column;min-height:100vh;max-width:820px;margin:0 auto;width:100%;padding:0 24px}
-
-/* Top bar */
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:16px 0;border-bottom:1px solid var(--border-subtle);
-  margin-bottom:32px;position:sticky;top:0;
-  background:var(--bg);z-index:10;
-}
-.topbar-left{display:flex;align-items:center;gap:12px}
-.page-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;color:var(--text);letter-spacing:-.025em}
-.platform-toggle{
-  display:flex;background:var(--surface);border:1px solid var(--border-subtle);
-  border-radius:8px;padding:3px;gap:2px;
-}
-.platform-btn{
-  padding:5px 14px;border-radius:6px;border:none;
-  background:transparent;color:var(--text-3);
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:500;
-  cursor:pointer;transition:all .15s;
-}
-.platform-btn.active{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
-
-/* Region select */
-.region-select{
-  background:var(--surface);border:1px solid var(--border-subtle);
-  color:var(--text-2);padding:6px 10px;border-radius:8px;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;
-}
-.region-select:focus{border-color:var(--purple-light)}
-
-/* ── INPUT AREA (ChatGPT style) ──────────────────────── */
-.input-section{margin-bottom:28px}
-.input-label{font-size:13px;color:var(--text-3);margin-bottom:10px;font-weight:500}
-
-.input-box{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:16px;
-  transition:border-color .2s,box-shadow .2s;
-  overflow:hidden;
-}
-.input-box:focus-within{
-  border-color:rgba(124,58,237,.5);
-  box-shadow:0 0 0 3px rgba(124,58,237,.08);
-}
-.topic-input{
-  width:100%;background:transparent;border:none;
-  color:var(--text);padding:18px 20px 12px;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;
-  outline:none;resize:none;line-height:1.6;
-  min-height:120px;
-}
-.topic-input::placeholder{color:var(--text-3)}
-
-.input-footer{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:10px 14px 10px 20px;border-top:1px solid var(--border-subtle);
-}
-.input-hint{font-size:12px;color:var(--text-3)}
-.input-hint span{color:var(--purple-light)}
-
-.btn-generate{
-  display:flex;align-items:center;gap:8px;
-  background:linear-gradient(135deg,var(--purple),var(--pink));
-  border:none;color:white;padding:10px 20px;border-radius:10px;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:600;
-  cursor:pointer;transition:opacity .2s,transform .15s;flex-shrink:0;
-}
-.btn-generate:hover{opacity:.9;transform:translateY(-1px)}
-.btn-generate:disabled{opacity:.4;cursor:not-allowed;transform:none}
-
-/* Spinner */
-.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* Error */
-.error-msg{
-  background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);
-  color:#fca5a5;padding:10px 14px;border-radius:10px;
-  font-size:13px;margin-top:10px;display:none;
-}
-
-/* ── OUTPUT ────────────────────────────────────────────── */
-.output-wrap{display:none;animation:fadeSlide .3s ease}
-.output-wrap.visible{display:block}
-@keyframes fadeSlide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-
-.output-header{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:14px;
-}
-.output-label{
-  display:flex;align-items:center;gap:8px;
-  font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);
-}
-.output-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-
-.btn-copy{
-  display:flex;align-items:center;gap:6px;
-  background:var(--surface);border:1px solid var(--border);
-  color:var(--text-2);padding:6px 14px;border-radius:8px;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:500;
-  cursor:pointer;transition:all .15s;
-}
-.btn-copy:hover{border-color:var(--purple-light);color:var(--text)}
-
-.output-card{
-  background:var(--card);border:1px solid var(--border-subtle);
-  border-radius:16px;padding:24px;
-}
-.output-text{
-  white-space:pre-wrap;line-height:1.85;font-size:14.5px;
-  color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;
-}
-
-/* ── MOBILE ──────────────────────────────────────────── */
-.mob-bar{display:none;align-items:center;justify-content:space-between;
-  padding:14px 16px;border-bottom:1px solid var(--border-subtle);
-  background:var(--sidebar);position:sticky;top:0;z-index:50}
-.mob-logo{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:16px;
-  background:linear-gradient(135deg,#fff,var(--purple-light));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.mob-menu-btn{background:none;border:none;color:var(--text-2);cursor:pointer;padding:4px}
-.mob-drawer{
-  display:none;position:fixed;inset:0;z-index:100;
-}
-.mob-drawer.open{display:flex}
-.mob-drawer-bg{position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
-.mob-drawer-panel{
-  position:relative;width:280px;background:var(--sidebar);
-  border-right:1px solid var(--border-subtle);
-  height:100%;overflow-y:auto;display:flex;flex-direction:column;
-  animation:slideIn .2s ease;
-}
-@keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
-
-@media(max-width:768px){
-  .sidebar{display:none}
-  .mob-bar{display:flex;height:56px;padding:0 14px;background:rgba(5,7,10,.88);backdrop-filter:blur(14px)}
-  .mob-logo{font-family:'Space Grotesk',sans-serif;font-size:17px;letter-spacing:-.02em}
-  .main{padding:0 14px}
-  .topbar{position:static;margin-bottom:16px;padding:12px 0}
-  .page-title{font-size:17px}
-  .platform-btn{padding:5px 10px;font-size:12px}
-  .composer-title{font-size:1.65rem;line-height:1.1}
-  .composer-sub{font-size:.92rem;line-height:1.55}
-  .topic-input{font-size:14px;min-height:110px}
-  .input-footer{padding:10px 12px;gap:10px}
-  .btn-generate{padding:10px 14px;border-radius:10px;font-size:13px}
-  .output-card,.input-card{border-radius:18px}
-}
+:root{--bg:#070b10;--panel:#0d141d;--panel2:#111b27;--line:#213041;--text:#eef6ff;--muted:#8fa0b5;--brand:#14b8a6;--brand2:#38bdf8;--gold:#f6b21a;--danger:#fb7185}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top right,#102435 0,#070b10 38%);color:var(--text);font-family:Inter,system-ui,sans-serif;min-height:100vh}.app{display:grid;grid-template-columns:310px 1fr;min-height:100vh}.side{background:rgba(13,20,29,.92);border-right:1px solid var(--line);padding:18px;position:sticky;top:0;height:100vh;overflow:auto}.logo{font-weight:800;font-size:23px;letter-spacing:-.04em;margin-bottom:14px}.logo span{color:var(--brand2)}.user{font-size:12px;color:var(--muted);padding:10px 12px;background:#0a1018;border:1px solid var(--line);border-radius:14px;margin-bottom:12px}.usage{padding:14px;background:linear-gradient(135deg,#10202b,#111827);border:1px solid var(--line);border-radius:16px;margin-bottom:14px}.usage strong{display:block;font-size:14px;margin-bottom:8px}.bar{height:8px;background:#1e293b;border-radius:999px;overflow:hidden}.fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));width:100%}.upgrade{display:none;margin-top:10px;background:linear-gradient(135deg,#14b8a6,#f6b21a);border:0;color:#061018;border-radius:12px;font-weight:800;padding:11px;width:100%}.upgrade.show{display:block}.section-title{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:18px 4px 9px}.modes{display:grid;gap:7px}.mode{border:1px solid transparent;background:transparent;color:var(--muted);text-align:left;padding:11px 12px;border-radius:12px;font-weight:650}.mode.active,.mode:hover{background:#111b27;color:var(--text);border-color:var(--line)}.history{display:grid;gap:8px}.hist{padding:10px;background:#0a1018;border:1px solid var(--line);border-radius:12px;cursor:pointer}.hist b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hist span{font-size:11px;color:var(--muted)}.empty{color:var(--muted);font-size:13px;line-height:1.45;padding:10px;background:#0a1018;border:1px dashed var(--line);border-radius:12px}.logout{margin-top:14px;width:100%;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:10px}.main{padding:20px;max-width:980px;width:100%;margin:0 auto}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.mobile-logo{display:none;font-weight:800;font-size:22px}.region{background:#0d141d;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px}.card{background:rgba(13,20,29,.84);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.25)}.guide{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}.tip{background:#081018;border:1px solid var(--line);border-radius:16px;padding:12px}.tip b{font-size:13px}.tip p{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.4}.prompt{width:100%;min-height:150px;background:#071018;color:var(--text);border:1px solid var(--line);border-radius:18px;padding:16px;font:500 16px/1.55 Inter;resize:vertical;outline:none}.prompt:focus{border-color:var(--brand2);box-shadow:0 0 0 4px rgba(56,189,248,.08)}.actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}.hint{font-size:12px;color:var(--muted)}.generate{background:linear-gradient(135deg,var(--brand),var(--gold));border:0;border-radius:14px;color:#061018;font-weight:800;padding:14px 20px;font-size:15px}.error{display:none;margin-top:12px;color:#fecdd3;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.3);padding:12px;border-radius:14px}.premium-lock{display:none;margin-top:14px;padding:16px;border-radius:18px;background:linear-gradient(135deg,rgba(20,184,166,.14),rgba(246,178,26,.12));border:1px solid rgba(246,178,26,.35)}.premium-lock.show{display:block}.premium-lock h3{margin:0 0 6px}.premium-lock p{margin:0 0 12px;color:var(--muted)}.output{display:none;margin-top:16px}.output.show{display:block}.output-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.copy{background:#111b27;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 11px}.result{white-space:pre-wrap;line-height:1.7;color:#dce9f7;background:#071018;border:1px solid var(--line);border-radius:18px;padding:16px}.mobile-history{display:none;margin-bottom:14px}.drawer-btn{display:none;background:#111b27;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 12px}@media(max-width:800px){.app{display:block}.side{display:none}.main{padding:14px}.mobile-logo{display:block}.drawer-btn{display:block}.top{position:sticky;top:0;z-index:5;background:rgba(7,11,16,.94);padding:12px 0;border-bottom:1px solid var(--line)}.guide{grid-template-columns:1fr}.card{padding:14px;border-radius:18px}.prompt{min-height:130px;font-size:15px}.actions{align-items:stretch;flex-direction:column}.generate{width:100%}.mobile-history{display:block}.mobile-history .history{display:flex;overflow:auto;gap:8px;padding-bottom:3px}.mobile-history .hist{min-width:190px}.region{max-width:145px}.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50}.modal.show{display:block}.modal-panel{position:absolute;left:0;top:0;bottom:0;width:85%;max-width:310px;background:#0d141d;border-right:1px solid var(--line);padding:18px;overflow:auto}}@media(min-width:801px){.modal{display:none!important}}
 </style>
 </head>
 <body>
-
-<!-- Mobile top bar -->
-<div class="mob-bar">
-  <div class="mob-logo">TikGenius</div>
-  <div style="display:flex;align-items:center;gap:10px">
-    <select class="region-select" id="regionSelectMob" onchange="changeRegion(this.value)" style="font-size:11px">
-      <option value="nigeria">🇳🇬 Nigeria</option>
-      <option value="usa">🇺🇸 USA</option>
-      <option value="uk">🇬🇧 UK</option>
-      <option value="caribbean">🇯🇲 Caribbean</option>
-      <option value="eastafrica">🇰🇪 East Africa</option>
-      <option value="southafrica">🇿🇦 South Africa</option>
-      <option value="global" selected>🌍 Global</option>
-    </select>
-    <button class="mob-menu-btn" onclick="openDrawer()">
-      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path d="M4 6h16M4 12h16M4 18h16"/>
-      </svg>
-    </button>
-  </div>
-</div>
-
-<!-- Mobile drawer -->
-<div class="mob-drawer" id="mobDrawer">
-  <div class="mob-drawer-bg" onclick="closeDrawer()"></div>
-  <div class="mob-drawer-panel" id="mobPanel">
-    <!-- filled by JS -->
-  </div>
-</div>
-
 <div class="app">
-
-  <!-- ── SIDEBAR ── -->
-  <aside class="sidebar">
-    <div class="sb-top">
-      <div class="sb-logo">
-        <svg width="28" height="28" viewBox="0 0 200 200" fill="none">
-          <circle cx="100" cy="100" r="98" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
-          <defs>
-            <linearGradient id="dTG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#fff"/><stop offset="1" stop-color="rgba(255,255,255,.65)"/></linearGradient>
-            <linearGradient id="dGG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
-          </defs>
-          <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#dTG)"/>
-          <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#dTG)"/>
-          <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#dGG)" stroke-width="7" fill="none" stroke-linecap="round"/>
-          <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#dGG)"/>
-        </svg>
-        <span class="sb-logo-text">TikGenius</span>
-      </div>
-
-      <!-- TikTok tools -->
-      <div class="sb-section">
-        <div class="sb-section-label">TikTok</div>
-        <button class="nav-item active" onclick="setMode('captions')" id="nav-captions">
-          <span class="nav-icon">✍️</span> Captions
-        </button>
-        <button class="nav-item" onclick="setMode('hooks')" id="nav-hooks">
-          <span class="nav-icon">🎣</span> Hooks
-        </button>
-        <button class="nav-item" onclick="setMode('pov')" id="nav-pov">
-          <span class="nav-icon">🎥</span> POV Ideas
-        </button>
-        <button class="nav-item" onclick="setMode('hashtags')" id="nav-hashtags">
-          <span class="nav-icon">📊</span> Hashtags
-        </button>
-        <button class="nav-item" onclick="setMode('bio')" id="nav-bio">
-          <span class="nav-icon">👤</span> Bio
-        </button>
-        <button class="nav-item" onclick="setMode('script')" id="nav-script">
-          <span class="nav-icon">📝</span> Script <span class="pro-badge">PRO</span>
-        </button>
-        <button class="nav-item" onclick="setMode('trends')" id="nav-trends">
-          <span class="nav-icon">📈</span> Trends <span class="pro-badge">PRO</span>
-        </button>
-      </div>
-
-      <div class="sb-divider"></div>
-
-      <!-- X / Twitter tools -->
-      <div class="sb-section">
-        <div class="sb-section-label">Twitter / X</div>
-        <button class="nav-item" onclick="setMode('captions','x')" id="nav-xtweets">
-          <span class="nav-icon">𝕏</span> Tweets
-        </button>
-        <button class="nav-item" onclick="setMode('hooks','x')" id="nav-xhooks">
-          <span class="nav-icon">🧲</span> Thread Hooks
-        </button>
-        <button class="nav-item" onclick="setMode('threads','x')" id="nav-xthread">
-          <span class="nav-icon">🧵</span> Full Thread <span class="pro-badge">PRO</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="sb-bottom">
-      <!-- User info -->
-      <div class="user-chip">
-        <div class="user-email" id="userEmail">Loading...</div>
-        <div class="plan-row">
-          <span class="plan-badge plan-free" id="userPlan">Free</span>
-          <span class="uses-label" id="usesLabel">5/5 uses left</span>
-        </div>
-        <div class="bar-track" id="usesBar">
-          <div class="bar-fill" id="barFill" style="width:100%"></div>
-        </div>
-      </div>
-
-      <!-- Upgrade -->
-      <div class="upgrade-card" id="upgradeCard">
-        <div class="upgrade-card-title">Upgrade to Pro</div>
-        <div class="upgrade-card-sub">Unlimited scripts, threads, trends &amp; more.</div>
-        <button class="btn-upgrade" onclick="doUpgrade()">Go Pro — ₦2,000/mo</button>
-      </div>
-
-      <button class="btn-logout" onclick="doLogout()">
-        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-        Log out
-      </button>
-    </div>
-  </aside>
-
-  <!-- ── MAIN ── -->
-  <main class="main">
-
-    <!-- Top bar -->
-    <div class="topbar">
-      <div class="topbar-left">
-        <div class="page-title" id="modeTitle">Captions</div>
-        <div class="platform-toggle" id="platformToggle">
-          <button class="platform-btn active" id="tiktokBtn" onclick="setPlatform('tiktok')">TikTok</button>
-          <button class="platform-btn" id="xBtn" onclick="setPlatform('x')">Twitter / X</button>
-        </div>
-      </div>
-      <select class="region-select" id="regionSelect" onchange="changeRegion(this.value)">
-        <option value="nigeria">🇳🇬 Nigerian</option>
-        <option value="usa">🇺🇸 American</option>
-        <option value="uk">🇬🇧 British</option>
-        <option value="caribbean">🇯🇲 Caribbean</option>
-        <option value="eastafrica">🇰🇪 East African</option>
-        <option value="southafrica">🇿🇦 South African</option>
-        <option value="global" selected>🌍 Global</option>
-      </select>
-    </div>
-
-    <!-- Input -->
-    <div class="input-section">
-      <div class="input-box">
-        <textarea class="topic-input" id="topicInput" rows="4"
-          placeholder="What is your video or post about?
-
-Be specific — the more detail you give, the better the output.
-Example: I work so hard but I am still broke"></textarea>
-        <div class="input-footer">
-          <span class="input-hint">⌘ + Enter to generate &nbsp;·&nbsp; Min <span>3 words</span></span>
-          <button class="btn-generate" id="generateBtn" onclick="generate()">
-            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            Generate
-          </button>
-        </div>
-      </div>
-      <div class="error-msg" id="errorMsg"></div>
-    </div>
-
-    <!-- Output -->
-    <div class="output-wrap" id="outputCard">
-      <div class="output-header">
-        <div class="output-label">
-          <div class="output-dot"></div>
-          <span id="outputTitle">Ready to post</span>
-        </div>
-        <button class="btn-copy" onclick="copyOutput()">
-          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-          Copy All
-        </button>
-      </div>
-      <div class="output-card">
-        <div class="output-text" id="outputText"></div>
-      </div>
-    </div>
-
-  </main>
+<aside class="side" id="desktopSide">
+  <div class="logo">Tik<span>Genius</span></div>
+  <div class="user"><div id="userEmail">Loading...</div></div>
+  <div class="usage"><strong id="usesLabel">5/5 free generations left</strong><div class="bar"><div class="fill" id="barFill"></div></div><button class="upgrade" id="upgradeBtn" onclick="doUpgrade()">Upgrade to Premium</button></div>
+  <div class="section-title">Create</div><div class="modes" id="modes"></div>
+  <div class="section-title">Recent history</div><div class="history" id="historyList"><div class="empty">Your generated content will appear here.</div></div>
+  <button class="logout" onclick="doLogout()">Log out</button>
+</aside>
+<div class="modal" id="drawer" onclick="closeDrawer(event)"><div class="modal-panel" id="drawerPanel"></div></div>
+<main class="main">
+  <div class="top"><div class="mobile-logo">Tik<span style="color:var(--brand2)">Genius</span></div><button class="drawer-btn" onclick="openDrawer()">☰ Menu</button><select class="region" id="regionSelect" onchange="changeRegion(this.value)"><option value="global">🌍 Global</option><option value="nigeria">🇳🇬 Nigerian</option><option value="usa">🇺🇸 American</option><option value="uk">🇬🇧 British</option><option value="caribbean">🇯🇲 Caribbean</option><option value="eastafrica">🇰🇪 East African</option><option value="southafrica">🇿🇦 South African</option></select></div>
+  <div class="mobile-history"><div class="section-title">Recent history</div><div class="history" id="historyMobile"><div class="empty">No history yet.</div></div></div>
+  <section class="card">
+    <div class="guide"><div class="tip"><b>1. Be specific</b><p>Say the topic, audience, emotion, and goal.</p></div><div class="tip"><b>2. Add your style</b><p>Example: funny, Nigerian street voice, luxury, Gen Z.</p></div><div class="tip"><b>3. Use examples</b><p>Example: “Make it like a TikTok storytime hook.”</p></div></div>
+    <textarea class="prompt" id="topicInput" placeholder="Example: Give me 5 TikTok captions for a skincare video targeting young women who want clear skin, make it emotional and short."></textarea>
+    <div class="actions"><div class="hint">Minimum 3 words. Better prompt = better result.</div><button class="generate" id="generateBtn" onclick="generate()">Generate</button></div>
+    <div class="error" id="errorMsg"></div>
+    <div class="premium-lock" id="premiumLock"><h3>You used your 5 free generations</h3><p>Upgrade to Premium to keep generating unlimited captions, hooks, scripts and content ideas.</p><button class="upgrade show" onclick="doUpgrade()">Upgrade to Premium</button></div>
+  </section>
+  <section class="output" id="outputCard"><div class="output-head"><b id="outputTitle">Ready to post</b><button class="copy" onclick="copyOutput()">Copy</button></div><div class="result" id="outputText"></div></section>
+</main>
 </div>
-
 <script>
-let currentMode = 'captions';
-let currentPlatform = 'tiktok';
-let userData = {};
-
-const modeTitles = {
-  captions:'Captions', hooks:'Hooks', pov:'POV Ideas',
-  hashtags:'Hashtags', bio:'Bio', script:'Video Script', trends:'Trend Ideas',
-  threads:'X Thread'
-};
-
-// ── Sidebar HTML for mobile drawer ──────────────────
-function sidebarHTML() {
-  return document.querySelector('.sidebar').innerHTML;
-}
-
-function openDrawer() {
-  document.getElementById('mobPanel').innerHTML = sidebarHTML();
-  document.getElementById('mobDrawer').classList.add('open');
-}
-function closeDrawer() {
-  document.getElementById('mobDrawer').classList.remove('open');
-}
-
-// ── Load user ────────────────────────────────────────
-async function loadUser() {
-  const res = await fetch('/api/me');
-  if (res.status === 401) { window.location.href = '/'; return; }
-  userData = await res.json();
-
-  document.getElementById('userEmail').textContent = userData.email;
-  const isPro = userData.plan === 'pro';
-  document.getElementById('userPlan').textContent = isPro ? '⭐ Pro' : 'Free';
-  document.getElementById('userPlan').className = 'plan-badge ' + (isPro ? 'plan-pro' : 'plan-free');
-
-  const sel = document.getElementById('regionSelect');
-  const selMob = document.getElementById('regionSelectMob');
-  if (sel) sel.value = userData.region || 'global';
-  if (selMob) selMob.value = userData.region || 'global';
-
-  if (userData.unlimited) {
-    document.getElementById('usesBar').style.display = 'none';
-    const uc = document.getElementById('upgradeCard');
-    if (uc) uc.style.display = 'none';
-    document.getElementById('usesLabel').textContent = 'Unlimited ✓';
-  } else {
-    const rem = userData.uses_remaining;
-    document.getElementById('usesLabel').textContent = rem + '/5 uses left today';
-    document.getElementById('barFill').style.width = (rem / 5 * 100) + '%';
-  }
-}
-
-// ── Mode / Platform ──────────────────────────────────
-function setMode(mode, platform) {
-  currentMode = mode;
-  if (platform) { currentPlatform = platform; updatePlatformUI(); }
-
-  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-  const navId = platform === 'x'
-    ? (mode === 'threads' ? 'nav-xthread' : mode === 'hooks' ? 'nav-xhooks' : 'nav-xtweets')
-    : 'nav-' + mode;
-  const el = document.getElementById(navId);
-  if (el) el.classList.add('active');
-
-  document.getElementById('modeTitle').textContent = modeTitles[mode] || mode;
-  document.getElementById('outputCard').classList.remove('visible');
-  closeDrawer();
-}
-
-function setPlatform(p) {
-  currentPlatform = p;
-  updatePlatformUI();
-}
-
-function updatePlatformUI() {
-  document.getElementById('tiktokBtn').classList.toggle('active', currentPlatform === 'tiktok');
-  document.getElementById('xBtn').classList.toggle('active', currentPlatform === 'x');
-}
-
-// ── Region ───────────────────────────────────────────
-async function changeRegion(val) {
-  const region = val || document.getElementById('regionSelect').value;
-  // sync both selects
-  ['regionSelect','regionSelectMob'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = region;
-  });
-  await fetch('/api/set-region', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({region})
-  });
-}
-
-// ── Generate ─────────────────────────────────────────
-async function generate() {
-  const topic = document.getElementById('topicInput').value.trim();
-  const btn = document.getElementById('generateBtn');
-  const errEl = document.getElementById('errorMsg');
-  const outputCard = document.getElementById('outputCard');
-  const outputText = document.getElementById('outputText');
-
-  errEl.style.display = 'none';
-  if (!topic) { showError('Please enter a topic.'); return; }
-  if (topic.split(' ').length < 3) { showError('Be more specific — add at least 3 words.'); return; }
-
-  btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Generating...';
-  outputCard.classList.remove('visible');
-
-  const res = await fetch('/api/generate', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({mode: currentMode, topic, platform: currentPlatform})
-  });
-
-  const data = await res.json();
-  btn.disabled = false;
-  btn.innerHTML = '<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Generate';
-
-  if (data.error) { showError(data.error); return; }
-
-  outputText.textContent = data.result;
-  document.getElementById('outputTitle').textContent = modeTitles[currentMode] + ' — ready to post';
-  outputCard.classList.add('visible');
-  outputCard.scrollIntoView({behavior:'smooth', block:'nearest'});
-
-  if (!userData.unlimited && data.uses_remaining !== undefined) {
-    document.getElementById('usesLabel').textContent = data.uses_remaining + '/5 uses left today';
-    document.getElementById('barFill').style.width = (data.uses_remaining / 5 * 100) + '%';
-  }
-}
-
-function showError(msg) {
-  const el = document.getElementById('errorMsg');
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
-// ── Copy ─────────────────────────────────────────────
-function copyOutput() {
-  const text = document.getElementById('outputText').textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = document.querySelector('.btn-copy');
-    btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Copied!';
-    setTimeout(() => {
-      btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy All';
-    }, 2000);
-  });
-}
-
-// ── Upgrade / Logout ─────────────────────────────────
-async function doUpgrade() {
-  const res = await fetch('/api/upgrade', {method:'POST'});
-  const data = await res.json();
-  if (data.url) window.location.href = data.url;
-}
-
-async function doLogout() {
-  await fetch('/api/logout', {method:'POST'});
-  window.location.href = '/';
-}
-
-document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
-});
-
-loadUser();
+let currentMode='captions', currentPlatform='tiktok', userData={};
+const modes=[['captions','TikTok Captions','tiktok'],['hooks','Viral Hooks','tiktok'],['pov','POV Ideas','tiktok'],['script','Video Script','tiktok'],['hashtags','Hashtags','tiktok'],['threads','X Thread','x'],['hooks','X Hooks','x']];
+const modeTitles={captions:'Captions',hooks:'Hooks',pov:'POV Ideas',script:'Video Script',hashtags:'Hashtags',threads:'X Thread'};
+function renderModes(target='modes'){const el=document.getElementById(target); if(!el)return; el.innerHTML=modes.map((m,i)=>`<button class="mode ${i==0?'active':''}" onclick="setMode('${m[0]}','${m[2]}',this)">${m[1]}</button>`).join('')}
+function setMode(m,p,btn){currentMode=m;currentPlatform=p;document.querySelectorAll('.mode').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');document.getElementById('outputCard').classList.remove('show')}
+async function loadUser(){const res=await fetch('/api/me');if(res.status===401){location.href='/';return}userData=await res.json();document.querySelectorAll('#userEmail').forEach(e=>e.textContent=userData.email);document.getElementById('regionSelect').value=userData.region||'global';updateUsage(userData.uses_remaining,userData.unlimited);loadHistory()}
+function updateUsage(rem,unlimited){const label=document.getElementById('usesLabel'), fill=document.getElementById('barFill'), up=document.getElementById('upgradeBtn'); if(unlimited){label.textContent='Premium: unlimited generations';fill.style.width='100%';up.classList.remove('show');return} label.textContent=rem+'/5 free generations left';fill.style.width=(rem/5*100)+'%';if(rem<=0){up.classList.add('show');document.getElementById('premiumLock').classList.add('show')}else{up.classList.remove('show')}}
+async function loadHistory(){const res=await fetch('/api/history');const data=await res.json();const html=(data.items&&data.items.length)?data.items.map(i=>`<div class="hist" onclick='showHistory(${JSON.stringify(i).replace(/'/g,"&#39;")})'><b>${escapeHtml(i.topic||'Untitled')}</b><span>${i.mode} • ${new Date(i.created_at).toLocaleDateString()}</span></div>`).join(''):'<div class="empty">Your generated content will appear here.</div>';document.getElementById('historyList').innerHTML=html;document.getElementById('historyMobile').innerHTML=html}
+function showHistory(i){document.getElementById('topicInput').value=i.topic||'';document.getElementById('outputText').textContent=i.result||'';document.getElementById('outputTitle').textContent=(modeTitles[i.mode]||i.mode)+' from history';document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});document.getElementById('drawer').classList.remove('show')}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+async function changeRegion(region){await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region})})}
+async function generate(){const topic=document.getElementById('topicInput').value.trim(),btn=document.getElementById('generateBtn');hideError();if(!topic)return showError('Please enter your prompt.');if(topic.split(/\s+/).length<3)return showError('Please add at least 3 words.');btn.disabled=true;btn.textContent='Generating...';const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:currentMode,platform:currentPlatform,topic})});const data=await res.json();btn.disabled=false;btn.textContent='Generate';if(data.error){showError(data.error);if(res.status===429)document.getElementById('premiumLock').classList.add('show');return}document.getElementById('outputText').textContent=data.result;document.getElementById('outputTitle').textContent=(modeTitles[currentMode]||currentMode)+' — ready to post';document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});if(data.uses_remaining!==undefined)updateUsage(data.uses_remaining,false);loadHistory()}
+function showError(m){const e=document.getElementById('errorMsg');e.textContent=m;e.style.display='block'}function hideError(){document.getElementById('errorMsg').style.display='none'}
+function copyOutput(){navigator.clipboard.writeText(document.getElementById('outputText').textContent)}
+async function doUpgrade(){const res=await fetch('/api/upgrade',{method:'POST'});const data=await res.json();if(data.url)location.href=data.url;else showError(data.error||'Could not open payment page')}
+async function doLogout(){await fetch('/api/logout',{method:'POST'});location.href='/'}
+function openDrawer(){const p=document.getElementById('drawerPanel');p.innerHTML=document.getElementById('desktopSide').innerHTML;p.querySelector('#historyList').id='drawerHistory';p.querySelector('#modes').id='drawerModes';document.getElementById('drawer').classList.add('show');renderModes('drawerModes');loadHistory()}function closeDrawer(e){if(e.target.id==='drawer')document.getElementById('drawer').classList.remove('show')}
+renderModes();loadUser();
 </script>
 </body>
 </html>"""

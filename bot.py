@@ -13,7 +13,7 @@ from urllib3.util.retry import Retry
 
 # ========================= CONFIG =========================
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -213,7 +213,7 @@ STRICT RULES:
 Output format:
 1) [hook]
 2) [hook]
-...and so on""",
+and so on""",
 
 "captions": """You are writing TikTok captions for a Nigerian creator posting about: {topic}
 
@@ -266,7 +266,7 @@ STRICT RULES:
 Output format:
 1) [caption]
 2) [caption]
-...and so on""",
+and so on""",
 
 "pov": """You are writing TikTok POV captions for a Nigerian creator posting about: {topic}
 
@@ -312,7 +312,7 @@ STRICT RULES:
 Output format:
 1) POV: [scenario]
 2) POV: [scenario]
-...and so on""",
+and so on""",
 
 "hashtags": """Generate 5 strategic TikTok hashtag sets for a Nigerian creator posting about: {topic}
 
@@ -551,31 +551,28 @@ def ask_claude(mode, topic, platform="tiktok"):
         prompt_template = TIKTOK_PROMPTS.get(mode, TIKTOK_PROMPTS["captions"])
 
     prompt = prompt_template.format(topic=topic)
-    full_prompt = f"{system}\n\n{prompt}"
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
     payload = {
-        "contents": [{"parts": [{"text": full_prompt}]}],
-        "generationConfig": {
-            "temperature": 0.9,
-            "maxOutputTokens": 1500,
-            "topP": 0.95
-        }
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.9,
+        "max_tokens": 1500
     }
 
     try:
-        res = http_session.post(url, json=payload, timeout=30)
+        res = http_session.post(url, json=payload, headers=headers, timeout=30)
         data = res.json()
-
-        if "candidates" in data and data["candidates"]:
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        
-        print(f"Gemini response: {data}")
-        return "Something went wrong. Please try again."
-
+        return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        print(f"Gemini Error: {e}")
+        print(f"Groq Error: {e}")
         return "Something went wrong. Please try again."
 
 # ========================= HELPERS =========================
@@ -617,14 +614,14 @@ def create_payment_link(user_id, username):
 
 # ========================= CONTENT CONFIG =========================
 LOADING = {
-    "hooks":    ["🧠 Writing hooks that stop the scroll...", "🔥 Finding the angle that makes them watch...", "👀 This one go hit different, hold on"],
-    "captions": ["💅 Writing captions people will screenshot...", "😭 Cooking the twist that makes it land...", "🪄 Making it sound like you felt every word"],
-    "pov":      ["🎥 Building the POV they will tag their friends in...", "🍿 Setting up the scene and the twist...", "👀 This POV go touch chest, give me a sec"],
-    "hashtags": ["📊 Building your hashtag strategy...", "🚀 Mixing reach tags with niche tags...", "🔥 Algorithm food loading..."],
-    "bio":      ["✨ Writing bios that get the follow...", "📱 Building your profile hook...", "🪄 Making your bio do the work for you"],
-    "script":   ["🎬 Writing hook, body, punchline...", "📝 Building a 60-second script that holds attention...", "🔥 This script go make them watch till the end"],
-    "trends":   ["📈 Analysing what is working right now...", "🔥 Building trend ideas for your niche...", "👀 Finding your FYP angle..."],
-    "threads":  ["🧵 Building the thread that goes viral...", "✍️ Writing something people will quote tweet...", "🔥 X thread loading..."]
+    "hooks":    ["🧠 Writing hooks that stop the scroll", "🔥 Finding the angle that makes them watch", "👀 This one go hit different, hold on"],
+    "captions": ["💅 Writing captions people will screenshot", "😭 Cooking the twist that makes it land", "🪄 Making it sound like you felt every word"],
+    "pov":      ["🎥 Building the POV they will tag their friends in", "🍿 Setting up the scene and the twist", "👀 This POV go touch chest, give me a sec"],
+    "hashtags": ["📊 Building your hashtag strategy", "🚀 Mixing reach tags with niche tags", "🔥 Algorithm food loading"],
+    "bio":      ["✨ Writing bios that get the follow", "📱 Building your profile hook", "🪄 Making your bio do the work for you"],
+    "script":   ["🎬 Writing hook, body, punchline", "📝 Building a 60-second script that holds attention", "🔥 This script go make them watch till the end"],
+    "trends":   ["📈 Analysing what is working right now", "🔥 Building trend ideas for your niche", "👀 Finding your FYP angle"],
+    "threads":  ["🧵 Building the thread that goes viral", "✍️ Writing something people will quote tweet", "🔥 X thread loading"]
 }
 
 EXAMPLES = {
@@ -773,7 +770,7 @@ Activation is automatic the moment payment is confirmed ✅""")
             return jsonify({"ok": True})
 
         send_typing(chat_id)
-        send_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it..."])))
+        send_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it"])))
         result = ask_claude(mode, topic, "tiktok")
         send_message(chat_id, f"✨ TikGenius\n\n{result[:3800]}")
 
@@ -806,7 +803,7 @@ Activation is automatic the moment payment is confirmed ✅""")
             return jsonify({"ok": True})
 
         send_typing(chat_id)
-        send_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it..."])))
+        send_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it"])))
         result = ask_claude(mode, topic, "x")
         send_message(chat_id, f"✨ XGenius\n\n{result[:3800]}")
 

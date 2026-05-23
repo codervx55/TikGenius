@@ -1085,7 +1085,20 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
 <div class="glow"></div>
 
 <nav>
-  <div class="logo">TikGenius</div>
+  <div class="logo" style="display:flex;align-items:center;gap:10px;text-decoration:none">
+    <svg width="34" height="34" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="98" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+      <defs>
+        <linearGradient id="tG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="rgba(255,255,255,0.7)"/></linearGradient>
+        <linearGradient id="gG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+      </defs>
+      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#tG)"/>
+      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#tG)"/>
+      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#gG)" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#gG)"/>
+    </svg>
+    <span>TikGenius</span>
+  </div>
   <div class="nav-btns">
     <button class="btn-ghost" onclick="openModal('login')">Log in</button>
     <button class="btn-primary" onclick="openModal('signup')">Get Started Free</button>
@@ -1099,7 +1112,7 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
     <p>TikGenius writes your TikTok captions, hooks, POVs, scripts, and Twitter threads — in the cultural voice that actually resonates with your audience.</p>
     <div class="hero-btns">
       <button class="btn-large primary" onclick="openModal('signup')">Start Free — No Card Needed</button>
-      <a href="https://t.me/TikGeniusBot" target="_blank"><button class="btn-large ghost">Open in Telegram</button></a>
+      <a href="https://t.me/TikGenius_bot" target="_blank"><button class="btn-large ghost">Open in Telegram</button></a>
     </div>
   </div>
 </section>
@@ -1210,8 +1223,56 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
 </section>
 
 <footer>
-  <div class="logo" style="margin-bottom:1rem">TikGenius</div>
-  <p>Built for creators worldwide. Available on web and Telegram.</p>
+  <style>
+    .footer-logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:0.75rem}
+    .footer-logo span{font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .footer-tagline{color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem}
+    .social-links{display:flex;gap:1rem;justify-content:center;margin-bottom:1.5rem;flex-wrap:wrap}
+    .social-link{display:flex;align-items:center;gap:6px;padding:0.45rem 1rem;border-radius:100px;border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.45);font-size:0.82rem;font-family:'DM Sans',sans-serif;text-decoration:none;transition:all 0.2s;background:rgba(255,255,255,0.03)}
+    .social-link:hover{color:white;border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
+    .social-link svg{width:14px;height:14px;flex-shrink:0}
+    .footer-copy{color:rgba(255,255,255,0.15);font-size:0.78rem}
+  </style>
+
+  <!-- Logo -->
+  <div class="footer-logo">
+    <svg width="32" height="32" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="98" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+      <defs>
+        <linearGradient id="ftG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="rgba(255,255,255,0.7)"/></linearGradient>
+        <linearGradient id="fgG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+      </defs>
+      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#ftG)"/>
+      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#ftG)"/>
+      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#fgG)" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#fgG)"/>
+    </svg>
+    <span>TikGenius</span>
+  </div>
+
+  <div class="footer-tagline">AI content studio for TikTok &amp; X creators worldwide</div>
+
+  <!-- Social links -->
+  <div class="social-links">
+    <a class="social-link" href="https://www.tiktok.com/@tik_genius_" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.19 8.19 0 004.79 1.54V6.78a4.85 4.85 0 01-1.02-.09z"/></svg>
+      TikTok
+    </a>
+    <a class="social-link" href="https://x.com/tikgenius" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.259 5.631 5.905-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      Twitter / X
+    </a>
+    <a class="social-link" href="https://t.me/tikgenius" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+      Community
+    </a>
+    <a class="social-link" href="https://t.me/TikGenius_bot" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+      Telegram Bot
+    </a>
+  </div>
+
+  <div class="footer-copy">&copy; 2025 TikGenius — Built for creators worldwide</div>
 </footer>
 
 <!-- AUTH MODAL -->
@@ -1414,7 +1475,20 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 <div class="app">
   <!-- SIDEBAR -->
   <div class="sidebar">
-    <div class="logo">TikGenius</div>
+    <div class="logo" style="display:flex;align-items:center;gap:10px;text-decoration:none">
+    <svg width="34" height="34" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="98" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+      <defs>
+        <linearGradient id="tG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="rgba(255,255,255,0.7)"/></linearGradient>
+        <linearGradient id="gG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+      </defs>
+      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#tG)"/>
+      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#tG)"/>
+      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#gG)" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#gG)"/>
+    </svg>
+    <span>TikGenius</span>
+  </div>
 
     <div class="user-info">
       <div class="user-email" id="userEmail">Loading...</div>

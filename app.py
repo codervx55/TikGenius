@@ -1385,210 +1385,459 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TikGenius — Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#080810;--surface:#0f0f1a;--card:#141428;--border:#1e1e3a;
-  --purple:#7c3aed;--purple-light:#a855f7;--pink:#ec4899;
-  --text:#f0f0ff;--muted:#6b6b8a;--green:#22c55e;
+  --bg:#0a0a0b;
+  --sidebar:#111113;
+  --surface:#161618;
+  --card:#1c1c1f;
+  --border:#2a2a2e;
+  --border-subtle:#222226;
+  --purple:#7c3aed;
+  --purple-light:#a78bfa;
+  --cyan:#00c8ff;
+  --pink:#ec4899;
+  --text:#f4f4f5;
+  --text-2:#a1a1aa;
+  --text-3:#52525b;
+  --green:#34d399;
+  --radius:12px;
 }
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh}
-h1,h2,h3{font-family:'Syne',sans-serif}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;font-size:14px;line-height:1.5}
 
-/* LAYOUT */
-.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
-@media(max-width:768px){.app{grid-template-columns:1fr}.sidebar{display:none}}
+/* ── LAYOUT ─────────────────────────────────────────── */
+.app{display:flex;min-height:100vh}
 
-/* SIDEBAR */
-.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:1.5rem;display:flex;flex-direction:column}
-.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;background:linear-gradient(135deg,var(--purple-light),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:2rem}
-.user-info{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:2rem}
-.user-email{font-size:0.85rem;color:var(--muted);margin-bottom:0.25rem;word-break:break-all}
-.user-plan{display:inline-block;padding:0.2rem 0.75rem;border-radius:100px;font-size:0.75rem;font-weight:600}
-.plan-free{background:rgba(107,107,138,0.2);color:var(--muted)}
-.plan-pro{background:rgba(124,58,237,0.2);color:var(--purple-light)}
-.uses-bar{margin-top:0.75rem}
-.uses-label{font-size:0.75rem;color:var(--muted);margin-bottom:0.25rem}
-.bar{height:4px;background:var(--border);border-radius:100px;overflow:hidden}
-.bar-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--pink));transition:width 0.3s}
+/* ── SIDEBAR ─────────────────────────────────────────── */
+.sidebar{
+  width:260px;flex-shrink:0;
+  background:var(--sidebar);
+  border-right:1px solid var(--border-subtle);
+  display:flex;flex-direction:column;
+  height:100vh;position:sticky;top:0;
+  overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:0}
 
-.nav-label{font-size:0.7rem;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:0.5rem}
-.nav-item{display:flex;align-items:center;gap:0.75rem;padding:0.7rem 0.75rem;border-radius:8px;cursor:pointer;font-size:0.9rem;color:var(--muted);transition:all 0.2s;margin-bottom:0.25rem;border:none;background:none;width:100%;text-align:left}
-.nav-item:hover{background:var(--card);color:var(--text)}
-.nav-item.active{background:rgba(124,58,237,0.15);color:var(--purple-light)}
-.nav-item .icon{font-size:1rem;width:20px;text-align:center}
+.sb-top{padding:20px 16px 0}
 
-.sidebar-bottom{margin-top:auto}
-.upgrade-card{background:linear-gradient(135deg,rgba(124,58,237,0.2),rgba(236,72,153,0.15));border:1px solid rgba(124,58,237,0.3);border-radius:12px;padding:1rem;margin-bottom:1rem}
-.upgrade-card h4{font-size:0.9rem;margin-bottom:0.25rem}
-.upgrade-card p{font-size:0.75rem;color:var(--muted);margin-bottom:0.75rem}
-.btn-upgrade{width:100%;background:linear-gradient(135deg,var(--purple),var(--pink));border:none;color:white;padding:0.6rem;border-radius:8px;font-size:0.85rem;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500}
+/* Logo */
+.sb-logo{display:flex;align-items:center;gap:10px;margin-bottom:24px;padding:0 4px}
+.sb-logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;background:linear-gradient(135deg,#fff 30%,var(--purple-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 
-/* MAIN */
-.main{padding:2rem;overflow-y:auto}
-.main-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem}
-.main-header h1{font-size:1.5rem}
-.platform-switch{display:flex;gap:0.5rem;background:var(--surface);padding:0.25rem;border-radius:8px}
-.platform-btn{padding:0.5rem 1rem;border-radius:6px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.85rem;transition:all 0.2s}
-.platform-btn.active{background:var(--purple);color:white}
+/* New chat button */
+.btn-new{
+  display:flex;align-items:center;gap:8px;
+  width:100%;padding:10px 12px;
+  background:transparent;border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text-2);
+  font-family:'Inter',sans-serif;font-size:13px;font-weight:500;
+  cursor:pointer;transition:all .15s;margin-bottom:24px;
+  justify-content:center;
+}
+.btn-new:hover{border-color:var(--purple-light);color:var(--text);background:rgba(167,139,250,.06)}
+.btn-new svg{opacity:.6}
 
-/* GENERATE AREA */
-.generate-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;margin-bottom:1.5rem}
-.generate-card h3{font-size:1rem;margin-bottom:1rem;color:var(--muted)}
-.topic-input{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:1rem 1.2rem;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:1rem;outline:none;transition:border-color 0.2s;resize:none}
-.topic-input:focus{border-color:var(--purple)}
-.tip{font-size:0.8rem;color:var(--muted);margin-top:0.5rem}
+/* Section headers */
+.sb-section{padding:0 8px;margin-bottom:4px}
+.sb-section-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding:0 4px;margin-bottom:6px}
 
-.modes{display:flex;flex-wrap:wrap;gap:0.5rem;margin:1rem 0}
-.mode-btn{padding:0.5rem 1rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.85rem;transition:all 0.2s}
-.mode-btn:hover{border-color:var(--purple-light);color:var(--text)}
-.mode-btn.active{background:rgba(124,58,237,0.15);border-color:var(--purple);color:var(--purple-light)}
-.mode-btn.pro-mode{position:relative}
-.mode-btn.pro-mode::after{content:'PRO';position:absolute;top:-6px;right:-4px;background:linear-gradient(135deg,var(--purple),var(--pink));color:white;font-size:0.55rem;padding:0.1rem 0.3rem;border-radius:4px;font-weight:700}
+/* Nav items */
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  width:100%;padding:8px 12px;border-radius:8px;
+  background:none;border:none;color:var(--text-2);
+  font-family:'Inter',sans-serif;font-size:13.5px;font-weight:400;
+  cursor:pointer;transition:all .12s;text-align:left;
+  position:relative;
+}
+.nav-item:hover{background:var(--surface);color:var(--text)}
+.nav-item.active{background:rgba(124,58,237,.12);color:var(--purple-light)}
+.nav-item.active::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:60%;border-radius:0 2px 2px 0;
+  background:var(--purple-light);
+}
+.nav-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;opacity:.75}
+.nav-item.active .nav-icon{opacity:1}
+.pro-badge{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em;
+  background:linear-gradient(135deg,var(--purple),var(--pink));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;flex-shrink:0}
 
-.generate-btn{background:linear-gradient(135deg,var(--purple),var(--pink));border:none;color:white;padding:0.85rem 2rem;border-radius:10px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity 0.2s;display:flex;align-items:center;gap:0.5rem}
-.generate-btn:hover{opacity:0.9}
-.generate-btn:disabled{opacity:0.5;cursor:not-allowed}
+/* Sidebar divider */
+.sb-divider{height:1px;background:var(--border-subtle);margin:12px 16px}
 
-/* OUTPUT */
-.output-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;display:none}
-.output-card.visible{display:block}
-.output-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
-.output-header h3{font-size:1rem}
-.copy-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.4rem 1rem;border-radius:8px;cursor:pointer;font-size:0.85rem;font-family:'DM Sans',sans-serif;transition:all 0.2s}
-.copy-btn:hover{border-color:var(--purple-light)}
-.output-text{white-space:pre-wrap;line-height:1.8;font-size:0.95rem;color:var(--text)}
-.loading{display:flex;align-items:center;gap:0.5rem;color:var(--muted);font-size:0.9rem}
-.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--purple-light);border-radius:50%;animation:spin 0.6s linear infinite}
+/* Sidebar bottom */
+.sb-bottom{margin-top:auto;padding:16px}
+
+/* User chip */
+.user-chip{
+  background:var(--surface);border:1px solid var(--border-subtle);
+  border-radius:var(--radius);padding:12px;margin-bottom:12px;
+}
+.user-email{font-size:12px;color:var(--text-2);font-weight:500;margin-bottom:6px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.plan-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px}
+.plan-free{background:rgba(82,82,91,.25);color:var(--text-3)}
+.plan-pro{background:rgba(124,58,237,.2);color:var(--purple-light)}
+.uses-label{font-size:11px;color:var(--text-3)}
+.bar-track{height:3px;background:var(--border);border-radius:100px;overflow:hidden;margin-top:4px}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple-light));transition:width .4s}
+
+/* Upgrade card */
+.upgrade-card{
+  background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(236,72,153,.1));
+  border:1px solid rgba(124,58,237,.25);border-radius:var(--radius);
+  padding:14px;margin-bottom:10px;
+}
+.upgrade-card-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.upgrade-card-sub{font-size:12px;color:var(--text-2);margin-bottom:10px;line-height:1.5}
+.btn-upgrade{
+  width:100%;background:linear-gradient(135deg,var(--purple),var(--pink));
+  border:none;color:white;padding:9px;border-radius:8px;
+  font-family:'Inter',sans-serif;font-size:13px;font-weight:600;
+  cursor:pointer;transition:opacity .2s;
+}
+.btn-upgrade:hover{opacity:.88}
+
+.btn-logout{
+  display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;
+  background:none;border:none;color:var(--text-3);font-family:'Inter',sans-serif;
+  font-size:13px;cursor:pointer;border-radius:8px;transition:all .15s;
+}
+.btn-logout:hover{color:var(--text-2);background:var(--surface)}
+
+/* ── MAIN AREA ────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;min-height:100vh;max-width:820px;margin:0 auto;width:100%;padding:0 24px}
+
+/* Top bar */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 0;border-bottom:1px solid var(--border-subtle);
+  margin-bottom:32px;position:sticky;top:0;
+  background:var(--bg);z-index:10;
+}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.page-title{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:var(--text)}
+.platform-toggle{
+  display:flex;background:var(--surface);border:1px solid var(--border-subtle);
+  border-radius:8px;padding:3px;gap:2px;
+}
+.platform-btn{
+  padding:5px 14px;border-radius:6px;border:none;
+  background:transparent;color:var(--text-3);
+  font-family:'Inter',sans-serif;font-size:12px;font-weight:500;
+  cursor:pointer;transition:all .15s;
+}
+.platform-btn.active{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* Region select */
+.region-select{
+  background:var(--surface);border:1px solid var(--border-subtle);
+  color:var(--text-2);padding:6px 10px;border-radius:8px;
+  font-family:'Inter',sans-serif;font-size:12px;outline:none;cursor:pointer;
+}
+.region-select:focus{border-color:var(--purple-light)}
+
+/* ── INPUT AREA (ChatGPT style) ──────────────────────── */
+.input-section{margin-bottom:28px}
+.input-label{font-size:13px;color:var(--text-3);margin-bottom:10px;font-weight:500}
+
+.input-box{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:16px;
+  transition:border-color .2s,box-shadow .2s;
+  overflow:hidden;
+}
+.input-box:focus-within{
+  border-color:rgba(124,58,237,.5);
+  box-shadow:0 0 0 3px rgba(124,58,237,.08);
+}
+.topic-input{
+  width:100%;background:transparent;border:none;
+  color:var(--text);padding:18px 20px 12px;
+  font-family:'Inter',sans-serif;font-size:15px;
+  outline:none;resize:none;line-height:1.6;
+  min-height:120px;
+}
+.topic-input::placeholder{color:var(--text-3)}
+
+.input-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px 10px 20px;border-top:1px solid var(--border-subtle);
+}
+.input-hint{font-size:12px;color:var(--text-3)}
+.input-hint span{color:var(--purple-light)}
+
+.btn-generate{
+  display:flex;align-items:center;gap:8px;
+  background:linear-gradient(135deg,var(--purple),var(--pink));
+  border:none;color:white;padding:10px 20px;border-radius:10px;
+  font-family:'Inter',sans-serif;font-size:14px;font-weight:600;
+  cursor:pointer;transition:opacity .2s,transform .15s;flex-shrink:0;
+}
+.btn-generate:hover{opacity:.9;transform:translateY(-1px)}
+.btn-generate:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* Spinner */
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* REGION SELECT */
-.region-select{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.5rem 0.75rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;cursor:pointer}
+/* Error */
+.error-msg{
+  background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);
+  color:#fca5a5;padding:10px 14px;border-radius:10px;
+  font-size:13px;margin-top:10px;display:none;
+}
 
-/* ERROR */
-.error-msg{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:#f87171;padding:0.75rem 1rem;border-radius:8px;font-size:0.9rem;margin-top:0.75rem;display:none}
+/* ── OUTPUT ────────────────────────────────────────────── */
+.output-wrap{display:none;animation:fadeSlide .3s ease}
+.output-wrap.visible{display:block}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.output-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:14px;
+}
+.output-label{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);
+}
+.output-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.btn-copy{
+  display:flex;align-items:center;gap:6px;
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--text-2);padding:6px 14px;border-radius:8px;
+  font-family:'Inter',sans-serif;font-size:12px;font-weight:500;
+  cursor:pointer;transition:all .15s;
+}
+.btn-copy:hover{border-color:var(--purple-light);color:var(--text)}
+
+.output-card{
+  background:var(--card);border:1px solid var(--border-subtle);
+  border-radius:16px;padding:24px;
+}
+.output-text{
+  white-space:pre-wrap;line-height:1.85;font-size:14.5px;
+  color:var(--text);font-family:'Inter',sans-serif;
+}
+
+/* ── MOBILE ──────────────────────────────────────────── */
+.mob-bar{display:none;align-items:center;justify-content:space-between;
+  padding:14px 16px;border-bottom:1px solid var(--border-subtle);
+  background:var(--sidebar);position:sticky;top:0;z-index:50}
+.mob-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;
+  background:linear-gradient(135deg,#fff,var(--purple-light));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.mob-menu-btn{background:none;border:none;color:var(--text-2);cursor:pointer;padding:4px}
+.mob-drawer{
+  display:none;position:fixed;inset:0;z-index:100;
+}
+.mob-drawer.open{display:flex}
+.mob-drawer-bg{position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+.mob-drawer-panel{
+  position:relative;width:280px;background:var(--sidebar);
+  border-right:1px solid var(--border-subtle);
+  height:100%;overflow-y:auto;display:flex;flex-direction:column;
+  animation:slideIn .2s ease;
+}
+@keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+
+@media(max-width:768px){
+  .sidebar{display:none}
+  .mob-bar{display:flex}
+  .main{padding:0 16px}
+  .topbar{position:static;margin-bottom:20px}
+}
 </style>
 </head>
 <body>
 
+<!-- Mobile top bar -->
+<div class="mob-bar">
+  <div class="mob-logo">TikGenius</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <select class="region-select" id="regionSelectMob" onchange="changeRegion(this.value)" style="font-size:11px">
+      <option value="nigeria">🇳🇬 Nigeria</option>
+      <option value="usa">🇺🇸 USA</option>
+      <option value="uk">🇬🇧 UK</option>
+      <option value="caribbean">🇯🇲 Caribbean</option>
+      <option value="eastafrica">🇰🇪 East Africa</option>
+      <option value="southafrica">🇿🇦 South Africa</option>
+      <option value="global" selected>🌍 Global</option>
+    </select>
+    <button class="mob-menu-btn" onclick="openDrawer()">
+      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Mobile drawer -->
+<div class="mob-drawer" id="mobDrawer">
+  <div class="mob-drawer-bg" onclick="closeDrawer()"></div>
+  <div class="mob-drawer-panel" id="mobPanel">
+    <!-- filled by JS -->
+  </div>
+</div>
+
 <div class="app">
-  <!-- SIDEBAR -->
-  <div class="sidebar">
-    <div class="logo" style="display:flex;align-items:center;gap:10px;text-decoration:none">
-    <svg width="34" height="34" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="98" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
-      <defs>
-        <linearGradient id="tG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="rgba(255,255,255,0.7)"/></linearGradient>
-        <linearGradient id="gG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
-      </defs>
-      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#tG)"/>
-      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#tG)"/>
-      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#gG)" stroke-width="7" fill="none" stroke-linecap="round"/>
-      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#gG)"/>
-    </svg>
-    <span>TikGenius</span>
-  </div>
 
-    <div class="user-info">
-      <div class="user-email" id="userEmail">Loading...</div>
-      <span class="user-plan plan-free" id="userPlan">Free</span>
-      <div class="uses-bar" id="usesBar">
-        <div class="uses-label" id="usesLabel">5/5 uses left today</div>
-        <div class="bar"><div class="bar-fill" id="barFill" style="width:100%"></div></div>
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sb-top">
+      <div class="sb-logo">
+        <svg width="28" height="28" viewBox="0 0 200 200" fill="none">
+          <circle cx="100" cy="100" r="98" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <defs>
+            <linearGradient id="dTG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#fff"/><stop offset="1" stop-color="rgba(255,255,255,.65)"/></linearGradient>
+            <linearGradient id="dGG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+          </defs>
+          <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#dTG)"/>
+          <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#dTG)"/>
+          <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#dGG)" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#dGG)"/>
+        </svg>
+        <span class="sb-logo-text">TikGenius</span>
       </div>
-    </div>
 
-    <div class="nav-label">Tools</div>
-    <button class="nav-item active" onclick="setMode('captions')" id="nav-captions">
-      <span class="icon">✍️</span> Captions
-    </button>
-    <button class="nav-item" onclick="setMode('hooks')" id="nav-hooks">
-      <span class="icon">🎣</span> Hooks
-    </button>
-    <button class="nav-item" onclick="setMode('pov')" id="nav-pov">
-      <span class="icon">🎥</span> POV Ideas
-    </button>
-    <button class="nav-item" onclick="setMode('hashtags')" id="nav-hashtags">
-      <span class="icon">📊</span> Hashtags
-    </button>
-    <button class="nav-item" onclick="setMode('bio')" id="nav-bio">
-      <span class="icon">👤</span> Bio
-    </button>
-    <button class="nav-item" onclick="setMode('script')" id="nav-script">
-      <span class="icon">📝</span> Script ⭐
-    </button>
-    <button class="nav-item" onclick="setMode('trends')" id="nav-trends">
-      <span class="icon">📈</span> Trends ⭐
-    </button>
-
-    <div class="nav-label" style="margin-top:1rem">Twitter / X</div>
-    <button class="nav-item" onclick="setMode('captions','x')" id="nav-xtweets">
-      <span class="icon">𝕏</span> Tweets
-    </button>
-    <button class="nav-item" onclick="setMode('hooks','x')" id="nav-xhooks">
-      <span class="icon">🧲</span> Thread Hooks
-    </button>
-    <button class="nav-item" onclick="setMode('threads','x')" id="nav-xthread">
-      <span class="icon">🧵</span> Full Thread ⭐
-    </button>
-
-    <div class="sidebar-bottom">
-      <div class="upgrade-card" id="upgradeCard">
-        <h4>Go Pro</h4>
-        <p>Unlimited generations, scripts, threads, and trends.</p>
-        <button class="btn-upgrade" onclick="doUpgrade()">Upgrade — ₦2,000/mo</button>
+      <!-- TikTok tools -->
+      <div class="sb-section">
+        <div class="sb-section-label">TikTok</div>
+        <button class="nav-item active" onclick="setMode('captions')" id="nav-captions">
+          <span class="nav-icon">✍️</span> Captions
+        </button>
+        <button class="nav-item" onclick="setMode('hooks')" id="nav-hooks">
+          <span class="nav-icon">🎣</span> Hooks
+        </button>
+        <button class="nav-item" onclick="setMode('pov')" id="nav-pov">
+          <span class="nav-icon">🎥</span> POV Ideas
+        </button>
+        <button class="nav-item" onclick="setMode('hashtags')" id="nav-hashtags">
+          <span class="nav-icon">📊</span> Hashtags
+        </button>
+        <button class="nav-item" onclick="setMode('bio')" id="nav-bio">
+          <span class="nav-icon">👤</span> Bio
+        </button>
+        <button class="nav-item" onclick="setMode('script')" id="nav-script">
+          <span class="nav-icon">📝</span> Script <span class="pro-badge">PRO</span>
+        </button>
+        <button class="nav-item" onclick="setMode('trends')" id="nav-trends">
+          <span class="nav-icon">📈</span> Trends <span class="pro-badge">PRO</span>
+        </button>
       </div>
-      <button class="nav-item" onclick="doLogout()" style="color:var(--muted)">
-        <span class="icon">↩</span> Log out
-      </button>
-    </div>
-  </div>
 
-  <!-- MAIN -->
-  <div class="main">
-    <div class="main-header">
-      <h1 id="modeTitle">Captions</h1>
-      <div style="display:flex;gap:0.75rem;align-items:center">
-        <select class="region-select" id="regionSelect" onchange="changeRegion()">
-          <option value="nigeria">🇳🇬 Nigerian</option>
-          <option value="usa">🇺🇸 American</option>
-          <option value="uk">🇬🇧 British</option>
-          <option value="caribbean">🇯🇲 Caribbean</option>
-          <option value="eastafrica">🇰🇪 East African</option>
-          <option value="southafrica">🇿🇦 South African</option>
-          <option value="global" selected>🌍 Global</option>
-        </select>
-        <div class="platform-switch">
-          <button class="platform-btn active" id="tiktokBtn" onclick="setPlatform('tiktok')">TikTok</button>
-          <button class="platform-btn" id="xBtn" onclick="setPlatform('x')">Twitter / X</button>
-        </div>
-      </div>
-    </div>
+      <div class="sb-divider"></div>
 
-    <div class="generate-card">
-      <h3>What is your video or post about?</h3>
-      <textarea class="topic-input" id="topicInput" rows="3" placeholder="Be specific — the more detail you give, the better the output.
-
-Example: I work so hard but I am still broke
-Example: I finally left the toxic relationship and I feel guilty"></textarea>
-      <div class="tip">💡 Minimum 3 words — specific topics get better results</div>
-      <div class="error-msg" id="errorMsg"></div>
-      <div style="margin-top:1rem">
-        <button class="generate-btn" id="generateBtn" onclick="generate()">
-          <span>✨</span> Generate
+      <!-- X / Twitter tools -->
+      <div class="sb-section">
+        <div class="sb-section-label">Twitter / X</div>
+        <button class="nav-item" onclick="setMode('captions','x')" id="nav-xtweets">
+          <span class="nav-icon">𝕏</span> Tweets
+        </button>
+        <button class="nav-item" onclick="setMode('hooks','x')" id="nav-xhooks">
+          <span class="nav-icon">🧲</span> Thread Hooks
+        </button>
+        <button class="nav-item" onclick="setMode('threads','x')" id="nav-xthread">
+          <span class="nav-icon">🧵</span> Full Thread <span class="pro-badge">PRO</span>
         </button>
       </div>
     </div>
 
-    <div class="output-card" id="outputCard">
-      <div class="output-header">
-        <h3 id="outputTitle">Your Content</h3>
-        <button class="copy-btn" onclick="copyOutput()">Copy All</button>
+    <div class="sb-bottom">
+      <!-- User info -->
+      <div class="user-chip">
+        <div class="user-email" id="userEmail">Loading...</div>
+        <div class="plan-row">
+          <span class="plan-badge plan-free" id="userPlan">Free</span>
+          <span class="uses-label" id="usesLabel">5/5 uses left</span>
+        </div>
+        <div class="bar-track" id="usesBar">
+          <div class="bar-fill" id="barFill" style="width:100%"></div>
+        </div>
       </div>
-      <div class="output-text" id="outputText"></div>
+
+      <!-- Upgrade -->
+      <div class="upgrade-card" id="upgradeCard">
+        <div class="upgrade-card-title">Upgrade to Pro</div>
+        <div class="upgrade-card-sub">Unlimited scripts, threads, trends &amp; more.</div>
+        <button class="btn-upgrade" onclick="doUpgrade()">Go Pro — ₦2,000/mo</button>
+      </div>
+
+      <button class="btn-logout" onclick="doLogout()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        Log out
+      </button>
     </div>
-  </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="page-title" id="modeTitle">Captions</div>
+        <div class="platform-toggle" id="platformToggle">
+          <button class="platform-btn active" id="tiktokBtn" onclick="setPlatform('tiktok')">TikTok</button>
+          <button class="platform-btn" id="xBtn" onclick="setPlatform('x')">Twitter / X</button>
+        </div>
+      </div>
+      <select class="region-select" id="regionSelect" onchange="changeRegion(this.value)">
+        <option value="nigeria">🇳🇬 Nigerian</option>
+        <option value="usa">🇺🇸 American</option>
+        <option value="uk">🇬🇧 British</option>
+        <option value="caribbean">🇯🇲 Caribbean</option>
+        <option value="eastafrica">🇰🇪 East African</option>
+        <option value="southafrica">🇿🇦 South African</option>
+        <option value="global" selected>🌍 Global</option>
+      </select>
+    </div>
+
+    <!-- Input -->
+    <div class="input-section">
+      <div class="input-box">
+        <textarea class="topic-input" id="topicInput" rows="4"
+          placeholder="What is your video or post about?
+
+Be specific — the more detail you give, the better the output.
+Example: I work so hard but I am still broke"></textarea>
+        <div class="input-footer">
+          <span class="input-hint">⌘ + Enter to generate &nbsp;·&nbsp; Min <span>3 words</span></span>
+          <button class="btn-generate" id="generateBtn" onclick="generate()">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Generate
+          </button>
+        </div>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <!-- Output -->
+    <div class="output-wrap" id="outputCard">
+      <div class="output-header">
+        <div class="output-label">
+          <div class="output-dot"></div>
+          <span id="outputTitle">Ready to post</span>
+        </div>
+        <button class="btn-copy" onclick="copyOutput()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          Copy All
+        </button>
+      </div>
+      <div class="output-card">
+        <div class="output-text" id="outputText"></div>
+      </div>
+    </div>
+
+  </main>
 </div>
 
 <script>
@@ -1597,24 +1846,45 @@ let currentPlatform = 'tiktok';
 let userData = {};
 
 const modeTitles = {
-  captions: 'Captions', hooks: 'Hooks', pov: 'POV Ideas',
-  hashtags: 'Hashtags', bio: 'Bio', script: 'Video Script', trends: 'Trend Ideas',
-  threads: 'X Thread'
+  captions:'Captions', hooks:'Hooks', pov:'POV Ideas',
+  hashtags:'Hashtags', bio:'Bio', script:'Video Script', trends:'Trend Ideas',
+  threads:'X Thread'
 };
 
+// ── Sidebar HTML for mobile drawer ──────────────────
+function sidebarHTML() {
+  return document.querySelector('.sidebar').innerHTML;
+}
+
+function openDrawer() {
+  document.getElementById('mobPanel').innerHTML = sidebarHTML();
+  document.getElementById('mobDrawer').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('mobDrawer').classList.remove('open');
+}
+
+// ── Load user ────────────────────────────────────────
 async function loadUser() {
   const res = await fetch('/api/me');
   if (res.status === 401) { window.location.href = '/'; return; }
   userData = await res.json();
 
   document.getElementById('userEmail').textContent = userData.email;
-  document.getElementById('userPlan').textContent = userData.plan === 'pro' ? '⭐ Pro' : 'Free';
-  document.getElementById('userPlan').className = 'user-plan ' + (userData.plan === 'pro' ? 'plan-pro' : 'plan-free');
-  document.getElementById('regionSelect').value = userData.region || 'global';
+  const isPro = userData.plan === 'pro';
+  document.getElementById('userPlan').textContent = isPro ? '⭐ Pro' : 'Free';
+  document.getElementById('userPlan').className = 'plan-badge ' + (isPro ? 'plan-pro' : 'plan-free');
+
+  const sel = document.getElementById('regionSelect');
+  const selMob = document.getElementById('regionSelectMob');
+  if (sel) sel.value = userData.region || 'global';
+  if (selMob) selMob.value = userData.region || 'global';
 
   if (userData.unlimited) {
     document.getElementById('usesBar').style.display = 'none';
-    document.getElementById('upgradeCard').style.display = 'none';
+    const uc = document.getElementById('upgradeCard');
+    if (uc) uc.style.display = 'none';
+    document.getElementById('usesLabel').textContent = 'Unlimited ✓';
   } else {
     const rem = userData.uses_remaining;
     document.getElementById('usesLabel').textContent = rem + '/5 uses left today';
@@ -1622,19 +1892,21 @@ async function loadUser() {
   }
 }
 
+// ── Mode / Platform ──────────────────────────────────
 function setMode(mode, platform) {
   currentMode = mode;
   if (platform) { currentPlatform = platform; updatePlatformUI(); }
 
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-  const navId = platform === 'x' ? 
-    (mode === 'threads' ? 'nav-xthread' : mode === 'hooks' ? 'nav-xhooks' : 'nav-xtweets') :
-    'nav-' + mode;
+  const navId = platform === 'x'
+    ? (mode === 'threads' ? 'nav-xthread' : mode === 'hooks' ? 'nav-xhooks' : 'nav-xtweets')
+    : 'nav-' + mode;
   const el = document.getElementById(navId);
   if (el) el.classList.add('active');
 
   document.getElementById('modeTitle').textContent = modeTitles[mode] || mode;
   document.getElementById('outputCard').classList.remove('visible');
+  closeDrawer();
 }
 
 function setPlatform(p) {
@@ -1647,14 +1919,21 @@ function updatePlatformUI() {
   document.getElementById('xBtn').classList.toggle('active', currentPlatform === 'x');
 }
 
-async function changeRegion() {
-  const region = document.getElementById('regionSelect').value;
+// ── Region ───────────────────────────────────────────
+async function changeRegion(val) {
+  const region = val || document.getElementById('regionSelect').value;
+  // sync both selects
+  ['regionSelect','regionSelectMob'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = region;
+  });
   await fetch('/api/set-region', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
+    method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({region})
   });
 }
 
+// ── Generate ─────────────────────────────────────────
 async function generate() {
   const topic = document.getElementById('topicInput').value.trim();
   const btn = document.getElementById('generateBtn');
@@ -1663,29 +1942,28 @@ async function generate() {
   const outputText = document.getElementById('outputText');
 
   errEl.style.display = 'none';
-
-  if (!topic) { showError('Please enter a topic'); return; }
-  if (topic.split(' ').length < 3) { showError('Be more specific — add more detail to your topic'); return; }
+  if (!topic) { showError('Please enter a topic.'); return; }
+  if (topic.split(' ').length < 3) { showError('Be more specific — add at least 3 words.'); return; }
 
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div> Generating...';
   outputCard.classList.remove('visible');
 
   const res = await fetch('/api/generate', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
+    method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({mode: currentMode, topic, platform: currentPlatform})
   });
 
   const data = await res.json();
   btn.disabled = false;
-  btn.innerHTML = '<span>✨</span> Generate';
+  btn.innerHTML = '<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Generate';
 
   if (data.error) { showError(data.error); return; }
 
   outputText.textContent = data.result;
   document.getElementById('outputTitle').textContent = modeTitles[currentMode] + ' — ready to post';
   outputCard.classList.add('visible');
-  outputCard.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  outputCard.scrollIntoView({behavior:'smooth', block:'nearest'});
 
   if (!userData.unlimited && data.uses_remaining !== undefined) {
     document.getElementById('usesLabel').textContent = data.uses_remaining + '/5 uses left today';
@@ -1699,15 +1977,19 @@ function showError(msg) {
   el.style.display = 'block';
 }
 
+// ── Copy ─────────────────────────────────────────────
 function copyOutput() {
   const text = document.getElementById('outputText').textContent;
   navigator.clipboard.writeText(text).then(() => {
-    const btn = document.querySelector('.copy-btn');
-    btn.textContent = 'Copied!';
-    setTimeout(() => btn.textContent = 'Copy All', 2000);
+    const btn = document.querySelector('.btn-copy');
+    btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Copied!';
+    setTimeout(() => {
+      btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy All';
+    }, 2000);
   });
 }
 
+// ── Upgrade / Logout ─────────────────────────────────
 async function doUpgrade() {
   const res = await fetch('/api/upgrade', {method:'POST'});
   const data = await res.json();

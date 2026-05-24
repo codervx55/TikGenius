@@ -32,7 +32,10 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", ADMIN_EXPORT_KEY)
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
-app.permanent_session_lifetime = timedelta(days=int(os.getenv("SESSION_DAYS", "30")))
+SESSION_DAYS = int(os.getenv("SESSION_DAYS", "30"))
+app.permanent_session_lifetime = timedelta(days=SESSION_DAYS)
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=SESSION_DAYS)
+app.config["SESSION_REFRESH_EACH_REQUEST"] = True
 app.config["SESSION_COOKIE_HTTPONLY"] = os.getenv("SESSION_COOKIE_HTTPONLY", "true").lower() == "true"
 app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true"
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -148,6 +151,21 @@ def init_db():
 init_db()
 
 # ========================= AUTH HELPERS =========================
+def keep_user_signed_in(user_id, email):
+    """Create a rolling 30-day login session for web users."""
+    session.clear()
+    session.permanent = True
+    session["user_id"] = user_id
+    session["email"] = email
+    session.modified = True
+
+@app.before_request
+def refresh_web_login_session():
+    # Any logged-in web user keeps a rolling 30-day session while they are active.
+    if session.get("user_id"):
+        session.permanent = True
+        session.modified = True
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -706,9 +724,7 @@ def signup():
                 (name, email, generate_password_hash(password), region))
             user_id = cur.fetchone()["id"]
         conn.commit()
-        session.permanent = True
-        session["user_id"] = user_id
-        session["email"] = email
+        keep_user_signed_in(user_id, email)
         return jsonify({"success": True, "redirect": "/dashboard"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -731,9 +747,7 @@ def login():
         with conn.cursor() as cur:
             cur.execute("UPDATE web_users SET last_login_at=NOW() WHERE id=%s", (user["id"],))
         conn.commit()
-        session.permanent = True
-        session["user_id"] = user["id"]
-        session["email"] = user["email"]
+        keep_user_signed_in(user["id"], user["email"])
         return jsonify({"success": True, "redirect": "/dashboard"})
     finally:
         release_db(conn)
@@ -825,10 +839,23 @@ def generate():
 @login_required
 def upgrade():
     user = get_web_user(session["user_id"])
+    if not user:
+        return jsonify({"error": "Please log in again to upgrade."}), 401
+    if not PAYSTACK_SECRET_KEY:
+        return jsonify({"error": "Payment is not configured yet. Add PAYSTACK_SECRET_KEY on Railway."}), 500
     link = create_payment_link(user["email"], session["user_id"], "web")
     if link:
         return jsonify({"url": link})
-    return jsonify({"error": "Could not create payment link"}), 500
+    return jsonify({"error": "Could not create payment link. Please try again."}), 500
+
+@app.route("/upgrade")
+@login_required
+def upgrade_redirect():
+    user = get_web_user(session["user_id"])
+    if not user or not PAYSTACK_SECRET_KEY:
+        return redirect("/dashboard")
+    link = create_payment_link(user["email"], session["user_id"], "web")
+    return redirect(link or "/dashboard")
 
 @app.route("/api/set-region", methods=["POST"])
 @login_required
@@ -1645,7 +1672,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <aside class="side" id="desktopSide">
   <div class="logo">Tik<span>Genius</span></div>
   <div class="user"><div id="userEmail">Loading...</div></div>
-  <div class="usage"><strong id="usesLabel">5/5 free generations left</strong><div class="bar"><div class="fill" id="barFill"></div></div><button class="upgrade" id="upgradeBtn" onclick="doUpgrade()">Upgrade to Premium</button></div>
+  <div class="usage"><strong id="usesLabel">5/5 free generations left</strong><div class="bar"><div class="fill" id="barFill"></div></div><button type="button" class="upgrade" id="upgradeBtn" data-upgrade onclick="doUpgrade(event)">Upgrade to Premium</button></div>
   <div class="section-title">Create for TikTok & X</div><div class="modes" id="modes"></div>
   <div class="history-head"><div class="section-title">Recent history</div><button class="clear-history" onclick="clearHistory()">Clear</button></div><div class="history" id="historyList"><div class="empty">Your TikTok and X content history will appear here.</div></div>
   <button class="logout" onclick="doLogout()">Log out</button>
@@ -1659,7 +1686,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <textarea class="prompt" id="topicInput" placeholder="Example: Give me 5 TikTok captions for a skincare video targeting young women who want clear skin. Or: write an X thread about building discipline as a young creator."></textarea>
     <div class="actions"><div class="hint">Minimum 3 words. Works for TikTok and X.</div><button class="generate" id="generateBtn" onclick="generate()">Generate</button></div>
     <div class="error" id="errorMsg"></div>
-    <div class="premium-lock" id="premiumLock"><h3>You used your 5 free generations</h3><p>Upgrade to Premium to keep generating unlimited captions, hooks, scripts and content ideas.</p><button class="upgrade show" onclick="doUpgrade()">Upgrade to Premium</button></div>
+    <div class="premium-lock" id="premiumLock"><h3>You used your 5 free generations</h3><p>Upgrade to Premium to keep generating unlimited captions, hooks, scripts and content ideas.</p><button type="button" class="upgrade show" data-upgrade onclick="doUpgrade(event)">Upgrade to Premium</button></div>
   </section>
   <section class="output" id="outputCard"><div class="output-head"><b id="outputTitle">Ready to post</b><button class="copy" onclick="copyOutput()">Copy</button></div><div class="result" id="outputText"></div></section>
 </main>
@@ -1680,7 +1707,33 @@ async function changeRegion(region){await fetch('/api/set-region',{method:'POST'
 async function generate(){const topic=document.getElementById('topicInput').value.trim(),btn=document.getElementById('generateBtn');hideError();if(!topic)return showError('Please enter your prompt.');if(topic.split(/\s+/).length<3)return showError('Please add at least 3 words.');btn.disabled=true;btn.textContent='Generating...';const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:currentMode,platform:currentPlatform,topic})});const data=await res.json();btn.disabled=false;btn.textContent='Generate';if(data.error){showError(data.error);if(res.status===429)document.getElementById('premiumLock').classList.add('show');return}document.getElementById('outputText').textContent=data.result;document.getElementById('outputTitle').textContent=(modeTitles[currentMode]||currentMode)+' — ready to post';document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});if(data.uses_remaining!==undefined)updateUsage(data.uses_remaining,false);loadHistory()}
 function showError(m){const e=document.getElementById('errorMsg');e.textContent=m;e.style.display='block'}function hideError(){document.getElementById('errorMsg').style.display='none'}
 function copyOutput(){navigator.clipboard.writeText(document.getElementById('outputText').textContent)}
-async function doUpgrade(){const res=await fetch('/api/upgrade',{method:'POST'});const data=await res.json();if(data.url)location.href=data.url;else showError(data.error||'Could not open payment page')}
+let upgradeInProgress=false;
+async function doUpgrade(event){
+  if(event && event.preventDefault) event.preventDefault();
+  if(upgradeInProgress) return false;
+  upgradeInProgress=true;
+  hideError();
+  const buttons=Array.from(document.querySelectorAll('[data-upgrade], .upgrade'));
+  buttons.forEach(b=>{b.disabled=true; b.dataset.oldText=b.textContent; b.textContent='Opening payment...'});
+  try{
+    const res=await fetch('/api/upgrade',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'}});
+    let data={};
+    try{data=await res.json()}catch(e){}
+    if(res.status===401){location.href='/';return false}
+    if(data.url){window.location.assign(data.url);return false}
+    showError(data.error||'Could not open payment page. Please try again.');
+  }catch(e){
+    showError('Network error. Please check your connection and try again.');
+  }finally{
+    upgradeInProgress=false;
+    buttons.forEach(b=>{b.disabled=false; b.textContent=b.dataset.oldText||'Upgrade to Premium'});
+  }
+  return false;
+}
+document.addEventListener('click',function(e){
+  const btn=e.target.closest('[data-upgrade]');
+  if(btn){doUpgrade(e)}
+},false);
 async function doLogout(){await fetch('/api/logout',{method:'POST'});location.href='/'}
 function openDrawer(){const p=document.getElementById('drawerPanel');p.innerHTML=document.getElementById('desktopSide').innerHTML;const h=p.querySelector('#historyList');if(h)h.id='drawerHistory';const m=p.querySelector('#modes');if(m)m.id='drawerModes';document.getElementById('drawer').classList.add('show');renderModes('drawerModes');loadHistory()}function closeDrawer(e){if(e.target.id==='drawer')document.getElementById('drawer').classList.remove('show')}
 renderModes();loadUser();
@@ -1690,4 +1743,3 @@ renderModes();loadUser();
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
- 

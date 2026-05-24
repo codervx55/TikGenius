@@ -9,8 +9,7 @@ from functools import wraps
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 import requests
-from flask import Flask, request, jsonify, session, redirect, url_for, Response
-from html import escape
+from flask import Flask, request, jsonify, session, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -26,16 +25,9 @@ SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
 PRICE_KOBO = 200000
 FREE_LIMIT = 5
 ADMIN_ID = "6415641863"
-ADMIN_EXPORT_KEY = os.getenv("ADMIN_EXPORT_KEY", SECRET_KEY)
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@tikgenius.app")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", ADMIN_EXPORT_KEY)
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
-app.permanent_session_lifetime = timedelta(days=int(os.getenv("SESSION_DAYS", "30")))
-app.config["SESSION_COOKIE_HTTPONLY"] = os.getenv("SESSION_COOKIE_HTTPONLY", "true").lower() == "true"
-app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true"
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 # ========================= HTTP =========================
 def get_session():
@@ -80,7 +72,6 @@ def init_db():
             # Web app users table
             cur.execute("""CREATE TABLE IF NOT EXISTS web_users (
                 id SERIAL PRIMARY KEY,
-                name TEXT,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 plan TEXT DEFAULT 'free',
@@ -88,34 +79,8 @@ def init_db():
                 usage_date DATE,
                 usage_count INTEGER DEFAULT 0,
                 region TEXT DEFAULT 'global',
-                created_at TIMESTAMP DEFAULT NOW(),
-                last_login_at TIMESTAMP
-            )""")
-            cur.execute("ALTER TABLE web_users ADD COLUMN IF NOT EXISTS name TEXT")
-            cur.execute("ALTER TABLE web_users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP")
-            cur.execute("""CREATE TABLE IF NOT EXISTS web_generations (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES web_users(id) ON DELETE CASCADE,
-                mode TEXT,
-                platform TEXT,
-                topic TEXT,
-                result TEXT,
                 created_at TIMESTAMP DEFAULT NOW()
             )""")
-            cur.execute("""CREATE TABLE IF NOT EXISTS web_payments (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES web_users(id) ON DELETE SET NULL,
-                telegram_id BIGINT,
-                reference TEXT UNIQUE NOT NULL,
-                amount_kobo INTEGER NOT NULL DEFAULT 0,
-                currency TEXT DEFAULT 'NGN',
-                status TEXT DEFAULT 'success',
-                source TEXT DEFAULT 'web',
-                paid_at TIMESTAMP DEFAULT NOW(),
-                raw_email TEXT
-            )""")
-            cur.execute("ALTER TABLE web_payments ADD COLUMN IF NOT EXISTS raw_email TEXT")
-            cur.execute("ALTER TABLE web_payments ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'web'")
         conn.commit()
     finally:
         release_db(conn)
@@ -181,22 +146,6 @@ def activate_web_pro(user_id):
             cur.execute("UPDATE web_users SET plan='pro', expires=%s WHERE id=%s", (expires, user_id))
         conn.commit()
         return expires.strftime("%Y-%m-%d")
-    finally:
-        release_db(conn)
-
-def record_payment(reference, amount_kobo, currency="NGN", status="success", source="web", web_user_id=None, telegram_id=None, raw_email=None):
-    """Save successful Paystack payment once. Duplicate callbacks/webhooks are ignored."""
-    if not reference:
-        return
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""INSERT INTO web_payments
-                (user_id, telegram_id, reference, amount_kobo, currency, status, source, raw_email)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (reference) DO NOTHING
-            """, (web_user_id, telegram_id, reference, int(amount_kobo or 0), currency or "NGN", status or "success", source or "web", raw_email))
-        conn.commit()
     finally:
         release_db(conn)
 
@@ -499,35 +448,6 @@ def ask_groq(mode, topic, platform="tiktok", region="global"):
 
     prompt = prompt_template.format(topic=topic)
 
-    timing_context = """
-
-IMPORTANT OUTPUT FORMAT — FOLLOW THIS EXACTLY:
-Return exactly 5 numbered lines only. No intro. No outro.
-Each line must contain ONE ready-to-use result, a posting time, and a very short reason.
-Use the audience's local time. Do not promise guaranteed virality.
-
-For TikTok, choose smart posting windows based on TikTok engagement behavior:
-- morning scroll: 7 AM - 9 AM
-- lunch break: 12 PM - 2 PM
-- evening high intent: 6 PM - 10 PM
-- weekend boost: Saturday/Sunday afternoon or evening
-
-For X/Twitter, choose smart posting windows based on X engagement behavior:
-- weekday morning: 8 AM - 11 AM
-- lunch break: 12 PM - 2 PM
-- evening conversation: 6 PM - 8 PM
-
-Line format with separators — very important:
-1) [content] || [day/time] || [very short reason]
-2) [content] || [day/time] || [very short reason]
-3) [content] || [day/time] || [very short reason]
-4) [content] || [day/time] || [very short reason]
-5) [content] || [day/time] || [very short reason]
-
-Do not write "Best time to post" inside the content. Do not put the reason inside the content.
-"""
-    prompt = prompt + timing_context
-
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -562,7 +482,6 @@ def create_payment_link(email, user_id, source="web"):
         "email": email,
         "amount": PRICE_KOBO,
         "reference": reference,
-        "callback_url": request.host_url.rstrip("/") + "/paystack/callback",
         "metadata": {"web_user_id": user_id if source == "web" else None,
                      "telegram_id": user_id if source == "telegram" else None,
                      "source": source}
@@ -608,7 +527,6 @@ def dashboard():
 @app.route("/api/signup", methods=["POST"])
 def signup():
     data = request.json or {}
-    name = data.get("name", "").strip()
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")
     region = data.get("region", "global")
@@ -624,12 +542,11 @@ def signup():
             cur.execute("SELECT id FROM web_users WHERE email=%s", (email,))
             if cur.fetchone():
                 return jsonify({"error": "Email already registered"}), 400
-            cur.execute("""INSERT INTO web_users (name, email, password_hash, region)
-                VALUES (%s, %s, %s, %s) RETURNING id""",
-                (name, email, generate_password_hash(password), region))
+            cur.execute("""INSERT INTO web_users (email, password_hash, region)
+                VALUES (%s, %s, %s) RETURNING id""",
+                (email, generate_password_hash(password), region))
             user_id = cur.fetchone()["id"]
         conn.commit()
-        session.permanent = True
         session["user_id"] = user_id
         session["email"] = email
         return jsonify({"success": True, "redirect": "/dashboard"})
@@ -651,10 +568,6 @@ def login():
             user = cur.fetchone()
         if not user or not check_password_hash(user["password_hash"], password):
             return jsonify({"error": "Invalid email or password"}), 401
-        with conn.cursor() as cur:
-            cur.execute("UPDATE web_users SET last_login_at=NOW() WHERE id=%s", (user["id"],))
-        conn.commit()
-        session.permanent = True
         session["user_id"] = user["id"]
         session["email"] = user["email"]
         return jsonify({"success": True, "redirect": "/dashboard"})
@@ -682,32 +595,6 @@ def me():
         "unlimited": pro
     })
 
-@app.route("/api/history")
-@login_required
-def history():
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""SELECT id, mode, platform, topic, result, created_at
-                FROM web_generations WHERE user_id=%s
-                ORDER BY created_at DESC LIMIT 30""", (session["user_id"],))
-            rows = cur.fetchall()
-        return jsonify({"items": [dict(r) for r in rows]})
-    finally:
-        release_db(conn)
-
-@app.route("/api/history/clear", methods=["POST", "DELETE"])
-@login_required
-def clear_history():
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM web_generations WHERE user_id=%s", (session["user_id"],))
-        conn.commit()
-        return jsonify({"success": True})
-    finally:
-        release_db(conn)
-
 @app.route("/api/generate", methods=["POST"])
 @login_required
 def generate():
@@ -728,15 +615,6 @@ def generate():
     user = get_web_user(user_id)
     region = user["region"] if user else "global"
     result = ask_groq(mode, topic, platform, region)
-
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""INSERT INTO web_generations (user_id, mode, platform, topic, result)
-                VALUES (%s, %s, %s, %s, %s)""", (user_id, mode, platform, topic, result))
-        conn.commit()
-    finally:
-        release_db(conn)
 
     return jsonify({
         "result": result,
@@ -766,234 +644,8 @@ def set_region():
     finally:
         release_db(conn)
 
-
-# ========================= ADMIN PANEL =========================
-def admin_allowed():
-    if session.get("admin_authed") is True:
-        return True
-    key = request.args.get("key") or request.headers.get("X-Admin-Key")
-    return bool(ADMIN_EXPORT_KEY and key and hmac.compare_digest(str(key), str(ADMIN_EXPORT_KEY)))
-
-def admin_login_required(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        if not admin_allowed():
-            return redirect(url_for("admin_login", next=request.path))
-        return fn(*args, **kwargs)
-    return wrapper
-
-def money_ngn(kobo):
-    return f"₦{(int(kobo or 0) / 100):,.0f}"
-
-ADMIN_LOGIN_HTML = """<!doctype html>
-<html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>TikGenius Admin Login</title>
-<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
-<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap' rel='stylesheet'>
-<style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,system-ui,sans-serif;background:radial-gradient(circle at 20% 0,#18345a 0,#08111e 34%,#05070c 100%);color:#f8fbff;display:grid;place-items:center;padding:18px}.login{width:min(440px,100%);background:rgba(10,18,32,.82);border:1px solid rgba(125,167,255,.22);box-shadow:0 30px 90px rgba(0,0,0,.42);border-radius:28px;padding:26px;backdrop-filter:blur(16px)}.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:24px;letter-spacing:-.04em}.mark{width:38px;height:38px;border-radius:14px;background:linear-gradient(135deg,#22d3ee,#10b981,#f59e0b);display:grid;place-items:center;color:#061018;font-weight:900}.muted{color:#98a9c4;line-height:1.6;margin:8px 0 22px}label{font-size:13px;color:#b8c7dd;font-weight:700;display:block;margin:14px 0 7px}input{width:100%;padding:15px 16px;border-radius:16px;border:1px solid #263852;background:#070d16;color:#fff;font:600 16px Inter;outline:none}input:focus{border-color:#38bdf8;box-shadow:0 0 0 4px rgba(56,189,248,.10)}button{width:100%;margin-top:18px;border:0;border-radius:16px;padding:15px;background:linear-gradient(135deg,#22d3ee,#10b981,#f6b21a);font-weight:900;color:#061018;font-size:16px}.err{display:%ERRDISPLAY%;margin-top:14px;color:#fecdd3;background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.3);padding:12px;border-radius:14px;font-weight:700}.foot{font-size:12px;color:#77859a;margin-top:16px;text-align:center}
-</style></head><body><form class='login' method='post'><div class='brand'><div class='mark'>TG</div><div>TikGenius Admin</div></div><p class='muted'>Private dashboard for revenue, premium users, free users, email list and payments.</p><label>Admin email</label><input name='email' type='email' autocomplete='username' required><label>Password</label><input name='password' type='password' autocomplete='current-password' required><button>Unlock Dashboard</button><div class='err'>%ERROR%</div><div class='foot'>Protected by session login. Do not share your admin password.</div></form></body></html>"""
-
-@app.route("/admin/login", methods=["GET", "POST"])
-def admin_login():
-    error = ""
-    if request.method == "POST":
-        email = (request.form.get("email") or "").strip().lower()
-        password = request.form.get("password") or ""
-        if hmac.compare_digest(email, (ADMIN_EMAIL or "").strip().lower()) and hmac.compare_digest(password, str(ADMIN_PASSWORD or "")):
-            session["admin_authed"] = True
-            return redirect(url_for("admin_panel"))
-        error = "Wrong admin email or password."
-    html = ADMIN_LOGIN_HTML.replace("%ERROR%", escape(error)).replace("%ERRDISPLAY%", "block" if error else "none")
-    return html
-
-@app.route("/admin/logout")
-def admin_logout():
-    session.pop("admin_authed", None)
-    return redirect(url_for("admin_login"))
-
-@app.route("/admin")
-@app.route("/admin/emails")
-@admin_login_required
-def admin_panel():
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) AS total FROM web_users")
-            total_users = cur.fetchone()["total"]
-            cur.execute("SELECT COUNT(*) AS premium FROM web_users WHERE plan='pro' AND expires >= CURRENT_DATE")
-            premium_users = cur.fetchone()["premium"]
-            cur.execute("SELECT COUNT(*) AS free FROM web_users WHERE NOT (plan='pro' AND expires >= CURRENT_DATE)")
-            free_users = cur.fetchone()["free"]
-            cur.execute("SELECT COUNT(*) AS today FROM web_users WHERE created_at::date = CURRENT_DATE")
-            today_signups = cur.fetchone()["today"]
-            cur.execute("SELECT COUNT(*) AS gens FROM web_generations")
-            total_generations = cur.fetchone()["gens"]
-            cur.execute("SELECT COALESCE(SUM(amount_kobo),0) AS revenue, COUNT(*) AS count FROM web_payments WHERE status='success'")
-            pay_stats = cur.fetchone()
-            cur.execute("""SELECT p.reference, p.amount_kobo, p.currency, p.source, p.paid_at,
-                                  COALESCE(w.email, p.raw_email, '') AS email
-                           FROM web_payments p
-                           LEFT JOIN web_users w ON w.id=p.user_id
-                           ORDER BY p.paid_at DESC LIMIT 20""")
-            payments = cur.fetchall()
-            cur.execute("""SELECT id, COALESCE(name, '') AS name, email, plan, expires, region, usage_count, created_at, last_login_at
-                           FROM web_users ORDER BY created_at DESC LIMIT 300""")
-            users = cur.fetchall()
-    finally:
-        release_db(conn)
-
-    conversion = round((premium_users / total_users * 100), 1) if total_users else 0
-    payment_rows = "".join(
-        f"<tr><td>{escape(str(p['paid_at'] or ''))}</td><td>{escape(p['email'] or '')}</td><td>{money_ngn(p['amount_kobo'])}</td><td>{escape(p['source'] or '')}</td><td class='muted ref'>{escape(p['reference'] or '')}</td></tr>"
-        for p in payments
-    ) or "<tr><td colspan='5' class='muted'>No payment recorded yet. New successful Paystack payments will appear here.</td></tr>"
-
-    user_rows = "".join(
-        f"<tr><td>{u['id']}</td><td>{escape(u['name'] or '')}</td><td>{escape(u['email'])}</td><td><span class='pill {('pro' if u['plan']=='pro' and u['expires'] else 'free')}'>{escape(u['plan'] or 'free')}</span></td><td>{escape(str(u['expires'] or ''))}</td><td>{escape(u['region'] or '')}</td><td>{u['usage_count'] or 0}</td><td>{escape(str(u['created_at'] or ''))}</td><td>{escape(str(u['last_login_at'] or ''))}</td></tr>"
-        for u in users
-    ) or "<tr><td colspan='9' class='muted'>No users yet.</td></tr>"
-
-    return f"""<!doctype html>
-<html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>TikGenius Admin</title>
-<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
-<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap' rel='stylesheet'>
-<style>
-:root{{--bg:#060a12;--panel:#0d1525;--panel2:#111c31;--line:#243550;--text:#f3f7ff;--muted:#93a4bd;--cyan:#38bdf8;--green:#10b981;--gold:#f6b21a;--red:#fb7185}}
-*{{box-sizing:border-box}}body{{margin:0;font-family:Inter,system-ui,sans-serif;background:radial-gradient(circle at top left,#172b52 0,#081120 34%,#05070c 100%);color:var(--text);min-height:100vh}}.wrap{{max-width:1280px;margin:auto;padding:18px}}.hero{{background:linear-gradient(135deg,rgba(56,189,248,.14),rgba(16,185,129,.10),rgba(246,178,26,.10));border:1px solid rgba(125,167,255,.22);border-radius:26px;padding:18px;box-shadow:0 20px 70px rgba(0,0,0,.26);margin-bottom:14px}}.top{{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}}.brand{{display:flex;gap:12px;align-items:center}}.mark{{width:42px;height:42px;border-radius:15px;background:linear-gradient(135deg,var(--cyan),var(--green),var(--gold));display:grid;place-items:center;color:#061018;font-weight:900}}h1{{font-size:clamp(1.35rem,5vw,2.15rem);letter-spacing:-.055em;margin:0}}.muted{{color:var(--muted);font-size:.92rem;line-height:1.5}}.logout{{font-size:.84rem;color:#dbeafe;text-decoration:none;border:1px solid rgba(148,163,184,.25);padding:9px 12px;border-radius:999px;background:rgba(8,13,23,.56)}}.hero-stats{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}}.mini{{padding:12px;border-radius:18px;background:rgba(5,10,18,.55);border:1px solid rgba(148,163,184,.17)}}.mini b{{display:block;font-size:1.08rem}}.mini span{{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:800}}
-.grid{{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:14px 0}}.card{{background:linear-gradient(180deg,rgba(17,28,49,.92),rgba(10,17,30,.96));border:1px solid rgba(90,119,164,.45);border-radius:22px;padding:17px;box-shadow:0 12px 40px rgba(0,0,0,.20)}}.label{{color:#a5b4fc;font-size:.74rem;text-transform:uppercase;letter-spacing:.11em;font-weight:900}}.num{{font-size:clamp(1.7rem,7vw,2.35rem);font-weight:900;letter-spacing:-.05em;margin-top:8px}}.section{{margin-top:14px}}h2{{margin:0 0 12px;font-size:1.05rem;letter-spacing:-.03em}}.tablebox{{overflow:auto;border-radius:18px;border:1px solid rgba(90,119,164,.38)}}table{{width:100%;border-collapse:collapse;min-width:900px;background:#0b1322}}th,td{{padding:12px 13px;border-bottom:1px solid #1e293b;text-align:left;font-size:.86rem;white-space:nowrap}}th{{color:#bfdbfe;background:#101b30;font-size:.72rem;text-transform:uppercase;letter-spacing:.075em}}.ref{{max-width:210px;overflow:hidden;text-overflow:ellipsis}}.pill{{padding:5px 9px;border-radius:999px;font-weight:900;font-size:.72rem}}.pill.pro{{background:rgba(16,185,129,.16);color:#6ee7b7;border:1px solid rgba(16,185,129,.32)}}.pill.free{{background:rgba(99,102,241,.16);color:#c4b5fd;border:1px solid rgba(99,102,241,.32)}}.search{{width:100%;padding:13px 14px;border-radius:14px;border:1px solid #334155;background:#07101d;color:white;margin:4px 0 14px;outline:none}}.search:focus{{border-color:var(--cyan);box-shadow:0 0 0 4px rgba(56,189,248,.10)}}.download-zone{{margin:18px 0 30px;padding:16px;border-radius:22px;border:1px dashed rgba(148,163,184,.35);background:rgba(8,13,23,.45)}}.download-row{{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}}a.smallbtn{{background:#17243a;color:#dbeafe;text-decoration:none;padding:8px 10px;border-radius:10px;font-weight:800;font-size:.78rem;display:inline-flex;gap:6px;align-items:center;border:1px solid rgba(148,163,184,.24)}}a.smallbtn:hover{{border-color:var(--cyan)}}
-@media(max-width:1000px){{.grid{{grid-template-columns:repeat(2,1fr)}}.hero-stats{{grid-template-columns:1fr 1fr}}}}@media(max-width:560px){{.wrap{{padding:12px}}.hero{{border-radius:22px;padding:15px}}.grid{{grid-template-columns:1fr}}.hero-stats{{grid-template-columns:1fr}}.card{{border-radius:20px}}th,td{{padding:11px 12px;font-size:.82rem}}}}
-</style></head>
-<body><div class='wrap'>
-  <section class='hero'><div class='top'><div class='brand'><div class='mark'>TG</div><div><h1>TikGenius Admin</h1><div class='muted'>Revenue, premium users, free users, emails, payments and growth activity.</div></div></div><a class='logout' href='/admin/logout'>Log out</a></div><div class='hero-stats'><div class='mini'><span>Revenue</span><b>{money_ngn(pay_stats['revenue'])}</b></div><div class='mini'><span>Premium conversion</span><b>{conversion}%</b></div><div class='mini'><span>Today signups</span><b>{today_signups}</b></div></div></section>
-  <div class='grid'>
-    <div class='card'><div class='label'>Total Revenue</div><div class='num'>{money_ngn(pay_stats['revenue'])}</div><div class='muted'>{pay_stats['count']} successful payments</div></div>
-    <div class='card'><div class='label'>Premium Users</div><div class='num'>{premium_users}</div><div class='muted'>Active Pro accounts</div></div>
-    <div class='card'><div class='label'>Free Users</div><div class='num'>{free_users}</div><div class='muted'>Not premium yet</div></div>
-    <div class='card'><div class='label'>Total Signups</div><div class='num'>{total_users}</div><div class='muted'>{today_signups} today</div></div>
-    <div class='card'><div class='label'>Generations</div><div class='num'>{total_generations}</div><div class='muted'>AI outputs created</div></div>
-  </div>
-  <div class='section card'><h2>Recent Payments</h2><div class='tablebox'><table><thead><tr><th>Date</th><th>Email</th><th>Amount</th><th>Source</th><th>Reference</th></tr></thead><tbody>{payment_rows}</tbody></table></div></div>
-  <div class='section card'><h2>Audience Emails</h2><input class='search' id='search' placeholder='Search email, name, plan...' onkeyup='filterRows()'><div class='tablebox'><table id='users'><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Plan</th><th>Expires</th><th>Region</th><th>Uses</th><th>Signup Date</th><th>Last Login</th></tr></thead><tbody>{user_rows}</tbody></table></div></div>
-  <div class='download-zone'><div class='label'>Downloads</div><div class='muted'>Export data only when needed. Keep these files private.</div><div class='download-row'><a class='smallbtn' href='/admin/emails.csv'>⬇ Emails CSV</a><a class='smallbtn' href='/admin/payments.csv'>⬇ Payments CSV</a></div></div>
-</div><script>function filterRows(){{let q=document.getElementById('search').value.toLowerCase();document.querySelectorAll('#users tbody tr').forEach(r=>{{r.style.display=r.innerText.toLowerCase().includes(q)?'':'none'}})}}</script></body></html>"""
-
-@app.route("/admin/emails.csv")
-@admin_login_required
-def admin_emails_csv():
-    import csv, io
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""SELECT id, COALESCE(name, '') AS name, email, plan, expires, region, usage_count, created_at, last_login_at
-                           FROM web_users ORDER BY created_at DESC""")
-            users = cur.fetchall()
-    finally:
-        release_db(conn)
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["id", "name", "email", "plan", "expires", "region", "usage_count", "created_at", "last_login_at"])
-    for u in users:
-        writer.writerow([u["id"], u["name"], u["email"], u["plan"], u["expires"] or "", u["region"], u["usage_count"] or 0, u["created_at"], u["last_login_at"] or ""])
-    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=tikgenius_emails.csv"})
-
-@app.route("/admin/payments.csv")
-@admin_login_required
-def admin_payments_csv():
-    import csv, io
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""SELECT p.reference, p.amount_kobo, p.currency, p.status, p.source, p.paid_at, COALESCE(w.email, p.raw_email, '') AS email
-                           FROM web_payments p LEFT JOIN web_users w ON w.id=p.user_id ORDER BY p.paid_at DESC""")
-            payments = cur.fetchall()
-    finally:
-        release_db(conn)
-    output = io.StringIO(); writer = csv.writer(output)
-    writer.writerow(["reference", "email", "amount_naira", "currency", "status", "source", "paid_at"])
-    for p in payments:
-        writer.writerow([p["reference"], p["email"], int(p["amount_kobo"] or 0)/100, p["currency"], p["status"], p["source"], p["paid_at"]])
-    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=tikgenius_payments.csv"})
-
-@app.route("/api/admin/audience-count")
-def admin_audience_count():
-    if not admin_allowed():
-        return jsonify({"error": "Unauthorized"}), 401
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) AS total FROM web_users")
-            total = cur.fetchone()["total"]
-        return jsonify({"total": total})
-    finally:
-        release_db(conn)
-
-def verify_paystack_reference(reference):
-    """Verify a Paystack transaction and activate the correct user if paid."""
-    if not PAYSTACK_SECRET_KEY:
-        return False, "Paystack secret key missing"
-    if not reference:
-        return False, "Missing payment reference"
-
-    headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}"}
-    try:
-        res = http_session.get(
-            f"https://api.paystack.co/transaction/verify/{reference}",
-            headers=headers,
-            timeout=20
-        )
-        data = res.json()
-    except Exception as e:
-        print(f"Paystack verify error: {e}")
-        return False, "Could not verify payment"
-
-    if not data.get("status") or data.get("data", {}).get("status") != "success":
-        return False, "Payment not successful yet"
-
-    tx = data["data"]
-    if int(tx.get("amount", 0)) < PRICE_KOBO:
-        return False, "Payment amount is too low"
-
-    metadata = tx.get("metadata") or {}
-    source = metadata.get("source", "web")
-
-    reference = tx.get("reference") or reference
-    customer = tx.get("customer") or {}
-    paid_email = customer.get("email")
-
-    if source == "web":
-        web_user_id = metadata.get("web_user_id")
-        if not web_user_id:
-            return False, "Missing web user ID"
-        record_payment(reference, tx.get("amount"), tx.get("currency", "NGN"), tx.get("status", "success"), "web", int(web_user_id), None, paid_email)
-        expires = activate_web_pro(int(web_user_id))
-        return True, f"Premium activated until {expires}"
-
-    telegram_id = metadata.get("telegram_id")
-    if telegram_id:
-        record_payment(reference, tx.get("amount"), tx.get("currency", "NGN"), tx.get("status", "success"), "telegram", None, int(telegram_id), paid_email)
-        expires = activate_pro(telegram_id)
-        send_telegram_message(telegram_id, f"Payment confirmed. Welcome to Pro. Access active till {expires}.")
-        return True, f"Telegram premium activated until {expires}"
-
-    return False, "Missing user metadata"
-
-@app.route("/paystack/callback")
-def paystack_callback():
-    reference = request.args.get("reference") or request.args.get("trxref")
-    ok, message = verify_paystack_reference(reference)
-    if ok:
-        # If the payer is logged in, refresh their session and return to dashboard.
-        return redirect("/dashboard?payment=success")
-    return f"Payment verification failed: {message}", 400
-
-@app.route("/api/payment-status")
-@login_required
-def payment_status():
-    return jsonify({"premium": is_web_pro(session["user_id"])})
-
 # ========================= PAYSTACK WEBHOOK =========================
 @app.route("/paystack-webhook", methods=["POST"])
-@app.route("/paystack/webhook", methods=["POST"])
 def paystack_webhook():
     signature = request.headers.get("x-paystack-signature", "")
     body = request.get_data()
@@ -1009,18 +661,13 @@ def paystack_webhook():
         source = metadata.get("source", "telegram")
 
         if amount == PRICE_KOBO:
-            reference = data.get("reference")
-            customer = data.get("customer") or {}
-            paid_email = customer.get("email")
             if source == "web":
                 web_user_id = metadata.get("web_user_id")
                 if web_user_id:
-                    record_payment(reference, amount, data.get("currency", "NGN"), data.get("status", "success"), "web", int(web_user_id), None, paid_email)
                     activate_web_pro(web_user_id)
             else:
                 telegram_id = metadata.get("telegram_id")
                 if telegram_id:
-                    record_payment(reference, amount, data.get("currency", "NGN"), data.get("status", "success"), "telegram", None, int(telegram_id), paid_email)
                     expires = activate_pro(telegram_id)
                     send_telegram_message(telegram_id,
                         f"Payment confirmed. Welcome to Pro.\n\nAccess active till {expires}\n\nEverything unlocked. Try /script, /trends, or /xthread now.")
@@ -1106,8 +753,218 @@ def set_user_region(user_id, region):
 
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
-    """Telegram bot is disabled. TikGenius now runs website-only."""
-    return jsonify({"ok": True, "message": "Telegram bot disabled. Use the website."})
+    data = request.json or {}
+
+    # Handle callback queries (region selection buttons)
+    if "callback_query" in data:
+        cb = data["callback_query"]
+        user_id = cb["from"]["id"]
+        chat_id = cb["message"]["chat"]["id"]
+        cb_data = cb.get("data", "")
+
+        if cb_data.startswith("region_"):
+            region = cb_data.replace("region_", "")
+            set_user_region(user_id, region)
+            region_name = REGION_NAMES.get(region, "Global")
+            send_telegram_message(chat_id,
+                f"✅ Region set to {region_name}\n\nYour content will now be written in that voice.\n\nTry it now:\n{EXAMPLES.get('captions')}")
+            try:
+                http_session.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                                 json={"callback_query_id": cb["id"]}, timeout=5)
+            except: pass
+
+        return jsonify({"ok": True})
+
+    message = data.get("message", {})
+    chat_id = message.get("chat", {}).get("id")
+    user_id = message.get("from", {}).get("id")
+    username = message.get("from", {}).get("username", "")
+    first_name = message.get("from", {}).get("first_name", "Creator")
+    text = message.get("text", "").strip()
+
+    if not chat_id or not text:
+        return jsonify({"ok": True})
+
+    parts = text.split(maxsplit=1)
+    command = parts[0].lower().split("@")[0]
+    topic = parts[1].strip() if len(parts) > 1 else ""
+
+    if command == "/start":
+        send_telegram_message(chat_id,
+            f"✨ Welcome {first_name} — you just found TikGenius 🔥\n\n"
+            f"I write viral content for creators worldwide.\n\n"
+            f"First — pick your content style so I write in your voice:")
+        send_telegram_message(chat_id,
+            "Choose your region:", reply_markup=REGION_KEYBOARD)
+
+    elif command == "/region":
+        send_telegram_message(chat_id,
+            "Choose your content region:", reply_markup=REGION_KEYBOARD)
+
+    elif command == "/commands":
+        send_telegram_message(chat_id,
+            f"━━━ TIKTOK ━━━\n"
+            f"/hooks [topic]\n"
+            f"/captions [topic]\n"
+            f"/pov [topic]\n"
+            f"/hashtags [topic]\n"
+            f"/bio [niche]\n"
+            f"/script [idea] ⭐ Pro\n\n"
+            f"━━━ TWITTER / X ━━━\n"
+            f"/xtweets [topic]\n"
+            f"/xhooks [topic]\n"
+            f"/xthread [topic] ⭐ Pro\n\n"
+            f"━━━ OTHER ━━━\n"
+            f"/trends [niche] ⭐ Pro\n"
+            f"/region — change your content region\n"
+            f"/plan — check your plan\n"
+            f"/upgrade — go Pro\n\n"
+            f"Free: {FREE_LIMIT} uses/day\n"
+            f"Pro: ₦2,000/month — unlimited\n\n"
+            f"Be specific with your topic:\n"
+            f"❌ /captions tired\n"
+            f"✅ /captions I work so hard but I am still broke")
+
+    elif command == "/plan":
+        region = get_user_region(user_id)
+        region_name = REGION_NAMES.get(region, "Global")
+        if is_pro(user_id):
+            send_telegram_message(chat_id,
+                f"✅ Pro Active — expires {get_pro_expiry(user_id)}\n"
+                f"Region: {region_name}\n\nUnlimited access to everything.")
+        else:
+            remaining = free_uses_remaining(user_id)
+            send_telegram_message(chat_id,
+                f"🆓 Free Plan — {remaining}/{FREE_LIMIT} uses left today\n"
+                f"Region: {region_name}\n\n"
+                f"Upgrade to Pro for ₦2,000/month → /upgrade")
+
+    elif command == "/upgrade":
+        link = tg_create_payment_link(user_id, username)
+        send_telegram_message(chat_id,
+            f"🚀 TikGenius Pro — ₦2,000/month\n\n"
+            f"✅ Unlimited hooks, captions, POVs, hashtags, bios\n"
+            f"✅ Full video scripts (/script)\n"
+            f"✅ Trend ideas (/trends)\n"
+            f"✅ Full X threads (/xthread)\n"
+            f"✅ All regions supported\n"
+            f"✅ No daily limits ever\n\n"
+            f"Pay here:\n{link or 'Try again in a moment'}\n\n"
+            f"Activation is automatic after payment ✅")
+
+    elif command == "/activatepro":
+        if str(user_id) == ADMIN_ID:
+            target_id = int(topic) if topic.isdigit() else user_id
+            expires = activate_pro(target_id)
+            send_telegram_message(chat_id, f"✅ Pro activated for {target_id}\nExpires: {expires}")
+        else:
+            send_telegram_message(chat_id, "❌ Not allowed.")
+
+    elif command == "/stats":
+        if str(user_id) != ADMIN_ID:
+            send_telegram_message(chat_id, "❌ Not allowed.")
+            return jsonify({"ok": True})
+        conn = get_db()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) AS total FROM users")
+                tg_total = cur.fetchone()["total"]
+                cur.execute("SELECT COUNT(*) AS pro FROM users WHERE plan='pro' AND expires >= CURRENT_DATE")
+                tg_pro = cur.fetchone()["pro"]
+                cur.execute("SELECT COUNT(*) AS total FROM web_users")
+                web_total = cur.fetchone()["total"]
+                cur.execute("SELECT COUNT(*) AS pro FROM web_users WHERE plan='pro' AND expires >= CURRENT_DATE")
+                web_pro = cur.fetchone()["pro"]
+            send_telegram_message(chat_id,
+                f"📊 TikGenius Stats\n\n"
+                f"TELEGRAM\n"
+                f"👥 Users: {tg_total}\n"
+                f"💎 Pro: {tg_pro}\n\n"
+                f"WEBSITE\n"
+                f"👥 Users: {web_total}\n"
+                f"💎 Pro: {web_pro}")
+        finally:
+            release_db(conn)
+
+    elif command in TIKTOK_COMMANDS:
+        mode = command.replace("/", "")
+
+        if command in PRO_COMMANDS and not is_pro(user_id):
+            link = tg_create_payment_link(user_id, username)
+            send_telegram_message(chat_id,
+                f"🔒 Pro feature.\n\nUpgrade for ₦2,000/month:\n{link or '/upgrade'}")
+            return jsonify({"ok": True})
+
+        if not topic:
+            send_telegram_message(chat_id,
+                f"Add a topic after the command.\n\nExample:\n{EXAMPLES.get(mode)}")
+            return jsonify({"ok": True})
+
+        if len(topic.split()) < 3:
+            send_telegram_message(chat_id,
+                f"Be more specific for better results.\n\nTry: {EXAMPLES.get(mode)}")
+            return jsonify({"ok": True})
+
+        if not check_and_increment_free_usage(user_id):
+            link = tg_create_payment_link(user_id, username)
+            send_telegram_message(chat_id,
+                f"⏳ {FREE_LIMIT} free uses used for today.\n\nUpgrade to Pro:\n{link or '/upgrade'}")
+            return jsonify({"ok": True})
+
+        send_typing(chat_id)
+        send_telegram_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it..."])))
+        region = get_user_region(user_id)
+        result = ask_groq(mode, topic, "tiktok", region)
+        send_telegram_message(chat_id, f"✨ TikGenius\n\n{result[:3800]}")
+
+        if not is_pro(user_id):
+            remaining = free_uses_remaining(user_id)
+            if remaining <= 2:
+                send_telegram_message(chat_id,
+                    f"💡 {remaining} free use(s) left today.\n\nGo Pro → /upgrade")
+
+    elif command in X_COMMANDS:
+        mode_map = {"/xtweets": "captions", "/xhooks": "hooks", "/xthread": "threads"}
+        mode = mode_map[command]
+
+        if command == "/xthread" and not is_pro(user_id):
+            link = tg_create_payment_link(user_id, username)
+            send_telegram_message(chat_id,
+                f"🔒 X Threads is Pro.\n\nUpgrade:\n{link or '/upgrade'}")
+            return jsonify({"ok": True})
+
+        if not topic:
+            send_telegram_message(chat_id,
+                f"Add a topic.\n\nExample:\n{EXAMPLES.get('threads' if mode == 'threads' else 'hooks')}")
+            return jsonify({"ok": True})
+
+        if len(topic.split()) < 3:
+            send_telegram_message(chat_id,
+                f"Be more specific.\n\nExample:\n{EXAMPLES.get('threads' if mode == 'threads' else 'hooks')}")
+            return jsonify({"ok": True})
+
+        if not check_and_increment_free_usage(user_id):
+            link = tg_create_payment_link(user_id, username)
+            send_telegram_message(chat_id,
+                f"⏳ Free uses finished.\n\nUpgrade:\n{link or '/upgrade'}")
+            return jsonify({"ok": True})
+
+        send_typing(chat_id)
+        send_telegram_message(chat_id, random.choice(LOADING.get(mode, ["🔥 Working on it..."])))
+        region = get_user_region(user_id)
+        result = ask_groq(mode, topic, "x", region)
+        send_telegram_message(chat_id, f"✨ XGenius\n\n{result[:3800]}")
+
+        if not is_pro(user_id):
+            remaining = free_uses_remaining(user_id)
+            if remaining <= 2:
+                send_telegram_message(chat_id,
+                    f"💡 {remaining} free use(s) left today. Go Pro → /upgrade")
+
+    else:
+        send_telegram_message(chat_id, "Unknown command. Use /commands to see everything.")
+
+    return jsonify({"ok": True})
 
 # ========================= HTML PAGES =========================
 HOME_HTML = """<!DOCTYPE html>
@@ -1116,40 +973,40 @@ HOME_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TikGenius — Go Viral. In Your Voice.</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#05070a;
-  --surface:#0b1117;
-  --card:#101820;
-  --border:#1d2a35;
-  --purple:#14b8a6;
-  --purple-light:#38bdf8;
-  --pink:#f59e0b;
-  --text:#f8fafc;
-  --muted:#8a99a8;
+  --bg:#080810;
+  --surface:#0f0f1a;
+  --card:#141428;
+  --border:#1e1e3a;
+  --purple:#7c3aed;
+  --purple-light:#a855f7;
+  --pink:#ec4899;
+  --text:#f0f0ff;
+  --muted:#6b6b8a;
 }
-body{background:radial-gradient(circle at 50% -10%,rgba(20,184,166,.13),transparent 38%),var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;overflow-x:hidden;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
-h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;letter-spacing:-.035em}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+h1,h2,h3,h4{font-family:'Syne',sans-serif}
 
 /* NAV */
-nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 1.2rem;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;background:rgba(5,7,10,0.88);backdrop-filter:blur(14px)}
-.logo{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.12rem;background:linear-gradient(135deg,var(--text),var(--purple-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+nav{display:flex;justify-content:space-between;align-items:center;padding:1.2rem 2rem;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;background:rgba(8,8,16,0.9);backdrop-filter:blur(12px)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;background:linear-gradient(135deg,var(--purple-light),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .nav-btns{display:flex;gap:0.75rem}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);padding:0.5rem 1.2rem;border-radius:8px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.9rem;transition:all 0.2s}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);padding:0.5rem 1.2rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.9rem;transition:all 0.2s}
 .btn-ghost:hover{border-color:var(--purple);color:var(--purple-light)}
-.btn-primary{background:linear-gradient(135deg,var(--purple),var(--purple-light));border:none;color:#031013;padding:0.55rem 1.15rem;border-radius:10px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;font-weight:700;transition:opacity 0.2s}
+.btn-primary{background:linear-gradient(135deg,var(--purple),var(--pink));border:none;color:white;padding:0.5rem 1.4rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.9rem;font-weight:500;transition:opacity 0.2s}
 .btn-primary:hover{opacity:0.9}
 
 /* HERO */
-.hero{text-align:center;padding:4.5rem 1.25rem 3rem;max-width:760px;margin:0 auto}
+.hero{text-align:center;padding:6rem 2rem 4rem;max-width:800px;margin:0 auto}
 .hero-badge{display:inline-block;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:var(--purple-light);padding:0.4rem 1rem;border-radius:100px;font-size:0.85rem;margin-bottom:2rem}
-.hero h1{font-size:clamp(2.15rem,9vw,4.2rem);font-weight:700;line-height:1.04;margin-bottom:1.15rem}
-.hero h1 span{background:linear-gradient(135deg,var(--purple-light),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero h1{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:800;line-height:1.1;margin-bottom:1.5rem}
+.hero h1 span{background:linear-gradient(135deg,var(--purple-light),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .hero p{color:var(--muted);font-size:1.15rem;line-height:1.7;max-width:540px;margin:0 auto 2.5rem}
 .hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.btn-large{padding:0.9rem 2rem;border-radius:10px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s}
+.btn-large{padding:0.9rem 2rem;border-radius:10px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s}
 .btn-large.primary{background:linear-gradient(135deg,var(--purple),var(--pink));border:none;color:white}
 .btn-large.primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(124,58,237,0.4)}
 .btn-large.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
@@ -1175,7 +1032,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
 /* HOW IT WORKS */
 .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:2rem;margin-top:3rem}
 .step{text-align:center}
-.step-num{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.1rem;margin:0 auto 1rem}
+.step-num{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;margin:0 auto 1rem}
 .step h3{font-size:1.1rem;margin-bottom:0.5rem}
 .step p{color:var(--muted);font-size:0.9rem;line-height:1.6}
 
@@ -1187,9 +1044,9 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
 .pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:2rem;margin-top:3rem;max-width:700px;margin-left:auto;margin-right:auto}
 .price-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2rem}
 .price-card.featured{border-color:var(--purple);position:relative}
-.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple),var(--pink));color:white;font-size:0.7rem;font-weight:700;padding:0.25rem 1rem;border-radius:100px;font-family:'Space Grotesk',sans-serif;letter-spacing:1px}
+.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple),var(--pink));color:white;font-size:0.7rem;font-weight:700;padding:0.25rem 1rem;border-radius:100px;font-family:'Syne',sans-serif;letter-spacing:1px}
 .price-label{color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem}
-.price-amount{font-family:'Space Grotesk',sans-serif;font-size:2.5rem;font-weight:800;margin-bottom:0.25rem}
+.price-amount{font-family:'Syne',sans-serif;font-size:2.5rem;font-weight:800;margin-bottom:0.25rem}
 .price-period{color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem}
 .price-features{list-style:none;margin-bottom:2rem}
 .price-features li{padding:0.5rem 0;border-bottom:1px solid var(--border);font-size:0.9rem;color:var(--muted)}
@@ -1203,31 +1060,23 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
 .modal h2{font-size:1.5rem;margin-bottom:0.5rem}
 .modal p{color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem}
 .tabs{display:flex;gap:0.5rem;margin-bottom:1.5rem;background:var(--surface);padding:0.25rem;border-radius:8px}
-.tab{flex:1;padding:0.6rem;text-align:center;border-radius:6px;cursor:pointer;font-size:0.9rem;transition:all 0.2s;border:none;background:transparent;color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif}
+.tab{flex:1;padding:0.6rem;text-align:center;border-radius:6px;cursor:pointer;font-size:0.9rem;transition:all 0.2s;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif}
 .tab.active{background:var(--purple);color:white}
 .form-group{margin-bottom:1rem}
 .form-group label{display:block;font-size:0.85rem;color:var(--muted);margin-bottom:0.4rem}
-.form-group input, .form-group select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.75rem 1rem;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.95rem;outline:none;transition:border-color 0.2s}
+.form-group input, .form-group select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.75rem 1rem;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.95rem;outline:none;transition:border-color 0.2s}
 .form-group input:focus, .form-group select:focus{border-color:var(--purple)}
 .form-error{color:#f87171;font-size:0.85rem;margin-top:0.5rem;display:none}
-.btn-full{width:100%;padding:0.85rem;border-radius:8px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;margin-top:0.5rem}
+.btn-full{width:100%;padding:0.85rem;border-radius:8px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:0.5rem}
 
 /* FOOTER */
 footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:var(--muted);font-size:0.85rem}
 
 /* RESPONSIVE */
 @media(max-width:600px){
-  nav{padding:.75rem 1rem}
-  .logo{font-size:1rem}
-  .nav-btns{gap:.5rem}
-  .btn-ghost,.btn-primary{padding:.48rem .82rem;font-size:.82rem;border-radius:9px}
-  .hero{padding:3.15rem 1rem 2.3rem}
-  .hero-badge{font-size:.75rem;margin-bottom:1.1rem;padding:.32rem .78rem}
-  .hero h1{font-size:2.05rem;line-height:1.04;margin-bottom:1rem}
-  .hero p{font-size:.98rem;line-height:1.65}
-  .section{padding:2.45rem 1rem}
-  .section h2{font-size:1.75rem;line-height:1.12}
-  .card,.example-card,.step{border-radius:18px}
+  nav{padding:1rem}
+  .hero{padding:4rem 1.5rem 3rem}
+  .section{padding:3rem 1.5rem}
 }
 </style>
 </head>
@@ -1263,6 +1112,7 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
     <p>TikGenius writes your TikTok captions, hooks, POVs, scripts, and Twitter threads — in the cultural voice that actually resonates with your audience.</p>
     <div class="hero-btns">
       <button class="btn-large primary" onclick="openModal('signup')">Start Free — No Card Needed</button>
+      <a href="https://t.me/TikGenius_bot" target="_blank"><button class="btn-large ghost">Open in Telegram</button></a>
     </div>
   </div>
 </section>
@@ -1375,10 +1225,10 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
 <footer>
   <style>
     .footer-logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:0.75rem}
-    .footer-logo span{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.4rem;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .footer-logo span{font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
     .footer-tagline{color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem}
     .social-links{display:flex;gap:1rem;justify-content:center;margin-bottom:1.5rem;flex-wrap:wrap}
-    .social-link{display:flex;align-items:center;gap:6px;padding:0.45rem 1rem;border-radius:100px;border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.45);font-size:0.82rem;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:none;transition:all 0.2s;background:rgba(255,255,255,0.03)}
+    .social-link{display:flex;align-items:center;gap:6px;padding:0.45rem 1rem;border-radius:100px;border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.45);font-size:0.82rem;font-family:'DM Sans',sans-serif;text-decoration:none;transition:all 0.2s;background:rgba(255,255,255,0.03)}
     .social-link:hover{color:white;border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
     .social-link svg{width:14px;height:14px;flex-shrink:0}
     .footer-copy{color:rgba(255,255,255,0.15);font-size:0.78rem}
@@ -1411,6 +1261,14 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
     <a class="social-link" href="https://x.com/tikgenius" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.259 5.631 5.905-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
       Twitter / X
+    </a>
+    <a class="social-link" href="https://t.me/tikgenius" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+      Community
+    </a>
+    <a class="social-link" href="https://t.me/TikGenius_bot" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+      Telegram Bot
     </a>
   </div>
 
@@ -1525,66 +1383,629 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>TikGenius Studio</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikGenius — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#070b10;--panel:#0d141d;--panel2:#111b27;--line:#213041;--text:#eef6ff;--muted:#8fa0b5;--brand:#14b8a6;--brand2:#38bdf8;--gold:#f6b21a;--danger:#fb7185}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top right,#102435 0,#070b10 38%);color:var(--text);font-family:Inter,system-ui,sans-serif;min-height:100vh}.app{display:grid;grid-template-columns:310px 1fr;min-height:100vh}.side{background:rgba(13,20,29,.92);border-right:1px solid var(--line);padding:18px;position:sticky;top:0;height:100vh;overflow:auto}.logo{font-weight:800;font-size:23px;letter-spacing:-.04em;margin-bottom:14px}.logo span{color:var(--brand2)}.user{font-size:12px;color:var(--muted);padding:10px 12px;background:#0a1018;border:1px solid var(--line);border-radius:14px;margin-bottom:12px}.usage{padding:14px;background:linear-gradient(135deg,#10202b,#111827);border:1px solid var(--line);border-radius:16px;margin-bottom:14px}.usage strong{display:block;font-size:14px;margin-bottom:8px}.bar{height:8px;background:#1e293b;border-radius:999px;overflow:hidden}.fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));width:100%}.upgrade{display:none;margin-top:10px;background:linear-gradient(135deg,#14b8a6,#f6b21a);border:0;color:#061018;border-radius:12px;font-weight:800;padding:11px;width:100%}.upgrade.show{display:block}.section-title{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:18px 4px 9px}.modes{display:grid;gap:7px}.mode{border:1px solid transparent;background:transparent;color:var(--muted);text-align:left;padding:11px 12px;border-radius:12px;font-weight:650}.mode.active,.mode:hover{background:#111b27;color:var(--text);border-color:var(--line)}.history-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 4px 9px}.history-head .section-title{margin:0}.clear-history{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 9px;font-size:11px;font-weight:700}.clear-history:hover{color:var(--text);border-color:var(--brand2)}.history{display:grid;gap:8px}.hist{padding:10px;background:#0a1018;border:1px solid var(--line);border-radius:12px;cursor:pointer}.hist b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hist span{font-size:11px;color:var(--muted)}.empty{color:var(--muted);font-size:13px;line-height:1.45;padding:10px;background:#0a1018;border:1px dashed var(--line);border-radius:12px}.logout{margin-top:14px;width:100%;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:10px}.main{padding:20px;max-width:980px;width:100%;margin:0 auto}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.mobile-logo{display:none;font-weight:800;font-size:22px}.region{background:#0d141d;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px}.card{background:rgba(13,20,29,.84);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.25)}.guide{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}.tip{background:#081018;border:1px solid var(--line);border-radius:16px;padding:12px}.tip b{font-size:13px}.tip p{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.4}.prompt{width:100%;min-height:150px;background:#071018;color:var(--text);border:1px solid var(--line);border-radius:18px;padding:16px;font:500 16px/1.55 Inter;resize:vertical;outline:none}.prompt:focus{border-color:var(--brand2);box-shadow:0 0 0 4px rgba(56,189,248,.08)}.actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}.hint{font-size:12px;color:var(--muted)}.generate{background:linear-gradient(135deg,var(--brand),var(--gold));border:0;border-radius:14px;color:#061018;font-weight:800;padding:14px 20px;font-size:15px}.error{display:none;margin-top:12px;color:#fecdd3;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.3);padding:12px;border-radius:14px}.premium-lock{display:none;margin-top:14px;padding:16px;border-radius:18px;background:linear-gradient(135deg,rgba(20,184,166,.14),rgba(246,178,26,.12));border:1px solid rgba(246,178,26,.35)}.premium-lock.show{display:block}.premium-lock h3{margin:0 0 6px}.premium-lock p{margin:0 0 12px;color:var(--muted)}.output{display:none;margin-top:16px}.output.show{display:block}.output-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.copy{background:#111b27;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 11px}.result{display:grid;gap:12px}.result-card{background:#071018;border:1px solid var(--line);border-radius:18px;padding:15px}.result-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.result-content{white-space:pre-wrap;line-height:1.55;color:#e8f2ff;font-size:16px;font-weight:650}.copy-one{flex:0 0 auto;background:#102033;color:#dff3ff;border:1px solid #294158;border-radius:12px;padding:8px 11px;font-weight:800}.pick{display:flex;align-items:flex-start;gap:11px}.pick input{width:22px;height:22px;accent-color:var(--brand);margin-top:3px}.select-hint{color:var(--muted);font-size:12px;margin:-2px 0 11px}.result-card.selected{border-color:rgba(20,184,166,.75);box-shadow:0 0 0 3px rgba(20,184,166,.10)}.result-meta{margin-top:12px;padding-top:11px;border-top:1px solid rgba(143,160,181,.18);display:flex;flex-wrap:wrap;gap:8px}.time-pill,.why-pill{font-size:12px;color:#bfd1e8;background:#0d1724;border:1px solid #24364b;border-radius:999px;padding:7px 10px}.time-pill{color:#fff;background:linear-gradient(135deg,rgba(20,184,166,.22),rgba(56,189,248,.16));border-color:rgba(56,189,248,.28)}.mobile-history{display:none;margin-bottom:14px}.drawer-btn{display:none;background:#111b27;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 12px}@media(max-width:800px){.app{display:block}.side{display:none}.main{padding:14px}.mobile-logo{display:block}.drawer-btn{display:block}.top{position:sticky;top:0;z-index:5;background:rgba(7,11,16,.94);padding:12px 0;border-bottom:1px solid var(--line)}.guide{grid-template-columns:1fr}.card{padding:14px;border-radius:18px}.prompt{min-height:130px;font-size:15px}.actions{align-items:stretch;flex-direction:column}.generate{width:100%}.mobile-history{display:block}.mobile-history .history{display:flex;overflow:auto;gap:8px;padding-bottom:3px}.mobile-history .hist{min-width:190px}.region{max-width:145px}.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50}.modal.show{display:block}.modal-panel{position:absolute;left:0;top:0;bottom:0;width:85%;max-width:310px;background:#0d141d;border-right:1px solid var(--line);padding:18px;overflow:auto}}@media(min-width:801px){.modal{display:none!important}}
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0b;
+  --sidebar:#111113;
+  --surface:#161618;
+  --card:#1c1c1f;
+  --border:#2a2a2e;
+  --border-subtle:#222226;
+  --purple:#7c3aed;
+  --purple-light:#a78bfa;
+  --cyan:#00c8ff;
+  --pink:#ec4899;
+  --text:#f4f4f5;
+  --text-2:#a1a1aa;
+  --text-3:#52525b;
+  --green:#34d399;
+  --radius:12px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;font-size:14px;line-height:1.5}
+
+/* ── LAYOUT ─────────────────────────────────────────── */
+.app{display:flex;min-height:100vh}
+
+/* ── SIDEBAR ─────────────────────────────────────────── */
+.sidebar{
+  width:260px;flex-shrink:0;
+  background:var(--sidebar);
+  border-right:1px solid var(--border-subtle);
+  display:flex;flex-direction:column;
+  height:100vh;position:sticky;top:0;
+  overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:0}
+
+.sb-top{padding:20px 16px 0}
+
+/* Logo */
+.sb-logo{display:flex;align-items:center;gap:10px;margin-bottom:24px;padding:0 4px}
+.sb-logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;background:linear-gradient(135deg,#fff 30%,var(--purple-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+/* New chat button */
+.btn-new{
+  display:flex;align-items:center;gap:8px;
+  width:100%;padding:10px 12px;
+  background:transparent;border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text-2);
+  font-family:'Inter',sans-serif;font-size:13px;font-weight:500;
+  cursor:pointer;transition:all .15s;margin-bottom:24px;
+  justify-content:center;
+}
+.btn-new:hover{border-color:var(--purple-light);color:var(--text);background:rgba(167,139,250,.06)}
+.btn-new svg{opacity:.6}
+
+/* Section headers */
+.sb-section{padding:0 8px;margin-bottom:4px}
+.sb-section-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding:0 4px;margin-bottom:6px}
+
+/* Nav items */
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  width:100%;padding:8px 12px;border-radius:8px;
+  background:none;border:none;color:var(--text-2);
+  font-family:'Inter',sans-serif;font-size:13.5px;font-weight:400;
+  cursor:pointer;transition:all .12s;text-align:left;
+  position:relative;
+}
+.nav-item:hover{background:var(--surface);color:var(--text)}
+.nav-item.active{background:rgba(124,58,237,.12);color:var(--purple-light)}
+.nav-item.active::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:60%;border-radius:0 2px 2px 0;
+  background:var(--purple-light);
+}
+.nav-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;opacity:.75}
+.nav-item.active .nav-icon{opacity:1}
+.pro-badge{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em;
+  background:linear-gradient(135deg,var(--purple),var(--pink));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;flex-shrink:0}
+
+/* Sidebar divider */
+.sb-divider{height:1px;background:var(--border-subtle);margin:12px 16px}
+
+/* Sidebar bottom */
+.sb-bottom{margin-top:auto;padding:16px}
+
+/* User chip */
+.user-chip{
+  background:var(--surface);border:1px solid var(--border-subtle);
+  border-radius:var(--radius);padding:12px;margin-bottom:12px;
+}
+.user-email{font-size:12px;color:var(--text-2);font-weight:500;margin-bottom:6px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.plan-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px}
+.plan-free{background:rgba(82,82,91,.25);color:var(--text-3)}
+.plan-pro{background:rgba(124,58,237,.2);color:var(--purple-light)}
+.uses-label{font-size:11px;color:var(--text-3)}
+.bar-track{height:3px;background:var(--border);border-radius:100px;overflow:hidden;margin-top:4px}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple-light));transition:width .4s}
+
+/* Upgrade card */
+.upgrade-card{
+  background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(236,72,153,.1));
+  border:1px solid rgba(124,58,237,.25);border-radius:var(--radius);
+  padding:14px;margin-bottom:10px;
+}
+.upgrade-card-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.upgrade-card-sub{font-size:12px;color:var(--text-2);margin-bottom:10px;line-height:1.5}
+.btn-upgrade{
+  width:100%;background:linear-gradient(135deg,var(--purple),var(--pink));
+  border:none;color:white;padding:9px;border-radius:8px;
+  font-family:'Inter',sans-serif;font-size:13px;font-weight:600;
+  cursor:pointer;transition:opacity .2s;
+}
+.btn-upgrade:hover{opacity:.88}
+
+.btn-logout{
+  display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;
+  background:none;border:none;color:var(--text-3);font-family:'Inter',sans-serif;
+  font-size:13px;cursor:pointer;border-radius:8px;transition:all .15s;
+}
+.btn-logout:hover{color:var(--text-2);background:var(--surface)}
+
+/* ── MAIN AREA ────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;min-height:100vh;max-width:820px;margin:0 auto;width:100%;padding:0 24px}
+
+/* Top bar */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 0;border-bottom:1px solid var(--border-subtle);
+  margin-bottom:32px;position:sticky;top:0;
+  background:var(--bg);z-index:10;
+}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.page-title{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:var(--text)}
+.platform-toggle{
+  display:flex;background:var(--surface);border:1px solid var(--border-subtle);
+  border-radius:8px;padding:3px;gap:2px;
+}
+.platform-btn{
+  padding:5px 14px;border-radius:6px;border:none;
+  background:transparent;color:var(--text-3);
+  font-family:'Inter',sans-serif;font-size:12px;font-weight:500;
+  cursor:pointer;transition:all .15s;
+}
+.platform-btn.active{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* Region select */
+.region-select{
+  background:var(--surface);border:1px solid var(--border-subtle);
+  color:var(--text-2);padding:6px 10px;border-radius:8px;
+  font-family:'Inter',sans-serif;font-size:12px;outline:none;cursor:pointer;
+}
+.region-select:focus{border-color:var(--purple-light)}
+
+/* ── INPUT AREA (ChatGPT style) ──────────────────────── */
+.input-section{margin-bottom:28px}
+.input-label{font-size:13px;color:var(--text-3);margin-bottom:10px;font-weight:500}
+
+.input-box{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:16px;
+  transition:border-color .2s,box-shadow .2s;
+  overflow:hidden;
+}
+.input-box:focus-within{
+  border-color:rgba(124,58,237,.5);
+  box-shadow:0 0 0 3px rgba(124,58,237,.08);
+}
+.topic-input{
+  width:100%;background:transparent;border:none;
+  color:var(--text);padding:18px 20px 12px;
+  font-family:'Inter',sans-serif;font-size:15px;
+  outline:none;resize:none;line-height:1.6;
+  min-height:120px;
+}
+.topic-input::placeholder{color:var(--text-3)}
+
+.input-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px 10px 20px;border-top:1px solid var(--border-subtle);
+}
+.input-hint{font-size:12px;color:var(--text-3)}
+.input-hint span{color:var(--purple-light)}
+
+.btn-generate{
+  display:flex;align-items:center;gap:8px;
+  background:linear-gradient(135deg,var(--purple),var(--pink));
+  border:none;color:white;padding:10px 20px;border-radius:10px;
+  font-family:'Inter',sans-serif;font-size:14px;font-weight:600;
+  cursor:pointer;transition:opacity .2s,transform .15s;flex-shrink:0;
+}
+.btn-generate:hover{opacity:.9;transform:translateY(-1px)}
+.btn-generate:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* Spinner */
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Error */
+.error-msg{
+  background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);
+  color:#fca5a5;padding:10px 14px;border-radius:10px;
+  font-size:13px;margin-top:10px;display:none;
+}
+
+/* ── OUTPUT ────────────────────────────────────────────── */
+.output-wrap{display:none;animation:fadeSlide .3s ease}
+.output-wrap.visible{display:block}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.output-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:14px;
+}
+.output-label{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);
+}
+.output-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.btn-copy{
+  display:flex;align-items:center;gap:6px;
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--text-2);padding:6px 14px;border-radius:8px;
+  font-family:'Inter',sans-serif;font-size:12px;font-weight:500;
+  cursor:pointer;transition:all .15s;
+}
+.btn-copy:hover{border-color:var(--purple-light);color:var(--text)}
+
+.output-card{
+  background:var(--card);border:1px solid var(--border-subtle);
+  border-radius:16px;padding:24px;
+}
+.output-text{
+  white-space:pre-wrap;line-height:1.85;font-size:14.5px;
+  color:var(--text);font-family:'Inter',sans-serif;
+}
+
+/* ── MOBILE ──────────────────────────────────────────── */
+.mob-bar{display:none;align-items:center;justify-content:space-between;
+  padding:14px 16px;border-bottom:1px solid var(--border-subtle);
+  background:var(--sidebar);position:sticky;top:0;z-index:50}
+.mob-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;
+  background:linear-gradient(135deg,#fff,var(--purple-light));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.mob-menu-btn{background:none;border:none;color:var(--text-2);cursor:pointer;padding:4px}
+.mob-drawer{
+  display:none;position:fixed;inset:0;z-index:100;
+}
+.mob-drawer.open{display:flex}
+.mob-drawer-bg{position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+.mob-drawer-panel{
+  position:relative;width:280px;background:var(--sidebar);
+  border-right:1px solid var(--border-subtle);
+  height:100%;overflow-y:auto;display:flex;flex-direction:column;
+  animation:slideIn .2s ease;
+}
+@keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+
+@media(max-width:768px){
+  .sidebar{display:none}
+  .mob-bar{display:flex}
+  .main{padding:0 16px}
+  .topbar{position:static;margin-bottom:20px}
+}
 </style>
 </head>
 <body>
-<div class="app">
-<aside class="side" id="desktopSide">
-  <div class="logo">Tik<span>Genius</span></div>
-  <div class="user"><div id="userEmail">Loading...</div></div>
-  <div class="usage"><strong id="usesLabel">5/5 free generations left</strong><div class="bar"><div class="fill" id="barFill"></div></div><button class="upgrade" id="upgradeBtn" onclick="doUpgrade()">Upgrade to Premium</button></div>
-  <div class="section-title">Create for TikTok & X</div><div class="modes" id="modes"></div>
-  <div class="history-head"><div class="section-title">Recent history</div><button class="clear-history" onclick="clearHistory()">Clear</button></div><div class="history" id="historyList"><div class="empty">Your TikTok and X content history will appear here.</div></div>
-  <button class="logout" onclick="doLogout()">Log out</button>
-</aside>
-<div class="modal" id="drawer" onclick="closeDrawer(event)"><div class="modal-panel" id="drawerPanel"></div></div>
-<main class="main">
-  <div class="top"><div class="mobile-logo">Tik<span style="color:var(--brand2)">Genius</span></div><button class="drawer-btn" onclick="openDrawer()">☰ Menu</button><select class="region" id="regionSelect" onchange="changeRegion(this.value)"><option value="global">🌍 Global</option><option value="nigeria">🇳🇬 Nigerian</option><option value="usa">🇺🇸 American</option><option value="uk">🇬🇧 British</option><option value="caribbean">🇯🇲 Caribbean</option><option value="eastafrica">🇰🇪 East African</option><option value="southafrica">🇿🇦 South African</option></select></div>
-  <div class="mobile-history"><div class="history-head"><div class="section-title">Recent history</div><button class="clear-history" onclick="clearHistory()">Clear</button></div><div class="history" id="historyMobile"><div class="empty">No TikTok/X history yet.</div></div></div>
-  <section class="card">
-    <div class="guide"><div class="tip"><b>1. Choose TikTok or X</b><p>Pick captions, hooks, scripts, hashtags, or X threads from the menu.</p></div><div class="tip"><b>2. Be specific</b><p>Say the topic, audience, emotion, platform, and goal.</p></div><div class="tip"><b>3. Get best posting time</b><p>Every result now gives 5 ready-to-post options with smart TikTok/X posting times.</p></div></div>
-    <textarea class="prompt" id="topicInput" placeholder="Example: Give me TikTok captions for a skincare video targeting young women who want clear skin. Or: write an X post about building discipline as a young creator. I want a bold creator tone."></textarea>
-    <div class="actions"><div class="hint">Minimum 3 words. Works for TikTok and X.</div><button class="generate" id="generateBtn" onclick="generate()">Generate</button></div>
-    <div class="error" id="errorMsg"></div>
-    <div class="premium-lock" id="premiumLock"><h3>You used your 5 free generations</h3><p>Upgrade to Premium to keep generating unlimited captions, hooks, scripts and content ideas.</p><button class="upgrade show" onclick="doUpgrade()">Upgrade to Premium</button></div>
-  </section>
-  <section class="output" id="outputCard"><div class="output-head"><b id="outputTitle">Ready to post</b></div><div class="result" id="outputText"></div></section>
-</main>
+
+<!-- Mobile top bar -->
+<div class="mob-bar">
+  <div class="mob-logo">TikGenius</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <select class="region-select" id="regionSelectMob" onchange="changeRegion(this.value)" style="font-size:11px">
+      <option value="nigeria">🇳🇬 Nigeria</option>
+      <option value="usa">🇺🇸 USA</option>
+      <option value="uk">🇬🇧 UK</option>
+      <option value="caribbean">🇯🇲 Caribbean</option>
+      <option value="eastafrica">🇰🇪 East Africa</option>
+      <option value="southafrica">🇿🇦 South Africa</option>
+      <option value="global" selected>🌍 Global</option>
+    </select>
+    <button class="mob-menu-btn" onclick="openDrawer()">
+      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </div>
 </div>
+
+<!-- Mobile drawer -->
+<div class="mob-drawer" id="mobDrawer">
+  <div class="mob-drawer-bg" onclick="closeDrawer()"></div>
+  <div class="mob-drawer-panel" id="mobPanel">
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sb-top">
+      <div class="sb-logo">
+        <svg width="28" height="28" viewBox="0 0 200 200" fill="none">
+          <circle cx="100" cy="100" r="98" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+          <defs>
+            <linearGradient id="dTG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#fff"/><stop offset="1" stop-color="rgba(255,255,255,.65)"/></linearGradient>
+            <linearGradient id="dGG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+          </defs>
+          <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#dTG)"/>
+          <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#dTG)"/>
+          <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#dGG)" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#dGG)"/>
+        </svg>
+        <span class="sb-logo-text">TikGenius</span>
+      </div>
+
+      <!-- TikTok tools -->
+      <div class="sb-section">
+        <div class="sb-section-label">TikTok</div>
+        <button class="nav-item active" onclick="setMode('captions')" id="nav-captions">
+          <span class="nav-icon">✍️</span> Captions
+        </button>
+        <button class="nav-item" onclick="setMode('hooks')" id="nav-hooks">
+          <span class="nav-icon">🎣</span> Hooks
+        </button>
+        <button class="nav-item" onclick="setMode('pov')" id="nav-pov">
+          <span class="nav-icon">🎥</span> POV Ideas
+        </button>
+        <button class="nav-item" onclick="setMode('hashtags')" id="nav-hashtags">
+          <span class="nav-icon">📊</span> Hashtags
+        </button>
+        <button class="nav-item" onclick="setMode('bio')" id="nav-bio">
+          <span class="nav-icon">👤</span> Bio
+        </button>
+        <button class="nav-item" onclick="setMode('script')" id="nav-script">
+          <span class="nav-icon">📝</span> Script <span class="pro-badge">PRO</span>
+        </button>
+        <button class="nav-item" onclick="setMode('trends')" id="nav-trends">
+          <span class="nav-icon">📈</span> Trends <span class="pro-badge">PRO</span>
+        </button>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <!-- X / Twitter tools -->
+      <div class="sb-section">
+        <div class="sb-section-label">Twitter / X</div>
+        <button class="nav-item" onclick="setMode('captions','x')" id="nav-xtweets">
+          <span class="nav-icon">𝕏</span> Tweets
+        </button>
+        <button class="nav-item" onclick="setMode('hooks','x')" id="nav-xhooks">
+          <span class="nav-icon">🧲</span> Thread Hooks
+        </button>
+        <button class="nav-item" onclick="setMode('threads','x')" id="nav-xthread">
+          <span class="nav-icon">🧵</span> Full Thread <span class="pro-badge">PRO</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="sb-bottom">
+      <!-- User info -->
+      <div class="user-chip">
+        <div class="user-email" id="userEmail">Loading...</div>
+        <div class="plan-row">
+          <span class="plan-badge plan-free" id="userPlan">Free</span>
+          <span class="uses-label" id="usesLabel">5/5 uses left</span>
+        </div>
+        <div class="bar-track" id="usesBar">
+          <div class="bar-fill" id="barFill" style="width:100%"></div>
+        </div>
+      </div>
+
+      <!-- Upgrade -->
+      <div class="upgrade-card" id="upgradeCard">
+        <div class="upgrade-card-title">Upgrade to Pro</div>
+        <div class="upgrade-card-sub">Unlimited scripts, threads, trends &amp; more.</div>
+        <button class="btn-upgrade" onclick="doUpgrade()">Go Pro — ₦2,000/mo</button>
+      </div>
+
+      <button class="btn-logout" onclick="doLogout()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        Log out
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="page-title" id="modeTitle">Captions</div>
+        <div class="platform-toggle" id="platformToggle">
+          <button class="platform-btn active" id="tiktokBtn" onclick="setPlatform('tiktok')">TikTok</button>
+          <button class="platform-btn" id="xBtn" onclick="setPlatform('x')">Twitter / X</button>
+        </div>
+      </div>
+      <select class="region-select" id="regionSelect" onchange="changeRegion(this.value)">
+        <option value="nigeria">🇳🇬 Nigerian</option>
+        <option value="usa">🇺🇸 American</option>
+        <option value="uk">🇬🇧 British</option>
+        <option value="caribbean">🇯🇲 Caribbean</option>
+        <option value="eastafrica">🇰🇪 East African</option>
+        <option value="southafrica">🇿🇦 South African</option>
+        <option value="global" selected>🌍 Global</option>
+      </select>
+    </div>
+
+    <!-- Input -->
+    <div class="input-section">
+      <div class="input-box">
+        <textarea class="topic-input" id="topicInput" rows="4"
+          placeholder="What is your video or post about?
+
+Be specific — the more detail you give, the better the output.
+Example: I work so hard but I am still broke"></textarea>
+        <div class="input-footer">
+          <span class="input-hint">⌘ + Enter to generate &nbsp;·&nbsp; Min <span>3 words</span></span>
+          <button class="btn-generate" id="generateBtn" onclick="generate()">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Generate
+          </button>
+        </div>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <!-- Output -->
+    <div class="output-wrap" id="outputCard">
+      <div class="output-header">
+        <div class="output-label">
+          <div class="output-dot"></div>
+          <span id="outputTitle">Ready to post</span>
+        </div>
+        <button class="btn-copy" onclick="copyOutput()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          Copy All
+        </button>
+      </div>
+      <div class="output-card">
+        <div class="output-text" id="outputText"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
 <script>
-let currentMode='captions', currentPlatform='tiktok', userData={};
-const modes=[['captions','TikTok Captions','tiktok'],['hooks','Viral Hooks','tiktok'],['pov','POV Ideas','tiktok'],['script','Video Script','tiktok'],['hashtags','Hashtags','tiktok'],['threads','X Thread','x'],['hooks','X Hooks','x']];
-const modeTitles={captions:'Captions',hooks:'Hooks',pov:'POV Ideas',script:'Video Script',hashtags:'Hashtags',threads:'X Thread'};
-function renderModes(target='modes'){const el=document.getElementById(target); if(!el)return; el.innerHTML=modes.map((m,i)=>`<button class="mode ${i==0?'active':''}" onclick="setMode('${m[0]}','${m[2]}',this)">${m[1]}</button>`).join('')}
-function setMode(m,p,btn){currentMode=m;currentPlatform=p;document.querySelectorAll('.mode').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');document.getElementById('outputCard').classList.remove('show')}
-async function loadUser(){const res=await fetch('/api/me');if(res.status===401){location.href='/';return}userData=await res.json();document.querySelectorAll('#userEmail').forEach(e=>e.textContent=userData.email);document.getElementById('regionSelect').value=userData.region||'global';updateUsage(userData.uses_remaining,userData.unlimited);loadHistory()}
-function updateUsage(rem,unlimited){const label=document.getElementById('usesLabel'), fill=document.getElementById('barFill'), up=document.getElementById('upgradeBtn'); if(unlimited){label.textContent='Premium: unlimited generations';fill.style.width='100%';up.classList.remove('show');return} label.textContent=rem+'/5 free generations left';fill.style.width=(rem/5*100)+'%';if(rem<=0){up.classList.add('show');document.getElementById('premiumLock').classList.add('show')}else{up.classList.remove('show')}}
-async function loadHistory(){const res=await fetch('/api/history');const data=await res.json();const html=(data.items&&data.items.length)?data.items.map(i=>{const platform=(i.platform==='x')?'X':'TikTok';return `<div class="hist" onclick='showHistory(${JSON.stringify(i).replace(/'/g,"&#39;")})'><b>${escapeHtml(i.topic||'Untitled')}</b><span>${platform} • ${i.mode} • ${new Date(i.created_at).toLocaleDateString()}</span></div>`}).join(''):'<div class="empty">Your TikTok and X content history will appear here.</div>';['historyList','historyMobile','drawerHistory'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html})}
-async function clearHistory(){if(!confirm('Clear all your TikTok and X generation history?'))return;const res=await fetch('/api/history/clear',{method:'POST'});if(res.ok){document.getElementById('outputCard').classList.remove('show');loadHistory()}else{showError('Could not clear history. Please try again.')}}
-function showHistory(i){document.getElementById('topicInput').value=i.topic||'';renderOutput(i.result||'',(modeTitles[i.mode]||i.mode)+' from history');document.getElementById('drawer').classList.remove('show')}
-function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-async function changeRegion(region){await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region})})}
-async function generate(){const topic=document.getElementById('topicInput').value.trim(),btn=document.getElementById('generateBtn');hideError();if(!topic)return showError('Please enter your prompt.');if(topic.split(/\s+/).length<3)return showError('Please add at least 3 words.');btn.disabled=true;btn.textContent='Generating...';const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:currentMode,platform:currentPlatform,topic})});const data=await res.json();btn.disabled=false;btn.textContent='Generate';if(data.error){showError(data.error);if(res.status===429)document.getElementById('premiumLock').classList.add('show');return}renderOutput(data.result,(modeTitles[currentMode]||currentMode)+' — 5 results + best post times');if(data.uses_remaining!==undefined)updateUsage(data.uses_remaining,false);loadHistory()}
-function showError(m){const e=document.getElementById('errorMsg');e.textContent=m;e.style.display='block'}function hideError(){document.getElementById('errorMsg').style.display='none'}
-function parseResults(text){return String(text||'').split(/\n+/).map(line=>line.trim()).filter(Boolean).slice(0,5).map((line,idx)=>{line=line.replace(/^\s*\d+[\).:-]\s*/,'');let parts=line.split('||').map(p=>p.trim());let content=parts[0]||line, time=parts[1]||'', why=parts[2]||'';if(parts.length<3){let m=line.match(/^(.*?)\s+[—-]\s*Best time to post:\s*(.*?)\s+[—-]\s*Why:\s*(.*)$/i);if(m){content=m[1].trim();time=m[2].trim();why=m[3].trim()}}content=content.replace(/\s+[—-]\s*Best time to post:.*$/i,'').trim();return {n:idx+1,content,time,why}})}
-function renderOutput(text,title){const items=parseResults(text);document.getElementById('outputTitle').textContent=title;document.getElementById('outputText').innerHTML=items.map(item=>`<div class="result-card" id="resultCard${item.n-1}"><div class="result-top"><label class="pick"><input type="checkbox" class="pickbox" value="${item.n-1}" onchange="togglePicked(${item.n-1},this.checked)"><div class="result-content">${item.n}) ${escapeHtml(item.content)}</div></label><button class="copy-one" onclick="copyOne(${item.n-1})">Copy</button></div><div class="result-meta"><span class="time-pill">⏰ ${escapeHtml(item.time||'Best posting time')}</span><span class="why-pill">${escapeHtml(item.why||'Good engagement window')}</span></div></div>`).join('');window.lastResults=items;document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'})}
-function togglePicked(index,checked){const c=document.getElementById('resultCard'+index);if(c)c.classList.toggle('selected',checked)}
-function copyOne(index){const item=(window.lastResults||[])[index];if(!item)return;navigator.clipboard.writeText(item.content)}
-function copySelected(){const picks=[...document.querySelectorAll('.pickbox:checked')].map(x=>(window.lastResults||[])[Number(x.value)]).filter(Boolean);if(!picks.length){alert('Select at least one result first.');return}navigator.clipboard.writeText(picks.map(x=>x.content).join('\n\n'))}
-function copyOutput(){const items=window.lastResults||[];if(!items.length)return;navigator.clipboard.writeText(items.map(x=>x.content).join('\n\n'))}
-async function doUpgrade(){const res=await fetch('/api/upgrade',{method:'POST'});const data=await res.json();if(data.url)location.href=data.url;else showError(data.error||'Could not open payment page')}
-async function doLogout(){await fetch('/api/logout',{method:'POST'});location.href='/'}
-function openDrawer(){const p=document.getElementById('drawerPanel');p.innerHTML=`<div class="logo">Tik<span>Genius</span></div><div class="user"><div>${escapeHtml(userData.email||'')}</div></div><div class="usage"><strong>${userData.unlimited?'Premium: unlimited generations':((userData.uses_remaining??5)+'/5 free generations left')}</strong><div class="bar"><div class="fill" style="width:${userData.unlimited?100:((userData.uses_remaining??5)/5*100)}%"></div></div>${userData.unlimited?'':'<button class="upgrade show" onclick="doUpgrade()">Upgrade to Premium</button>'}</div><div class="section-title">Create for TikTok & X</div><div class="modes" id="drawerModes"></div><div class="history-head"><div class="section-title">Recent history</div><button class="clear-history" onclick="clearHistory()">Clear</button></div><div class="history" id="drawerHistory"></div><button class="logout" onclick="doLogout()">Log out</button>`;document.getElementById('drawer').classList.add('show');renderModes('drawerModes');loadHistory()}
-function closeDrawer(e){if(e.target.id==='drawer')document.getElementById('drawer').classList.remove('show')}
-renderModes();loadUser();
+let currentMode = 'captions';
+let currentPlatform = 'tiktok';
+let userData = {};
+
+const modeTitles = {
+  captions:'Captions', hooks:'Hooks', pov:'POV Ideas',
+  hashtags:'Hashtags', bio:'Bio', script:'Video Script', trends:'Trend Ideas',
+  threads:'X Thread'
+};
+
+// ── Sidebar HTML for mobile drawer ──────────────────
+function sidebarHTML() {
+  return document.querySelector('.sidebar').innerHTML;
+}
+
+function openDrawer() {
+  document.getElementById('mobPanel').innerHTML = sidebarHTML();
+  document.getElementById('mobDrawer').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('mobDrawer').classList.remove('open');
+}
+
+// ── Load user ────────────────────────────────────────
+async function loadUser() {
+  const res = await fetch('/api/me');
+  if (res.status === 401) { window.location.href = '/'; return; }
+  userData = await res.json();
+
+  document.getElementById('userEmail').textContent = userData.email;
+  const isPro = userData.plan === 'pro';
+  document.getElementById('userPlan').textContent = isPro ? '⭐ Pro' : 'Free';
+  document.getElementById('userPlan').className = 'plan-badge ' + (isPro ? 'plan-pro' : 'plan-free');
+
+  const sel = document.getElementById('regionSelect');
+  const selMob = document.getElementById('regionSelectMob');
+  if (sel) sel.value = userData.region || 'global';
+  if (selMob) selMob.value = userData.region || 'global';
+
+  if (userData.unlimited) {
+    document.getElementById('usesBar').style.display = 'none';
+    const uc = document.getElementById('upgradeCard');
+    if (uc) uc.style.display = 'none';
+    document.getElementById('usesLabel').textContent = 'Unlimited ✓';
+  } else {
+    const rem = userData.uses_remaining;
+    document.getElementById('usesLabel').textContent = rem + '/5 uses left today';
+    document.getElementById('barFill').style.width = (rem / 5 * 100) + '%';
+  }
+}
+
+// ── Mode / Platform ──────────────────────────────────
+function setMode(mode, platform) {
+  currentMode = mode;
+  if (platform) { currentPlatform = platform; updatePlatformUI(); }
+
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  const navId = platform === 'x'
+    ? (mode === 'threads' ? 'nav-xthread' : mode === 'hooks' ? 'nav-xhooks' : 'nav-xtweets')
+    : 'nav-' + mode;
+  const el = document.getElementById(navId);
+  if (el) el.classList.add('active');
+
+  document.getElementById('modeTitle').textContent = modeTitles[mode] || mode;
+  document.getElementById('outputCard').classList.remove('visible');
+  closeDrawer();
+}
+
+function setPlatform(p) {
+  currentPlatform = p;
+  updatePlatformUI();
+}
+
+function updatePlatformUI() {
+  document.getElementById('tiktokBtn').classList.toggle('active', currentPlatform === 'tiktok');
+  document.getElementById('xBtn').classList.toggle('active', currentPlatform === 'x');
+}
+
+// ── Region ───────────────────────────────────────────
+async function changeRegion(val) {
+  const region = val || document.getElementById('regionSelect').value;
+  // sync both selects
+  ['regionSelect','regionSelectMob'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = region;
+  });
+  await fetch('/api/set-region', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({region})
+  });
+}
+
+// ── Generate ─────────────────────────────────────────
+async function generate() {
+  const topic = document.getElementById('topicInput').value.trim();
+  const btn = document.getElementById('generateBtn');
+  const errEl = document.getElementById('errorMsg');
+  const outputCard = document.getElementById('outputCard');
+  const outputText = document.getElementById('outputText');
+
+  errEl.style.display = 'none';
+  if (!topic) { showError('Please enter a topic.'); return; }
+  if (topic.split(' ').length < 3) { showError('Be more specific — add at least 3 words.'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Generating...';
+  outputCard.classList.remove('visible');
+
+  const res = await fetch('/api/generate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({mode: currentMode, topic, platform: currentPlatform})
+  });
+
+  const data = await res.json();
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Generate';
+
+  if (data.error) { showError(data.error); return; }
+
+  outputText.textContent = data.result;
+  document.getElementById('outputTitle').textContent = modeTitles[currentMode] + ' — ready to post';
+  outputCard.classList.add('visible');
+  outputCard.scrollIntoView({behavior:'smooth', block:'nearest'});
+
+  if (!userData.unlimited && data.uses_remaining !== undefined) {
+    document.getElementById('usesLabel').textContent = data.uses_remaining + '/5 uses left today';
+    document.getElementById('barFill').style.width = (data.uses_remaining / 5 * 100) + '%';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ── Copy ─────────────────────────────────────────────
+function copyOutput() {
+  const text = document.getElementById('outputText').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Copied!';
+    setTimeout(() => {
+      btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy All';
+    }, 2000);
+  });
+}
+
+// ── Upgrade / Logout ─────────────────────────────────
+async function doUpgrade() {
+  const res = await fetch('/api/upgrade', {method:'POST'});
+  const data = await res.json();
+  if (data.url) window.location.href = data.url;
+}
+
+async function doLogout() {
+  await fetch('/api/logout', {method:'POST'});
+  window.location.href = '/';
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
+});
+
+loadUser();
 </script>
 </body>
 </html>"""

@@ -116,6 +116,31 @@ def init_db():
             )""")
             cur.execute("ALTER TABLE web_payments ADD COLUMN IF NOT EXISTS raw_email TEXT")
             cur.execute("ALTER TABLE web_payments ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'web'")
+            # Website analytics shown only in the admin dashboard
+            cur.execute("""CREATE TABLE IF NOT EXISTS site_page_views (
+                id SERIAL PRIMARY KEY,
+                path TEXT NOT NULL,
+                method TEXT DEFAULT 'GET',
+                referrer TEXT,
+                user_agent TEXT,
+                ip_hash TEXT,
+                user_id INTEGER,
+                created_at TIMESTAMP DEFAULT NOW()
+            )""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS site_clicks (
+                id SERIAL PRIMARY KEY,
+                element TEXT NOT NULL,
+                label TEXT,
+                path TEXT,
+                referrer TEXT,
+                ip_hash TEXT,
+                user_id INTEGER,
+                created_at TIMESTAMP DEFAULT NOW()
+            )""")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_site_page_views_created ON site_page_views(created_at)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_site_page_views_path ON site_page_views(path)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_site_clicks_created ON site_clicks(created_at)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_site_clicks_element ON site_clicks(element)")
         conn.commit()
     finally:
         release_db(conn)
@@ -564,17 +589,98 @@ def tg_create_payment_link(user_id, username):
         print(f"Paystack Error: {e}")
         return None
 
+
+# ========================= WEBSITE ANALYTICS =========================
+def visitor_hash():
+    """Privacy-friendly visitor identifier for counting unique visitors."""
+    raw = f"{request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0]}|{request.headers.get('User-Agent', '')}"
+    return hashlib.sha256((SECRET_KEY + raw).encode()).hexdigest()[:32]
+
+def should_track_request():
+    if request.method != "GET":
+        return False
+    path = request.path or "/"
+    if path.startswith(("/admin", "/api", "/paystack", "/telegram-webhook", "/static")):
+        return False
+    return path in ("/", "/dashboard")
+
+@app.before_request
+def record_page_view():
+    if not should_track_request():
+        return
+    conn = None
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO site_page_views
+                (path, method, referrer, user_agent, ip_hash, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s)""",
+                (request.path, request.method, request.referrer, request.headers.get("User-Agent", "")[:500], visitor_hash(), session.get("user_id")))
+        conn.commit()
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Analytics page-view error: {e}")
+    finally:
+        if conn:
+            release_db(conn)
+
+@app.route("/api/track-click", methods=["POST"])
+def track_click():
+    data = request.json or {}
+    element = (data.get("element") or "unknown")[:120]
+    label = (data.get("label") or "")[:200]
+    path = (data.get("path") or request.referrer or "")[:300]
+    conn = None
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO site_clicks
+                (element, label, path, referrer, ip_hash, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s)""",
+                (element, label, path, request.referrer, visitor_hash(), session.get("user_id")))
+        conn.commit()
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Analytics click error: {e}")
+    finally:
+        if conn:
+            release_db(conn)
+    return jsonify({"success": True})
+
+ANALYTICS_JS = """<script>
+(function(){
+  function sendClick(el){
+    try{
+      var label=(el.innerText||el.value||el.getAttribute('aria-label')||el.id||el.className||'').toString().trim().slice(0,200);
+      var element=(el.id||el.name||el.className||el.tagName||'unknown').toString().slice(0,120);
+      var payload=JSON.stringify({element:element,label:label,path:location.pathname});
+      if(navigator.sendBeacon){navigator.sendBeacon('/api/track-click', new Blob([payload],{type:'application/json'}));}
+      else{fetch('/api/track-click',{method:'POST',headers:{'Content-Type':'application/json'},body:payload,keepalive:true});}
+    }catch(e){}
+  }
+  document.addEventListener('click',function(e){
+    var el=e.target.closest('button,a,[data-track-click]');
+    if(el) sendClick(el);
+  },true);
+})();
+</script>"""
+
+def with_analytics(html):
+    return html.replace("</body>", ANALYTICS_JS + "</body>") if isinstance(html, str) else html
+
 # ========================= WEB ROUTES =========================
 
 @app.route("/")
 def index():
-    return HOME_HTML
+    return with_analytics(HOME_HTML)
 
 @app.route("/dashboard")
 def dashboard():
     if "user_id" not in session:
         return redirect("/")
-    return DASHBOARD_HTML
+    return with_analytics(DASHBOARD_HTML)
 
 @app.route("/api/signup", methods=["POST"])
 def signup():
@@ -799,6 +905,22 @@ def admin_panel():
             today_signups = cur.fetchone()["today"]
             cur.execute("SELECT COUNT(*) AS gens FROM web_generations")
             total_generations = cur.fetchone()["gens"]
+            cur.execute("""SELECT COUNT(*) AS views,
+                                  COUNT(DISTINCT ip_hash) AS visitors,
+                                  COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') AS views_24h,
+                                  COUNT(DISTINCT ip_hash) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') AS visitors_24h
+                           FROM site_page_views""")
+            traffic_stats = cur.fetchone()
+            cur.execute("""SELECT COUNT(*) AS clicks,
+                                  COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') AS clicks_24h
+                           FROM site_clicks""")
+            click_stats = cur.fetchone()
+            cur.execute("""SELECT path, COUNT(*) AS views, COUNT(DISTINCT ip_hash) AS visitors
+                           FROM site_page_views GROUP BY path ORDER BY views DESC LIMIT 8""")
+            top_pages = cur.fetchall()
+            cur.execute("""SELECT element, COALESCE(NULLIF(label, ''), element) AS label, COUNT(*) AS clicks
+                           FROM site_clicks GROUP BY element, label ORDER BY clicks DESC LIMIT 10""")
+            top_clicks = cur.fetchall()
             cur.execute("SELECT COALESCE(SUM(amount_kobo),0) AS revenue, COUNT(*) AS count FROM web_payments WHERE status='success'")
             pay_stats = cur.fetchone()
             cur.execute("""SELECT p.reference, p.amount_kobo, p.currency, p.source, p.paid_at,
@@ -824,6 +946,13 @@ def admin_panel():
         for u in users
     ) or "<tr><td colspan='9' class='muted'>No users yet.</td></tr>"
 
+    top_page_rows = "".join(
+        f"<tr><td>{escape(r['path'] or '')}</td><td>{r['views']}</td><td>{r['visitors']}</td></tr>" for r in top_pages
+    ) or "<tr><td colspan='3' class='muted'>No page views tracked yet.</td></tr>"
+    top_click_rows = "".join(
+        f"<tr><td>{escape(r['label'] or '')}</td><td>{escape(r['element'] or '')}</td><td>{r['clicks']}</td></tr>" for r in top_clicks
+    ) or "<tr><td colspan='3' class='muted'>No clicks tracked yet.</td></tr>"
+
     return f"""<!doctype html>
 <html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>TikGenius Admin</title>
 <link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
@@ -842,7 +971,12 @@ def admin_panel():
     <div class='card'><div class='label'>Free Users</div><div class='num'>{free_users}</div><div class='muted'>Not premium yet</div></div>
     <div class='card'><div class='label'>Total Signups</div><div class='num'>{total_users}</div><div class='muted'>{today_signups} today</div></div>
     <div class='card'><div class='label'>Generations</div><div class='num'>{total_generations}</div><div class='muted'>AI outputs created</div></div>
+    <div class='card'><div class='label'>Website Impressions</div><div class='num'>{traffic_stats['views'] or 0}</div><div class='muted'>{traffic_stats['views_24h'] or 0} in last 24h</div></div>
+    <div class='card'><div class='label'>Unique Visitors</div><div class='num'>{traffic_stats['visitors'] or 0}</div><div class='muted'>{traffic_stats['visitors_24h'] or 0} in last 24h</div></div>
+    <div class='card'><div class='label'>Website Clicks</div><div class='num'>{click_stats['clicks'] or 0}</div><div class='muted'>{click_stats['clicks_24h'] or 0} in last 24h</div></div>
   </div>
+  <div class='section card'><h2>Website Analytics</h2><div class='tablebox'><table><thead><tr><th>Page</th><th>Impressions</th><th>Unique Visitors</th></tr></thead><tbody>{top_page_rows}</tbody></table></div></div>
+  <div class='section card'><h2>Click Tracking</h2><div class='tablebox'><table><thead><tr><th>Button / Link Label</th><th>Element</th><th>Clicks</th></tr></thead><tbody>{top_click_rows}</tbody></table></div></div>
   <div class='section card'><h2>Recent Payments</h2><div class='tablebox'><table><thead><tr><th>Date</th><th>Email</th><th>Amount</th><th>Source</th><th>Reference</th></tr></thead><tbody>{payment_rows}</tbody></table></div></div>
   <div class='section card'><h2>Audience Emails</h2><input class='search' id='search' placeholder='Search email, name, plan...' onkeyup='filterRows()'><div class='tablebox'><table id='users'><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Plan</th><th>Expires</th><th>Region</th><th>Uses</th><th>Signup Date</th><th>Last Login</th></tr></thead><tbody>{user_rows}</tbody></table></div></div>
   <div class='download-zone'><div class='label'>Downloads</div><div class='muted'>Export data only when needed. Keep these files private.</div><div class='download-row'><a class='smallbtn' href='/admin/emails.csv'>⬇ Emails CSV</a><a class='smallbtn' href='/admin/payments.csv'>⬇ Payments CSV</a></div></div>
@@ -1556,3 +1690,4 @@ renderModes();loadUser();
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+ 

@@ -499,6 +499,33 @@ def ask_groq(mode, topic, platform="tiktok", region="global"):
 
     prompt = prompt_template.format(topic=topic)
 
+    timing_context = """
+
+IMPORTANT OUTPUT FORMAT — FOLLOW THIS EXACTLY:
+Return exactly 5 numbered lines only. No intro. No outro.
+Each line must contain one ready-to-use result plus a recommended posting time.
+Use the audience's local time. Do not promise guaranteed virality.
+
+For TikTok, choose smart posting windows based on TikTok engagement behavior:
+- morning scroll: 7 AM - 9 AM
+- lunch break: 12 PM - 2 PM
+- evening high intent: 6 PM - 10 PM
+- weekend boost: Saturday/Sunday afternoon or evening
+
+For X/Twitter, choose smart posting windows based on X engagement behavior:
+- weekday morning: 8 AM - 11 AM
+- lunch break: 12 PM - 2 PM
+- evening conversation: 6 PM - 8 PM
+
+Line format:
+1) [content] — Best time to post: [day/time] — Why: [very short reason]
+2) [content] — Best time to post: [day/time] — Why: [very short reason]
+3) [content] — Best time to post: [day/time] — Why: [very short reason]
+4) [content] — Best time to post: [day/time] — Why: [very short reason]
+5) [content] — Best time to post: [day/time] — Why: [very short reason]
+"""
+    prompt = prompt + timing_context
+
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -1521,8 +1548,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <div class="top"><div class="mobile-logo">Tik<span style="color:var(--brand2)">Genius</span></div><button class="drawer-btn" onclick="openDrawer()">☰ Menu</button><select class="region" id="regionSelect" onchange="changeRegion(this.value)"><option value="global">🌍 Global</option><option value="nigeria">🇳🇬 Nigerian</option><option value="usa">🇺🇸 American</option><option value="uk">🇬🇧 British</option><option value="caribbean">🇯🇲 Caribbean</option><option value="eastafrica">🇰🇪 East African</option><option value="southafrica">🇿🇦 South African</option></select></div>
   <div class="mobile-history"><div class="history-head"><div class="section-title">Recent history</div><button class="clear-history" onclick="clearHistory()">Clear</button></div><div class="history" id="historyMobile"><div class="empty">No TikTok/X history yet.</div></div></div>
   <section class="card">
-    <div class="guide"><div class="tip"><b>1. Choose TikTok or X</b><p>Pick captions, hooks, scripts, hashtags, or X threads from the menu.</p></div><div class="tip"><b>2. Be specific</b><p>Say the topic, audience, emotion, platform, and goal.</p></div><div class="tip"><b>3. Add your style</b><p>Example: funny Nigerian street voice, luxury, Gen Z, or bold X thought-leader.</p></div></div>
-    <textarea class="prompt" id="topicInput" placeholder="Example: Give me 5 TikTok captions for a skincare video targeting young women who want clear skin. Or: write an X thread about building discipline as a young creator."></textarea>
+    <div class="guide"><div class="tip"><b>1. Choose TikTok or X</b><p>Pick captions, hooks, scripts, hashtags, or X threads from the menu.</p></div><div class="tip"><b>2. Be specific</b><p>Say the topic, audience, emotion, platform, and goal.</p></div><div class="tip"><b>3. Get best posting time</b><p>Every result now gives 5 ready-to-post options with smart TikTok/X posting times.</p></div></div>
+    <textarea class="prompt" id="topicInput" placeholder="Example: Give me TikTok captions for a skincare video targeting young women who want clear skin. Or: write an X post about building discipline as a young creator. I want a bold creator tone."></textarea>
     <div class="actions"><div class="hint">Minimum 3 words. Works for TikTok and X.</div><button class="generate" id="generateBtn" onclick="generate()">Generate</button></div>
     <div class="error" id="errorMsg"></div>
     <div class="premium-lock" id="premiumLock"><h3>You used your 5 free generations</h3><p>Upgrade to Premium to keep generating unlimited captions, hooks, scripts and content ideas.</p><button class="upgrade show" onclick="doUpgrade()">Upgrade to Premium</button></div>
@@ -1543,7 +1570,7 @@ async function clearHistory(){if(!confirm('Clear all your TikTok and X generatio
 function showHistory(i){document.getElementById('topicInput').value=i.topic||'';document.getElementById('outputText').textContent=i.result||'';document.getElementById('outputTitle').textContent=(modeTitles[i.mode]||i.mode)+' from history';document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});document.getElementById('drawer').classList.remove('show')}
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 async function changeRegion(region){await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region})})}
-async function generate(){const topic=document.getElementById('topicInput').value.trim(),btn=document.getElementById('generateBtn');hideError();if(!topic)return showError('Please enter your prompt.');if(topic.split(/\s+/).length<3)return showError('Please add at least 3 words.');btn.disabled=true;btn.textContent='Generating...';const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:currentMode,platform:currentPlatform,topic})});const data=await res.json();btn.disabled=false;btn.textContent='Generate';if(data.error){showError(data.error);if(res.status===429)document.getElementById('premiumLock').classList.add('show');return}document.getElementById('outputText').textContent=data.result;document.getElementById('outputTitle').textContent=(modeTitles[currentMode]||currentMode)+' — ready to post';document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});if(data.uses_remaining!==undefined)updateUsage(data.uses_remaining,false);loadHistory()}
+async function generate(){const topic=document.getElementById('topicInput').value.trim(),btn=document.getElementById('generateBtn');hideError();if(!topic)return showError('Please enter your prompt.');if(topic.split(/\s+/).length<3)return showError('Please add at least 3 words.');btn.disabled=true;btn.textContent='Generating...';const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:currentMode,platform:currentPlatform,topic})});const data=await res.json();btn.disabled=false;btn.textContent='Generate';if(data.error){showError(data.error);if(res.status===429)document.getElementById('premiumLock').classList.add('show');return}document.getElementById('outputText').textContent=data.result;document.getElementById('outputTitle').textContent=(modeTitles[currentMode]||currentMode)+' — 5 results + best post times';document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});if(data.uses_remaining!==undefined)updateUsage(data.uses_remaining,false);loadHistory()}
 function showError(m){const e=document.getElementById('errorMsg');e.textContent=m;e.style.display='block'}function hideError(){document.getElementById('errorMsg').style.display='none'}
 function copyOutput(){navigator.clipboard.writeText(document.getElementById('outputText').textContent)}
 async function doUpgrade(){const res=await fetch('/api/upgrade',{method:'POST'});const data=await res.json();if(data.url)location.href=data.url;else showError(data.error||'Could not open payment page')}

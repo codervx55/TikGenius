@@ -904,6 +904,40 @@ def download_page():
     return with_analytics(DOWNLOAD_HTML)
 
 
+@app.route("/api/download/file")
+@login_required
+def download_file():
+    file_url = (request.args.get("url") or "").strip()
+    filename = (request.args.get("filename") or "tiktok-video.mp4").strip()
+
+    if not file_url:
+        return "Missing file URL", 400
+    if not file_url.startswith(("http://", "https://")):
+        return "Invalid file URL", 400
+
+    safe_filename = "".join(c if c.isalnum() or c in (".", "_", "-") else "_" for c in filename)[:120]
+    if not safe_filename:
+        safe_filename = "tiktok-video.mp4"
+
+    try:
+        upstream = http_session.get(file_url, stream=True, timeout=30)
+        upstream.raise_for_status()
+    except Exception as e:
+        print(f"Download proxy error: {e}")
+        return "Could not download the file. Please try again.", 502
+
+    content_type = upstream.headers.get("Content-Type") or "application/octet-stream"
+
+    return Response(
+        upstream.iter_content(chunk_size=8192),
+        content_type=content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_filename}"',
+            "Cache-Control": "no-store"
+        }
+    )
+
+
 @app.route("/api/download/fetch", methods=["POST"])
 @login_required
 def download_fetch():
@@ -2025,14 +2059,18 @@ async function upgradeToPro(){
   if(d.url){window.location.assign(d.url);return;}
   showError(d.error||'Could not open payment. Please try again.');}catch(e){showError('Network error. Please try again.');}
 }
+function proxyDownloadUrl(fileUrl, filename){
+  return '/api/download/file?url=' + encodeURIComponent(fileUrl) + '&filename=' + encodeURIComponent(filename);
+}
 function revealDownloads(d){
   var panel=document.getElementById('dlPanel');panel.classList.add('show');
+  var base=sanitizeFilename((d&&d.title)||'tiktok');
   var dlNW=document.getElementById('dlNoWatermark');
-  if(d&&d.play_url){dlNW.href=d.play_url;dlNW.setAttribute('download',sanitizeFilename(d.title||'tiktok')+'_nowm.mp4');}else{dlNW.style.display='none';}
+  if(d&&d.play_url){dlNW.href=proxyDownloadUrl(d.play_url,base+'_nowm.mp4');dlNW.setAttribute('download',base+'_nowm.mp4');}else{dlNW.style.display='none';}
   var dlWM=document.getElementById('dlWatermark');
-  if(d&&d.wmplay_url){dlWM.href=d.wmplay_url;dlWM.setAttribute('download',sanitizeFilename(d.title||'tiktok')+'_wm.mp4');}else{dlWM.style.display='none';}
+  if(d&&d.wmplay_url){dlWM.href=proxyDownloadUrl(d.wmplay_url,base+'_wm.mp4');dlWM.setAttribute('download',base+'_wm.mp4');}else{dlWM.style.display='none';}
   var dlAU=document.getElementById('dlAudio');
-  if(d&&d.music_url){dlAU.href=d.music_url;dlAU.setAttribute('download',sanitizeFilename(d.title||'tiktok')+'_audio.mp3');}else{dlAU.style.display='none';}
+  if(d&&d.music_url){dlAU.href=proxyDownloadUrl(d.music_url,base+'_audio.mp3');dlAU.setAttribute('download',base+'_audio.mp3');}else{dlAU.style.display='none';}
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function confirmDownload(e,type){

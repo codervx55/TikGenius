@@ -23,11 +23,10 @@ PAYSTACK_PUBLIC_KEY = os.getenv("PAYSTACK_PUBLIC_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "")
-MONETAG_PUBLISHER_ID = os.getenv("MONETAG_PUBLISHER_ID", "")
-MONETAG_ZONE_ID = os.getenv("MONETAG_ZONE_ID", "")
 
 PRICE_KOBO = 200000
 FREE_LIMIT = 5
+DOWNLOADER_FREE_LIMIT = 3
 ADMIN_ID = "6415641863"
 ADMIN_EXPORT_KEY = os.getenv("ADMIN_EXPORT_KEY", SECRET_KEY)
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@tikgenius.app")
@@ -879,6 +878,27 @@ def set_region():
 
 # ========================= VIDEO DOWNLOADER =========================
 
+def downloader_uses_today(user_id):
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) AS count
+                FROM web_downloads
+                WHERE user_id=%s
+                  AND plan='free'
+                  AND created_at::date = CURRENT_DATE
+            """, (user_id,))
+            row = cur.fetchone()
+            return int(row["count"] or 0) if row else 0
+    finally:
+        release_db(conn)
+
+def downloader_uses_remaining(user_id):
+    if is_web_pro(user_id):
+        return None
+    return max(0, DOWNLOADER_FREE_LIMIT - downloader_uses_today(user_id))
+
 @app.route("/download")
 def download_page():
     return with_analytics(DOWNLOAD_HTML)
@@ -918,6 +938,12 @@ def download_fetch():
     vid = result["data"]
     user_id = session["user_id"]
     pro = is_web_pro(user_id)
+    remaining = downloader_uses_remaining(user_id)
+
+    if not pro and remaining <= 0:
+        return jsonify({
+            "error": "You have used your 3 free TikTok downloads today. Upgrade to Premium for unlimited downloads."
+        }), 429
 
     return jsonify({
         "ok": True,
@@ -928,8 +954,9 @@ def download_fetch():
         "play_url": vid.get("play", ""),
         "wmplay_url": vid.get("wmplay", ""),
         "music_url": vid.get("music", ""),
-        "needs_ad": not pro,
         "is_pro": pro,
+        "uses_remaining": remaining,
+        "unlimited": pro
     })
 
 
@@ -937,14 +964,18 @@ def download_fetch():
 @login_required
 def download_confirm():
     data = request.json or {}
-    url        = (data.get("url") or "").strip()
-    title      = (data.get("title") or "TikTok Video")[:400]
-    ad_watched = bool(data.get("ad_watched", False))
-    user_id    = session["user_id"]
-    pro        = is_web_pro(user_id)
+    url = (data.get("url") or "").strip()
+    title = (data.get("title") or "TikTok Video")[:400]
+    user_id = session["user_id"]
+    pro = is_web_pro(user_id)
 
-    if not pro and not ad_watched:
-        return jsonify({"error": "Please watch the short ad to download for free."}), 403
+    if not url:
+        return jsonify({"error": "Missing TikTok URL."}), 400
+
+    if not pro and downloader_uses_today(user_id) >= DOWNLOADER_FREE_LIMIT:
+        return jsonify({
+            "error": "You have used your 3 free TikTok downloads today. Upgrade to Premium for unlimited downloads."
+        }), 429
 
     conn = get_db()
     try:
@@ -952,13 +983,17 @@ def download_confirm():
             cur.execute("""INSERT INTO web_downloads
                 (user_id, tiktok_url, video_title, plan, ad_watched)
                 VALUES (%s, %s, %s, %s, %s)""",
-                (user_id, url, title, "pro" if pro else "free", ad_watched or pro))
+                (user_id, url, title, "pro" if pro else "free", False))
         conn.commit()
     finally:
         release_db(conn)
 
-    return jsonify({"ok": True, "message": "Download confirmed."})
-
+    return jsonify({
+        "ok": True,
+        "message": "Download confirmed.",
+        "uses_remaining": downloader_uses_remaining(user_id),
+        "unlimited": pro
+    })
 
 # ========================= ADMIN PANEL =========================
 def admin_allowed():
@@ -1273,7 +1308,6 @@ HOME_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="monetag" content="013d114db2b2e3b068dd7121521aa997">
 <title>TikGenius — Go Viral. In Your Voice.</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1703,7 +1737,6 @@ DOWNLOAD_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<meta name="monetag" content="013d114db2b2e3b068dd7121521aa997">
 <title>TikGenius — Download TikTok Videos (No Watermark)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1846,7 +1879,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
     TikTok Video Downloader
   </div>
   <h1>Download TikToks<br><em>No watermark.</em></h1>
-  <p>Paste any TikTok link and save the video in HD — no watermark, no app needed. Free with a short ad, or instant with Premium.</p>
+  <p>Paste any TikTok link and save the video in HD — no watermark, no app needed. Free users get 3 downloads per day, or go Premium for unlimited downloads.</p>
 </div>
 <div class="main-wrap">
   <div class="downloader-card" id="downloaderCard">
@@ -1870,9 +1903,9 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
         </div>
         <div class="ad-gate" id="adGate">
           <div class="ad-gate-title">🎬 One quick step to download</div>
-          <div class="ad-gate-sub">Watch a short ad to download for free — or upgrade to Premium for instant, unlimited downloads with no interruptions.</div>
+          <div class="ad-gate-sub">You get 3 free TikTok downloads per day — or upgrade to Premium for instant, unlimited downloads with no interruptions.</div>
           <div class="ad-gate-choices">
-            <button class="choice-btn choice-watch" onclick="watchAd()">▶ Watch Short Ad<span class="choice-label">FREE • Takes ~15 sec</span></button>
+            <button class="choice-btn choice-watch" onclick="useFreeDownload()">⬇ Use Free Download<span class="choice-label">3 free per day</span></button>
             <button class="choice-btn choice-pro" onclick="upgradeToPro()">⚡ Go Premium<span class="choice-label">₦2,000/month • Instant always</span></button>
           </div>
           <div class="ad-container" id="adContainer">
@@ -1911,7 +1944,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
 <div class="modal-overlay" id="authModal">
   <div class="modal">
     <h2 id="modalTitle">Create your account</h2>
-    <p id="modalSub">Sign up to start downloading — free with a short ad</p>
+    <p id="modalSub">Sign up to start downloading — 3 free downloads per day</p>
     <div class="modal-tabs">
       <button class="modal-tab active" id="tabSignup" onclick="switchAuthTab('signup')">Sign Up</button>
       <button class="modal-tab" id="tabLogin" onclick="switchAuthTab('login')">Log In</button>
@@ -1932,12 +1965,8 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
   </div>
 </div>
 
-""" + (f"<script src='//libtl.com/sdk.js' data-zone='{MONETAG_ZONE_ID}' data-sdk='show_{MONETAG_ZONE_ID}'></script>" if MONETAG_ZONE_ID else "") + """
 <script>
-var MONETAG_PUBLISHER_ID = '""" + (MONETAG_PUBLISHER_ID or '') + """';
-var MONETAG_ZONE_ID = '""" + (MONETAG_ZONE_ID or '') + """';
-var MONETAG_SDK_FN = MONETAG_ZONE_ID ? ('show_' + MONETAG_ZONE_ID) : '';
-var videoData=null,userLoggedIn=false,userIsPro=false,adUnlocked=false,adTimer=null;
+var videoData=null,userLoggedIn=false,userIsPro=false,adTimer=null;
 window.addEventListener('DOMContentLoaded',async function(){
   try{var res=await fetch('/api/me');if(res.ok){var d=await res.json();userLoggedIn=true;userIsPro=(d.plan==='pro');}}catch(e){}
 });
@@ -1962,35 +1991,33 @@ function renderPreview(d){
   if(d.duration){meta.innerHTML+='<span class="meta-tag">'+Math.round(d.duration)+'s</span>';}
   meta.innerHTML+='<span class="meta-tag">No Watermark</span><span class="meta-tag">HD</span>';
   document.getElementById('previewSection').classList.add('show');
-  if(d.is_pro||!d.needs_ad){document.getElementById('proSkip').classList.add('show');revealDownloads(d);}
+  if(d.is_pro){document.getElementById('proSkip').classList.add('show');revealDownloads(d);}
   else{document.getElementById('adGate').classList.add('show');}
 }
-async function watchAd(){
+async function useFreeDownload(){
   hideError();
-  var container=document.getElementById('adContainer');
-  container.classList.add('show');
-  container.innerHTML='<div style="color:#f6b21a;font-weight:800;padding:.5rem 0">Loading ad — please wait.</div><div class="ad-countdown">After the ad closes, your download will unlock automatically.</div>';
-
-  if(!MONETAG_ZONE_ID || !MONETAG_SDK_FN || typeof window[MONETAG_SDK_FN] !== 'function'){
-    container.innerHTML='<div style="color:#fecdd3;font-weight:700;padding:.5rem 0">Ad is not configured yet.</div>';
-    showError('Monetag ad is not configured yet. Add MONETAG_ZONE_ID on Railway and redeploy.');
-    return;
-  }
+  if(!videoData){showError('Please fetch a TikTok video first.');return;}
 
   try{
-    await window[MONETAG_SDK_FN]();
-    adUnlocked=true;
-    container.innerHTML='<div style="color:#86efac;font-weight:800;padding:.5rem 0">✅ Ad complete — your download is ready!</div>';
+    var res=await fetch('/api/download/confirm',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        url:document.getElementById('urlInput').value.trim(),
+        title:videoData?videoData.title:''
+      })
+    });
+    var d=await res.json();
+
+    if(!res.ok||d.error){
+      showError(d.error||'Could not unlock download.');
+      return;
+    }
+
     revealDownloads(videoData);
-    await confirmAdWatched();
   }catch(e){
-    console.log('Monetag ad error:', e);
-    container.innerHTML='<div style="color:#fecdd3;font-weight:700;padding:.5rem 0">Ad was closed or could not load.</div>';
-    showError('Please watch the full ad to unlock the free download, or upgrade to Pro.');
+    showError('Network error — please try again.');
   }
-}
-async function confirmAdWatched(){
-  try{await fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:'',ad_watched:true})});}catch(e){}
 }
 async function upgradeToPro(){
   try{var res=await fetch('/api/upgrade',{method:'POST',credentials:'same-origin'});var d=await res.json();
@@ -2009,7 +2036,10 @@ function revealDownloads(d){
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function confirmDownload(e,type){
-  try{fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:'',ad_watched:adUnlocked||userIsPro})});}catch(err){}
+  // Free users are counted when they press "Use Free Download".
+  // Premium users are counted here for admin analytics.
+  if(!userIsPro){return;}
+  try{fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});}catch(err){}
 }
 var _postAuthAction=null;
 function openAuthModal(tab,action){_postAuthAction=action;document.getElementById('authModal').classList.add('active');switchAuthTab(tab||'signup');}
@@ -2020,7 +2050,7 @@ function switchAuthTab(tab){
   document.getElementById('tabSignup').classList.toggle('active',tab==='signup');
   document.getElementById('tabLogin').classList.toggle('active',tab==='login');
   document.getElementById('modalTitle').textContent=tab==='signup'?'Create your account':'Welcome back';
-  document.getElementById('modalSub').textContent=tab==='signup'?'Sign up to start downloading — free with a short ad':'Log in to your TikGenius account';
+  document.getElementById('modalSub').textContent=tab==='signup'?'Sign up to start downloading — 3 free downloads per day':'Log in to your TikGenius account';
 }
 async function doSignup(){
   var email=document.getElementById('sEmail').value.trim(),pass=document.getElementById('sPass').value,err=document.getElementById('sErr');

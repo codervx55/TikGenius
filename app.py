@@ -1343,300 +1343,359 @@ HOME_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TikGenius — Go Viral. In Your Voice.</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#05070a;
-  --surface:#0b1117;
-  --card:#101820;
-  --border:#1d2a35;
-  --purple:#14b8a6;
-  --purple-light:#38bdf8;
-  --pink:#f59e0b;
-  --text:#f8fafc;
-  --muted:#8a99a8;
+  --bg:#03050a;--surface:#07111c;--card:#0b1928;--border:#14253a;
+  --accent:#00ffc8;--accent2:#0af;--gold:#ffb800;
+  --text:#f0f8ff;--muted:#607a90;
 }
-body{background:radial-gradient(circle at 50% -10%,rgba(20,184,166,.13),transparent 38%),var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;overflow-x:hidden;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
-h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;letter-spacing:-.035em}
-nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 1.2rem;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;background:rgba(5,7,10,0.88);backdrop-filter:blur(14px)}
-.logo{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.12rem;background:linear-gradient(135deg,var(--text),var(--purple-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.nav-btns{display:flex;gap:0.75rem;align-items:center}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);padding:0.5rem 1.2rem;border-radius:8px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.9rem;transition:all 0.2s;text-decoration:none;display:inline-block}
-.btn-ghost:hover{border-color:var(--purple);color:var(--purple-light)}
-.btn-primary{background:linear-gradient(135deg,var(--purple),var(--purple-light));border:none;color:#031013;padding:0.55rem 1.15rem;border-radius:10px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;font-weight:700;transition:opacity 0.2s}
-.btn-primary:hover{opacity:0.9}
-.hero{text-align:center;padding:4.5rem 1.25rem 3rem;max-width:760px;margin:0 auto}
-.hero-badge{display:inline-block;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:var(--purple-light);padding:0.4rem 1rem;border-radius:100px;font-size:0.85rem;margin-bottom:2rem}
-.hero h1{font-size:clamp(2.15rem,9vw,4.2rem);font-weight:700;line-height:1.04;margin-bottom:1.15rem}
-.hero h1 span{background:linear-gradient(135deg,var(--purple-light),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hero p{color:var(--muted);font-size:1.15rem;line-height:1.7;max-width:540px;margin:0 auto 2.5rem}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+::selection{background:rgba(0,255,200,.18);color:#fff}
+
+/* NAV */
+nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.4rem;position:sticky;top:0;z-index:100;background:rgba(3,5,10,.85);backdrop-filter:blur(18px);border-bottom:1px solid rgba(0,255,200,.07)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.25rem;letter-spacing:-.03em;display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--text)}
+.logo em{color:var(--accent);font-style:normal}
+.nav-btns{display:flex;gap:.65rem;align-items:center}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.45rem 1.1rem;border-radius:8px;font-size:.875rem;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;text-decoration:none;display:inline-block}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn-cta{background:var(--accent);border:none;color:#030e0a;padding:.5rem 1.2rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.875rem;font-weight:700;transition:all .2s;text-decoration:none;display:inline-block}
+.btn-cta:hover{transform:translateY(-1px);box-shadow:0 0 24px rgba(0,255,200,.35)}
+
+/* HERO */
+.hero-wrap{position:relative;padding:6rem 1.5rem 4rem;text-align:center;overflow:hidden}
+.hero-glow{position:absolute;top:-180px;left:50%;transform:translateX(-50%);width:700px;height:700px;background:radial-gradient(circle,rgba(0,255,200,.09) 0,transparent 65%);pointer-events:none}
+.hero-glow2{position:absolute;top:100px;right:-200px;width:500px;height:500px;background:radial-gradient(circle,rgba(0,170,255,.06) 0,transparent 60%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:.45rem;background:rgba(0,255,200,.08);border:1px solid rgba(0,255,200,.2);color:var(--accent);padding:.35rem 1rem;border-radius:100px;font-size:.8rem;font-weight:600;margin-bottom:2.2rem;letter-spacing:.04em;text-transform:uppercase}
+.hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+h1.hero-title{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(2.4rem,9vw,5rem);line-height:.98;letter-spacing:-.045em;margin-bottom:1.5rem;max-width:820px;margin-left:auto;margin-right:auto}
+h1.hero-title .hl{display:inline-block;background:linear-gradient(130deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{color:var(--muted);font-size:1.1rem;line-height:1.7;max-width:520px;margin:0 auto 2.8rem}
 .hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.btn-large{padding:0.9rem 2rem;border-radius:10px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s}
-.btn-large.primary{background:linear-gradient(135deg,var(--purple),var(--pink));border:none;color:white}
-.btn-large.primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(124,58,237,0.4)}
-.btn-large.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
-.btn-large.ghost:hover{border-color:var(--purple-light)}
-.glow{position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,0.12) 0%,transparent 70%);top:-200px;left:50%;transform:translateX(-50%);pointer-events:none}
-.section{padding:5rem 2rem;max-width:1100px;margin:0 auto}
-.section-label{text-align:center;color:var(--purple-light);font-size:0.85rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-bottom:1rem}
-.section h2{text-align:center;font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;margin-bottom:1rem}
-.section p.sub{text-align:center;color:var(--muted);max-width:500px;margin:0 auto 3rem}
-.examples-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem}
-.example-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;transition:border-color 0.2s}
-.example-card:hover{border-color:var(--purple)}
-.example-card .tag{display:inline-block;background:rgba(124,58,237,0.15);color:var(--purple-light);padding:0.25rem 0.75rem;border-radius:100px;font-size:0.75rem;margin-bottom:1rem}
-.example-card .prompt{color:var(--muted);font-size:0.85rem;margin-bottom:1rem;font-style:italic}
-.example-card .output{color:var(--text);font-size:0.95rem;line-height:1.6}
-.example-card .output p{margin-bottom:0.5rem;padding-left:0.75rem;border-left:2px solid var(--purple)}
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:2rem;margin-top:3rem}
-.step{text-align:center}
-.step-num{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.1rem;margin:0 auto 1rem}
-.step h3{font-size:1.1rem;margin-bottom:0.5rem}
-.step p{color:var(--muted);font-size:0.9rem;line-height:1.6}
-.regions{display:flex;flex-wrap:wrap;gap:0.75rem;justify-content:center;margin-top:2rem}
-.region-tag{background:var(--card);border:1px solid var(--border);padding:0.5rem 1.2rem;border-radius:100px;font-size:0.9rem}
-.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:2rem;margin-top:3rem;max-width:700px;margin-left:auto;margin-right:auto}
-.price-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2rem}
-.price-card.featured{border-color:var(--purple);position:relative}
-.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple),var(--pink));color:white;font-size:0.7rem;font-weight:700;padding:0.25rem 1rem;border-radius:100px;font-family:'Space Grotesk',sans-serif;letter-spacing:1px}
-.price-label{color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem}
-.price-amount{font-family:'Space Grotesk',sans-serif;font-size:2.5rem;font-weight:800;margin-bottom:0.25rem}
-.price-period{color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem}
-.price-features{list-style:none;margin-bottom:2rem}
-.price-features li{padding:0.5rem 0;border-bottom:1px solid var(--border);font-size:0.9rem;color:var(--muted)}
-.price-features li span{color:var(--text)}
-.price-features li::before{content:'✓ ';color:var(--purple-light)}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:1000;align-items:center;justify-content:center}
+.btn-hero{padding:.9rem 2.2rem;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .25s;text-decoration:none;display:inline-flex;align-items:center;gap:.5rem}
+.btn-hero.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#030e0a;border:none}
+.btn-hero.primary:hover{transform:translateY(-2px);box-shadow:0 8px 36px rgba(0,255,200,.3)}
+.btn-hero.outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-hero.outline:hover{border-color:var(--accent);color:var(--accent)}
+.hero-note{margin-top:1.6rem;color:var(--muted);font-size:.82rem}
+.hero-note span{color:var(--accent)}
+
+/* TICKER */
+.ticker-wrap{overflow:hidden;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:rgba(7,17,28,.6);padding:.65rem 0;margin:2rem 0}
+.ticker{display:flex;gap:2.5rem;animation:tick 28s linear infinite;white-space:nowrap}
+.ticker span{color:var(--muted);font-size:.8rem;letter-spacing:.06em;text-transform:uppercase}
+.ticker strong{color:var(--accent);font-weight:700}
+@keyframes tick{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* EXAMPLES SECTION */
+.section{padding:5rem 1.5rem;max-width:1150px;margin:0 auto}
+.section-tag{display:block;text-align:center;color:var(--accent);font-size:.75rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:.9rem}
+.section-title{text-align:center;font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1.7rem,4vw,2.8rem);letter-spacing:-.04em;margin-bottom:.8rem}
+.section-sub{text-align:center;color:var(--muted);max-width:480px;margin:0 auto 3rem;line-height:1.65}
+.examples-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.25rem}
+.ex-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.4rem;transition:border-color .2s,transform .2s}
+.ex-card:hover{border-color:rgba(0,255,200,.3);transform:translateY(-3px)}
+.ex-tag{display:inline-block;background:rgba(0,255,200,.1);color:var(--accent);padding:.2rem .7rem;border-radius:100px;font-size:.72rem;font-weight:600;margin-bottom:.9rem;letter-spacing:.05em;text-transform:uppercase}
+.ex-prompt{color:var(--muted);font-size:.82rem;margin-bottom:.85rem;font-style:italic}
+.ex-output{color:var(--text);font-size:.9rem;line-height:1.65}
+.ex-output p{margin-bottom:.45rem;padding-left:.7rem;border-left:2px solid var(--accent)}
+
+/* HOW IT WORKS */
+.steps-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1.5rem;margin-top:3rem}
+.step{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.6rem}
+.step-num{font-family:'Syne',sans-serif;font-weight:800;font-size:2.2rem;color:rgba(0,255,200,.2);line-height:1;margin-bottom:.8rem}
+.step h3{font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:700;margin-bottom:.5rem}
+.step p{color:var(--muted);font-size:.875rem;line-height:1.6}
+
+/* FEATURES */
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.25rem}
+.feat{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.5rem;display:flex;gap:1rem;align-items:flex-start;transition:border-color .2s}
+.feat:hover{border-color:rgba(0,255,200,.25)}
+.feat-icon{font-size:1.6rem;flex-shrink:0}
+.feat-body h3{font-family:'Syne',sans-serif;font-size:.95rem;font-weight:700;margin-bottom:.35rem}
+.feat-body p{color:var(--muted);font-size:.83rem;line-height:1.55}
+
+/* PRICING */
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;max-width:720px;margin:3rem auto 0}
+.plan{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:2rem;position:relative}
+.plan.pro{border-color:rgba(0,255,200,.4);background:linear-gradient(145deg,#0a1f2b,#0b1928)}
+.plan-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--accent);color:#030e0a;font-size:.7rem;font-weight:800;padding:.25rem .85rem;border-radius:100px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.plan h3{font-family:'Syne',sans-serif;font-weight:800;font-size:1.2rem;margin-bottom:.3rem}
+.plan .price{font-family:'Syne',sans-serif;font-size:2.5rem;font-weight:800;line-height:1;margin:.8rem 0 .3rem}
+.plan .price span{font-size:1rem;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:400}
+.plan .pdesc{color:var(--muted);font-size:.85rem;margin-bottom:1.4rem;line-height:1.5}
+.plan ul{list-style:none;display:grid;gap:.55rem;margin-bottom:1.6rem}
+.plan ul li{font-size:.875rem;color:var(--text);display:flex;align-items:center;gap:.5rem}
+.plan ul li::before{content:'✓';color:var(--accent);font-weight:700;font-size:.8rem;flex-shrink:0}
+.plan-btn{width:100%;padding:.8rem;border-radius:10px;font-size:.925rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;border:none}
+.plan-btn.free{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.plan-btn.free:hover{border-color:var(--accent);color:var(--accent)}
+.plan-btn.prm{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#030e0a}
+.plan-btn.prm:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(0,255,200,.3)}
+
+/* CTA BAND */
+.cta-band{background:linear-gradient(135deg,rgba(0,255,200,.08),rgba(0,170,255,.05));border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:4rem 1.5rem;text-align:center;margin:4rem 0 0}
+.cta-band h2{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1.8rem,5vw,3rem);letter-spacing:-.04em;margin-bottom:.8rem}
+.cta-band p{color:var(--muted);margin-bottom:2rem;line-height:1.6}
+
+/* FOOTER */
+footer{padding:2rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border-top:1px solid var(--border);max-width:1150px;margin:0 auto}
+footer .brand{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem}
+footer .brand em{color:var(--accent);font-style:normal}
+footer .links{display:flex;gap:1.5rem}
+footer .links a{color:var(--muted);font-size:.8rem;text-decoration:none;transition:color .2s}
+footer .links a:hover{color:var(--accent)}
+footer .copy{color:var(--muted);font-size:.75rem}
+
+/* AUTH MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
 .modal-overlay.active{display:flex}
-.modal{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2.5rem;width:90%;max-width:420px}
-.modal h2{font-size:1.5rem;margin-bottom:0.5rem}
-.modal p{color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem}
-.tabs{display:flex;gap:0.5rem;margin-bottom:1.5rem;background:var(--surface);padding:0.25rem;border-radius:8px}
-.tab{flex:1;padding:0.6rem;text-align:center;border-radius:6px;cursor:pointer;font-size:0.9rem;transition:all 0.2s;border:none;background:transparent;color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif}
-.tab.active{background:var(--purple);color:white}
+.modal{background:#0b1928;border:1px solid rgba(0,255,200,.2);border-radius:22px;padding:2rem;width:100%;max-width:420px;margin:1rem}
+.modal h2{font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;margin-bottom:.35rem}
+.modal p{color:var(--muted);font-size:.875rem;margin-bottom:1.5rem;line-height:1.5}
+.modal-tabs{display:flex;background:#071018;border-radius:10px;padding:3px;gap:3px;margin-bottom:1.4rem}
+.modal-tab{flex:1;padding:.55rem;border:none;border-radius:8px;background:transparent;color:var(--muted);font-size:.875rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif}
+.modal-tab.active{background:#14253a;color:var(--text)}
 .form-group{margin-bottom:1rem}
-.form-group label{display:block;font-size:0.85rem;color:var(--muted);margin-bottom:0.4rem}
-.form-group input, .form-group select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.75rem 1rem;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.95rem;outline:none;transition:border-color 0.2s}
-.form-group input:focus, .form-group select:focus{border-color:var(--purple)}
-.form-error{color:#f87171;font-size:0.85rem;margin-top:0.5rem;display:none}
-.btn-full{width:100%;padding:0.85rem;border-radius:8px;font-size:1rem;font-weight:500;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;margin-top:0.5rem}
-footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:var(--muted);font-size:0.85rem}
+.form-group label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:.45rem;letter-spacing:.04em;text-transform:uppercase}
+.form-group input,.form-group select{width:100%;background:#071018;border:1px solid var(--border);color:var(--text);padding:.75rem 1rem;border-radius:10px;font-size:.9rem;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s}
+.form-group input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,255,200,.08)}
+.form-error{display:none;color:#fb7185;font-size:.82rem;margin-bottom:.85rem;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:.6rem .85rem;border-radius:8px}
+.modal-btn{width:100%;padding:.85rem;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#030e0a;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;margin-bottom:.75rem}
+.modal-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,255,200,.25)}
+.modal-cancel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.83rem;font-family:'DM Sans',sans-serif;width:100%;padding:.4rem}
+.modal-cancel:hover{color:var(--text)}
+
 @media(max-width:600px){
-  nav{padding:.75rem 1rem}
-  .logo{font-size:1rem}
-  .nav-btns{gap:.5rem}
-  .btn-ghost,.btn-primary{padding:.48rem .82rem;font-size:.82rem;border-radius:9px}
-  .hero{padding:3.15rem 1rem 2.3rem}
-  .hero-badge{font-size:.75rem;margin-bottom:1.1rem;padding:.32rem .78rem}
-  .hero h1{font-size:2.05rem;line-height:1.04;margin-bottom:1rem}
-  .hero p{font-size:.98rem;line-height:1.65}
-  .section{padding:2.45rem 1rem}
-  .section h2{font-size:1.75rem;line-height:1.12}
+  nav{padding:.7rem 1rem}
+  .hero-wrap{padding:4rem 1rem 3rem}
+  .section{padding:3.5rem 1rem}
+  footer{flex-direction:column;text-align:center}
+  footer .links{justify-content:center}
 }
 </style>
 </head>
 <body>
-<div class="glow"></div>
+
+<!-- NAV -->
 <nav>
-  <div class="logo" style="display:flex;align-items:center;gap:10px;text-decoration:none">
-    <svg width="34" height="34" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="98" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+  <a class="logo" href="/">
+    <svg width="26" height="26" viewBox="0 0 200 200" fill="none">
       <defs>
-        <linearGradient id="tG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="rgba(255,255,255,0.7)"/></linearGradient>
-        <linearGradient id="gG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+        <linearGradient id="hG1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffc8"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient>
+        <linearGradient id="hG2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffc8"/></linearGradient>
       </defs>
-      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#tG)"/>
-      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#tG)"/>
-      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#gG)" stroke-width="7" fill="none" stroke-linecap="round"/>
-      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#gG)"/>
+      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#hG1)"/>
+      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#hG1)"/>
+      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#hG2)" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#hG2)"/>
     </svg>
-    <span>TikGenius</span>
-  </div>
+    Tik<em>Genius</em>
+  </a>
   <div class="nav-btns">
-    <a href="/download" class="btn-ghost">⬇ Downloader</a>
-    <button class="btn-ghost" onclick="openModal('login')">Log in</button>
-    <button class="btn-primary" onclick="openModal('signup')">Get Started Free</button>
+    <a class="btn-ghost" href="/download">⬇ Downloader</a>
+    <a class="btn-ghost" href="#" onclick="openModal('login');return false">Log In</a>
+    <a class="btn-cta" href="#" onclick="openModal('signup');return false">Start Free →</a>
   </div>
 </nav>
-<section style="position:relative">
-  <div class="hero">
-    <div class="hero-badge">✦ AI-Powered Content for Creators</div>
-    <h1>Go viral.<br><span>In your voice.</span></h1>
-    <p>TikGenius writes your TikTok captions, hooks, POVs, scripts, and Twitter threads — in the cultural voice that actually resonates with your audience.</p>
-    <div class="hero-btns">
-      <button class="btn-large primary" onclick="openModal('signup')">Start Free — No Card Needed</button>
-      <a href="/download" style="text-decoration:none"><button class="btn-large ghost">⬇ Download TikToks</button></a>
-    </div>
+
+<!-- HERO -->
+<div class="hero-wrap">
+  <div class="hero-glow"></div>
+  <div class="hero-glow2"></div>
+  <div class="hero-badge">✦ AI-powered for TikTok &amp; X creators</div>
+  <h1 class="hero-title">Go Viral.<br><span class="hl">In Your Voice.</span></h1>
+  <p class="hero-sub">Generate captions, hooks, POVs, scripts, hashtags and X threads that actually perform — tuned to your culture and niche.</p>
+  <div class="hero-btns">
+    <a class="btn-hero primary" href="#" onclick="openModal('signup');return false">✦ Start for Free</a>
+    <a class="btn-hero outline" href="/download">⬇ Download TikToks</a>
   </div>
-</section>
-<section class="section">
-  <div class="section-label">Real Output</div>
-  <h2>Content that actually hits</h2>
-  <p class="sub">See what TikGenius writes — ready to copy and post</p>
+  <p class="hero-note">Free forever · No credit card · <span>5 generations/day free</span></p>
+</div>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <span>Viral Captions</span><strong>·</strong>
+    <span>Scroll-Stopping Hooks</span><strong>·</strong>
+    <span>POV Concepts</span><strong>·</strong>
+    <span>Full Video Scripts</span><strong>·</strong>
+    <span>Hashtag Sets</span><strong>·</strong>
+    <span>X Threads</span><strong>·</strong>
+    <span>X Hooks</span><strong>·</strong>
+    <span>7 Regions Supported</span><strong>·</strong>
+    <span>Viral Captions</span><strong>·</strong>
+    <span>Scroll-Stopping Hooks</span><strong>·</strong>
+    <span>POV Concepts</span><strong>·</strong>
+    <span>Full Video Scripts</span><strong>·</strong>
+    <span>Hashtag Sets</span><strong>·</strong>
+    <span>X Threads</span><strong>·</strong>
+    <span>X Hooks</span><strong>·</strong>
+    <span>7 Regions Supported</span><strong>·</strong>
+  </div>
+</div>
+
+<!-- EXAMPLES -->
+<div class="section">
+  <span class="section-tag">Real outputs</span>
+  <h2 class="section-title">Content that hits different</h2>
+  <p class="section-sub">Every output is crafted for your niche, audience, and culture — not generic AI filler.</p>
   <div class="examples-grid">
-    <div class="example-card">
-      <div class="tag">TikTok Captions</div>
-      <div class="prompt">Topic: "I work so hard but I'm still broke"</div>
-      <div class="output">
-        <p>I used to think hard work guaranteed results. Nobody told me about the gap in between.</p>
-        <p>Working hard in silence because not everyone needs to see the process. The results will speak.</p>
-        <p>Nobody prepared me for how lonely the building phase would feel. 😭</p>
+    <div class="ex-card">
+      <div class="ex-tag">TikTok Captions</div>
+      <div class="ex-prompt">Topic: "soft life" hustle balance for Nigerian women</div>
+      <div class="ex-output">
+        <p>Nobody warned me that ambition and peace could coexist.</p>
+        <p>I chose both. I don't apologise for either.</p>
+        <p>Soft life isn't lazy. It's strategic.</p>
       </div>
     </div>
-    <div class="example-card">
-      <div class="tag">TikTok Hooks</div>
-      <div class="prompt">Topic: "I prayed for this life and I'm still not happy"</div>
-      <div class="output">
-        <p>God answered every prayer. I still found something to worry about.</p>
-        <p>Tell me why I got everything I asked for and I'm still not satisfied 😭</p>
-        <p>POV: you built the life you dreamed about. The dream forgot to mention the anxiety.</p>
+    <div class="ex-card">
+      <div class="ex-tag">Viral Hooks</div>
+      <div class="ex-prompt">Topic: building a brand as a broke 22-year-old</div>
+      <div class="ex-output">
+        <p>I had ₦4,000 and a borrowed laptop. Here's what happened in 90 days.</p>
+        <p>The algorithm doesn't care about your budget. It cares about your story.</p>
+        <p>Nobody tells you the first 100 posts feel like screaming into a void.</p>
       </div>
     </div>
-    <div class="example-card">
-      <div class="tag">Twitter / X</div>
-      <div class="prompt">Topic: "Why resting feels like a crime"</div>
-      <div class="output">
-        <p>You are not lazy. You are exhausted. There is a difference and nobody let you learn it.</p>
-        <p>Rest is not a reward for finishing everything. Nothing is ever finished. Rest anyway.</p>
-        <p>Success without peace is just a well-funded anxiety attack.</p>
+    <div class="ex-card">
+      <div class="ex-tag">X Thread</div>
+      <div class="ex-prompt">Topic: why consistency beats talent on TikTok</div>
+      <div class="ex-output">
+        <p>Talented creators quit every week. Consistent ones get rich. Here's the math:</p>
+        <p>Post 365 times before judging your growth. Most people quit at day 12.</p>
+        <p>Every "viral" creator you envy has 300 forgotten videos you never saw.</p>
       </div>
     </div>
   </div>
-</section>
-<section class="section">
-  <div class="section-label">How It Works</div>
-  <h2>Three steps to viral content</h2>
-  <div class="steps">
-    <div class="step"><div class="step-num">1</div><h3>Pick your region</h3><p>Choose your cultural voice — Nigerian, American, British, Caribbean, East African, South African, or Global.</p></div>
-    <div class="step"><div class="step-num">2</div><h3>Type your topic</h3><p>Describe what your video or post is about. The more specific, the better the output.</p></div>
-    <div class="step"><div class="step-num">3</div><h3>Copy and post</h3><p>Get captions, hooks, POVs, scripts, or threads instantly — ready to paste directly into TikTok or Twitter.</p></div>
+</div>
+
+<!-- HOW IT WORKS -->
+<div class="section" style="padding-top:1rem">
+  <span class="section-tag">How it works</span>
+  <h2 class="section-title">Three steps to viral</h2>
+  <div class="steps-grid">
+    <div class="step"><div class="step-num">01</div><h3>Choose your mode</h3><p>Pick from captions, hooks, POVs, scripts, hashtags, X threads — whatever you need today.</p></div>
+    <div class="step"><div class="step-num">02</div><h3>Describe your topic</h3><p>Tell TikGenius your niche, audience, emotion and goal. The more specific, the better the output.</p></div>
+    <div class="step"><div class="step-num">03</div><h3>Copy and post</h3><p>Get 5–10 ready-to-post outputs. Pick the best one, copy it, and watch the views come in.</p></div>
   </div>
-</section>
-<section class="section">
-  <div class="section-label">Global</div>
-  <h2>Your culture. Your voice.</h2>
-  <p class="sub">TikGenius writes in the cultural voice that resonates with your audience</p>
-  <div class="regions">
-    <span class="region-tag">🇳🇬 Nigerian</span>
-    <span class="region-tag">🇺🇸 American</span>
-    <span class="region-tag">🇬🇧 British</span>
-    <span class="region-tag">🇯🇲 Caribbean</span>
-    <span class="region-tag">🇰🇪 East African</span>
-    <span class="region-tag">🇿🇦 South African</span>
-    <span class="region-tag">🌍 Global</span>
+</div>
+
+<!-- FEATURES -->
+<div class="section" style="padding-top:1rem">
+  <span class="section-tag">Features</span>
+  <h2 class="section-title">Everything a creator needs</h2>
+  <div class="features-grid">
+    <div class="feat"><div class="feat-icon">🌍</div><div class="feat-body"><h3>7 Cultural Voices</h3><p>Nigerian, American, British, Caribbean, East African, South African, or Global — your audience, your language.</p></div></div>
+    <div class="feat"><div class="feat-icon">⚡</div><div class="feat-body"><h3>Instant AI Generation</h3><p>10+ outputs per prompt in under 5 seconds, powered by the latest large language model.</p></div></div>
+    <div class="feat"><div class="feat-icon">🎬</div><div class="feat-body"><h3>Full Video Scripts</h3><p>Hook, body, punchline and CTA — structured exactly how viral TikToks are built.</p></div></div>
+    <div class="feat"><div class="feat-icon">🐦</div><div class="feat-body"><h3>X / Twitter Tools</h3><p>Viral tweets, thread starters, and full multi-tweet threads for maximum X reach.</p></div></div>
+    <div class="feat"><div class="feat-icon">📥</div><div class="feat-body"><h3>TikTok Downloader</h3><p>Download any TikTok video in HD, no watermark, plus audio extraction. Free users get 3/day.</p></div></div>
+    <div class="feat"><div class="feat-icon">📊</div><div class="feat-body"><h3>Strategy-Backed Hashtags</h3><p>5 optimised hashtag sets per prompt — reach tags, niche tags, and community tags combined.</p></div></div>
   </div>
-</section>
-<section class="section">
-  <div class="section-label">Pricing</div>
-  <h2>Simple pricing</h2>
+</div>
+
+<!-- PRICING -->
+<div class="section" style="padding-top:1rem">
+  <span class="section-tag">Pricing</span>
+  <h2 class="section-title">Simple, creator-friendly pricing</h2>
+  <p class="section-sub">Start free. Upgrade when you're ready to go all-in.</p>
   <div class="pricing-grid">
-    <div class="price-card">
-      <div class="price-label">Free Forever</div>
-      <div class="price-amount">₦0</div>
-      <div class="price-period">5 generations per day</div>
-      <ul class="price-features">
-        <li><span>Hooks, captions, POVs</span></li>
-        <li><span>Hashtag sets</span></li>
-        <li><span>Bios</span></li>
-        <li><span>All 7 regions</span></li>
-        <li><span>TikTok + Twitter/X</span></li>
+    <div class="plan">
+      <h3>Free</h3>
+      <div class="price">₦0 <span>/forever</span></div>
+      <p class="pdesc">Perfect for creators just starting out.</p>
+      <ul>
+        <li>5 AI generations per day</li>
+        <li>3 TikTok downloads per day</li>
+        <li>All 7 content modes</li>
+        <li>All 7 cultural regions</li>
+        <li>Generation history</li>
       </ul>
-      <button class="btn-primary btn-full" onclick="openModal('signup')">Start Free</button>
+      <button class="plan-btn free" onclick="openModal('signup')">Get Started Free</button>
     </div>
-    <div class="price-card featured">
-      <div class="price-label">Pro</div>
-      <div class="price-amount">₦2,000</div>
-      <div class="price-period">per month — unlimited everything</div>
-      <ul class="price-features">
-        <li><span>Everything in Free</span></li>
-        <li><span>Full 60-second scripts</span></li>
-        <li><span>Full X threads</span></li>
-        <li><span>Trend ideas for your niche</span></li>
-        <li><span>No daily limits ever</span></li>
-        <li><span>Instant TikTok downloads</span></li>
+    <div class="plan pro">
+      <div class="plan-badge">✦ Most Popular</div>
+      <h3>Premium</h3>
+      <div class="price">₦2,000 <span>/month</span></div>
+      <p class="pdesc">For serious creators who post daily and need unlimited firepower.</p>
+      <ul>
+        <li>Unlimited AI generations</li>
+        <li>Unlimited TikTok downloads</li>
+        <li>All 7 content modes</li>
+        <li>All 7 cultural regions</li>
+        <li>Full generation history</li>
+        <li>Priority response speed</li>
       </ul>
-      <button class="btn-primary btn-full" onclick="openModal('signup')">Get Pro</button>
+      <button class="plan-btn prm" onclick="openModal('signup')">Upgrade to Premium →</button>
     </div>
   </div>
-</section>
+</div>
+
+<!-- CTA BAND -->
+<div class="cta-band">
+  <h2>Ready to go viral?</h2>
+  <p>Join creators who use TikGenius every day to stay consistent and grow faster.</p>
+  <div class="hero-btns">
+    <a class="btn-hero primary" href="#" onclick="openModal('signup');return false">✦ Start for Free</a>
+    <a class="btn-hero outline" href="/download">Try the Downloader</a>
+  </div>
+</div>
+
+<!-- FOOTER -->
 <footer>
-  <style>
-    .footer-logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:0.75rem}
-    .footer-logo span{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.4rem;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-    .footer-tagline{color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem}
-    .social-links{display:flex;gap:1rem;justify-content:center;margin-bottom:1.5rem;flex-wrap:wrap}
-    .social-link{display:flex;align-items:center;gap:6px;padding:0.45rem 1rem;border-radius:100px;border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.45);font-size:0.82rem;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:none;transition:all 0.2s;background:rgba(255,255,255,0.03)}
-    .social-link:hover{color:white;border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
-    .social-link svg{width:14px;height:14px;flex-shrink:0}
-    .footer-copy{color:rgba(255,255,255,0.15);font-size:0.78rem}
-  </style>
-  <div class="footer-logo">
-    <svg width="32" height="32" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="ftG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="rgba(255,255,255,0.7)"/></linearGradient>
-        <linearGradient id="fgG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
-      </defs>
-      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#ftG)"/>
-      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#ftG)"/>
-      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#fgG)" stroke-width="7" fill="none" stroke-linecap="round"/>
-      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#fgG)"/>
-    </svg>
-    <span>TikGenius</span>
+  <div class="brand">Tik<em>Genius</em></div>
+  <div class="links">
+    <a href="/dashboard">AI Studio</a>
+    <a href="/download">Downloader</a>
   </div>
-  <div class="footer-tagline">AI content studio for TikTok &amp; X creators worldwide</div>
-  <div class="social-links">
-    <a class="social-link" href="https://www.tiktok.com/@tik_genius_" target="_blank" rel="noopener">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.19 8.19 0 004.79 1.54V6.78a4.85 4.85 0 01-1.02-.09z"/></svg>
-      TikTok
-    </a>
-    <a class="social-link" href="https://x.com/tikgenius" target="_blank" rel="noopener">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.259 5.631 5.905-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-      Twitter / X
-    </a>
-  </div>
-  <div class="footer-copy">&copy; 2025 TikGenius — Built for creators worldwide</div>
+  <div class="copy">© 2025 TikGenius</div>
 </footer>
+
 <!-- AUTH MODAL -->
 <div class="modal-overlay" id="authModal">
   <div class="modal">
     <h2 id="modalTitle">Create your account</h2>
-    <p id="modalSub">Start generating viral content for free</p>
-    <div class="tabs">
-      <button class="tab active" id="signupTab" onclick="switchTab('signup')">Sign Up</button>
-      <button class="tab" id="loginTab" onclick="switchTab('login')">Log In</button>
+    <p id="modalSub">Start generating viral content — 5 free generations per day</p>
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="signupTab" onclick="switchTab('signup')">Sign Up</button>
+      <button class="modal-tab" id="loginTab" onclick="switchTab('login')">Log In</button>
     </div>
     <div id="signupForm">
       <div class="form-group"><label>Email</label><input type="email" id="signupEmail" placeholder="you@example.com"></div>
       <div class="form-group"><label>Password</label><input type="password" id="signupPassword" placeholder="Min 6 characters"></div>
       <div class="form-group">
-        <label>Your Content Region</label>
+        <label>Your Region</label>
         <select id="signupRegion">
-          <option value="nigeria">🇳🇬 Nigerian / West African</option>
+          <option value="global">🌍 Global</option>
+          <option value="nigeria">🇳🇬 Nigerian</option>
           <option value="usa">🇺🇸 American</option>
           <option value="uk">🇬🇧 British</option>
           <option value="caribbean">🇯🇲 Caribbean</option>
           <option value="eastafrica">🇰🇪 East African</option>
           <option value="southafrica">🇿🇦 South African</option>
-          <option value="global" selected>🌍 Global / General</option>
         </select>
       </div>
       <div class="form-error" id="signupError"></div>
-      <button class="btn-primary btn-full" onclick="doSignup()">Create Account</button>
+      <button class="modal-btn" onclick="doSignup()">Create Account →</button>
     </div>
     <div id="loginForm" style="display:none">
       <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com"></div>
       <div class="form-group"><label>Password</label><input type="password" id="loginPassword" placeholder="Your password"></div>
       <div class="form-error" id="loginError"></div>
-      <button class="btn-primary btn-full" onclick="doLogin()">Log In</button>
+      <button class="modal-btn" onclick="doLogin()">Log In →</button>
     </div>
-    <div style="text-align:center;margin-top:1rem">
-      <button onclick="closeModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem">Cancel</button>
-    </div>
+    <button class="modal-cancel" onclick="closeModal()">Cancel</button>
   </div>
 </div>
+
 <script>
-function openModal(tab){document.getElementById('authModal').classList.add('active');switchTab(tab)}
+function openModal(tab){document.getElementById('authModal').classList.add('active');switchTab(tab||'signup')}
 function closeModal(){document.getElementById('authModal').classList.remove('active')}
 function switchTab(tab){
   document.getElementById('signupForm').style.display=tab==='signup'?'block':'none';
@@ -1644,7 +1703,7 @@ function switchTab(tab){
   document.getElementById('signupTab').classList.toggle('active',tab==='signup');
   document.getElementById('loginTab').classList.toggle('active',tab==='login');
   document.getElementById('modalTitle').textContent=tab==='signup'?'Create your account':'Welcome back';
-  document.getElementById('modalSub').textContent=tab==='signup'?'Start generating viral content for free':'Log in to your TikGenius account';
+  document.getElementById('modalSub').textContent=tab==='signup'?'Start generating viral content — 5 free generations per day':'Log in to your TikGenius account';
 }
 async function doSignup(){
   const email=document.getElementById('signupEmail').value;
@@ -1678,32 +1737,175 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>TikGenius Studio</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#070b10;--panel:#0d141d;--panel2:#111b27;--line:#213041;--text:#eef6ff;--muted:#8fa0b5;--brand:#14b8a6;--brand2:#38bdf8;--gold:#f6b21a;--danger:#fb7185}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top right,#102435 0,#070b10 38%);color:var(--text);font-family:Inter,system-ui,sans-serif;min-height:100vh}.app{display:grid;grid-template-columns:310px 1fr;min-height:100vh}.side{background:rgba(13,20,29,.92);border-right:1px solid var(--line);padding:18px;position:sticky;top:0;height:100vh;overflow:auto}.logo{font-weight:800;font-size:23px;letter-spacing:-.04em;margin-bottom:14px}.logo span{color:var(--brand2)}.user{font-size:12px;color:var(--muted);padding:10px 12px;background:#0a1018;border:1px solid var(--line);border-radius:14px;margin-bottom:12px}.usage{padding:14px;background:linear-gradient(135deg,#10202b,#111827);border:1px solid var(--line);border-radius:16px;margin-bottom:14px}.usage strong{display:block;font-size:14px;margin-bottom:8px}.bar{height:8px;background:#1e293b;border-radius:999px;overflow:hidden}.fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));width:100%}.upgrade{display:none;margin-top:10px;background:linear-gradient(135deg,#14b8a6,#f6b21a);border:0;color:#061018;border-radius:12px;font-weight:800;padding:11px;width:100%}.upgrade.show{display:block}.section-title{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:18px 4px 9px}.modes{display:grid;gap:7px}.mode{border:1px solid transparent;background:transparent;color:var(--muted);text-align:left;padding:11px 12px;border-radius:12px;font-weight:650}.mode.active,.mode:hover{background:#111b27;color:var(--text);border-color:var(--line)}.dl-link{display:block;text-decoration:none;margin-top:8px;padding:11px 12px;border-radius:12px;background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.25);color:var(--brand2);font-size:13px;font-weight:700;text-align:center}.dl-link:hover{background:rgba(20,184,166,.18)}.history-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 4px 9px}.history-head .section-title{margin:0}.clear-history{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 9px;font-size:11px;font-weight:700}.clear-history:hover{color:var(--text);border-color:var(--brand2)}.history{display:grid;gap:8px}.hist{padding:10px;background:#0a1018;border:1px solid var(--line);border-radius:12px;cursor:pointer}.hist b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hist span{font-size:11px;color:var(--muted)}.empty{color:var(--muted);font-size:13px;line-height:1.45;padding:10px;background:#0a1018;border:1px dashed var(--line);border-radius:12px}.logout{margin-top:14px;width:100%;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:10px}.main{padding:20px;max-width:980px;width:100%;margin:0 auto}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px}.mobile-logo{display:none;font-weight:800;font-size:22px}.region{background:#0d141d;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px}.card{background:rgba(13,20,29,.84);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.25)}.guide{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}.tip{background:#081018;border:1px solid var(--line);border-radius:16px;padding:12px}.tip b{font-size:13px}.tip p{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.4}.prompt{width:100%;min-height:150px;background:#071018;color:var(--text);border:1px solid var(--line);border-radius:18px;padding:16px;font:500 16px/1.55 Inter;resize:vertical;outline:none}.prompt:focus{border-color:var(--brand2);box-shadow:0 0 0 4px rgba(56,189,248,.08)}.actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}.hint{font-size:12px;color:var(--muted)}.generate{background:linear-gradient(135deg,var(--brand),var(--gold));border:0;border-radius:14px;color:#061018;font-weight:800;padding:14px 20px;font-size:15px}.error{display:none;margin-top:12px;color:#fecdd3;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.3);padding:12px;border-radius:14px}.premium-lock{display:none;margin-top:14px;padding:16px;border-radius:18px;background:linear-gradient(135deg,rgba(20,184,166,.14),rgba(246,178,26,.12));border:1px solid rgba(246,178,26,.35)}.premium-lock.show{display:block}.premium-lock h3{margin:0 0 6px}.premium-lock p{margin:0 0 12px;color:var(--muted)}.output{display:none;margin-top:16px}.output.show{display:block}.output-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.copy{background:#111b27;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 11px}.result{white-space:pre-wrap;line-height:1.7;color:#dce9f7;background:#071018;border:1px solid var(--line);border-radius:18px;padding:16px}.mobile-history{display:none;margin-bottom:14px}.drawer-btn{display:none;background:#111b27;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 12px}@media(max-width:800px){.app{display:block}.side{display:none}.main{padding:14px}.mobile-logo{display:block}.drawer-btn{display:block}.top{position:sticky;top:0;z-index:5;background:rgba(7,11,16,.94);padding:12px 0;border-bottom:1px solid var(--line)}.guide{grid-template-columns:1fr}.card{padding:14px;border-radius:18px}.prompt{min-height:130px;font-size:15px}.actions{align-items:stretch;flex-direction:column}.generate{width:100%}.mobile-history{display:block}.mobile-history .history{display:flex;overflow:auto;gap:8px;padding-bottom:3px}.mobile-history .hist{min-width:190px}.region{max-width:145px}.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50}.modal.show{display:block}.modal-panel{position:absolute;left:0;top:0;bottom:0;width:85%;max-width:310px;background:#0d141d;border-right:1px solid var(--line);padding:18px;overflow:auto}}@media(min-width:801px){.modal{display:none!important}}
+:root{
+  --bg:#03050a;--panel:#07111c;--panel2:#0b1928;--line:#14253a;
+  --text:#f0f8ff;--muted:#607a90;
+  --accent:#00ffc8;--accent2:#0af;--gold:#ffb800;--danger:#fb7185;
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 80% 0%,rgba(0,170,255,.08),transparent 45%),var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:'Syne',sans-serif;letter-spacing:-.04em}
+
+/* LAYOUT */
+.app{display:grid;grid-template-columns:300px 1fr;min-height:100vh}
+
+/* SIDEBAR */
+.side{background:rgba(7,17,28,.96);border-right:1px solid var(--line);padding:16px;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;gap:0}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;letter-spacing:-.04em;margin-bottom:12px;display:flex;align-items:center;gap:.4rem;color:var(--text)}
+.logo em{color:var(--accent);font-style:normal}
+.user-chip{padding:9px 12px;background:rgba(11,25,40,.8);border:1px solid var(--line);border-radius:12px;font-size:.8rem;color:var(--muted);margin-bottom:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.usage-box{padding:14px;background:linear-gradient(135deg,#071828,#0b1928);border:1px solid var(--line);border-radius:16px;margin-bottom:12px}
+.usage-box strong{display:block;font-size:.875rem;font-weight:600;margin-bottom:8px}
+.bar-bg{height:5px;background:#0f2030;border-radius:99px;overflow:hidden;margin-bottom:8px}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width .4s}
+.upgrade-btn{display:none;width:100%;padding:10px;background:linear-gradient(135deg,var(--accent),var(--gold));border:none;border-radius:10px;color:#030e0a;font-weight:800;font-size:.875rem;font-family:'DM Sans',sans-serif;cursor:pointer;transition:opacity .2s}
+.upgrade-btn.show{display:block}
+.upgrade-btn:hover{opacity:.88}
+.side-label{font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:16px 4px 8px;padding:0}
+.modes{display:grid;gap:5px}
+.mode{border:1px solid transparent;background:transparent;color:var(--muted);text-align:left;padding:10px 12px;border-radius:11px;font-size:.875rem;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;display:flex;align-items:center;gap:.5rem}
+.mode:hover{background:#0b1928;color:var(--text);border-color:var(--line)}
+.mode.active{background:#0f2234;color:var(--accent);border-color:rgba(0,255,200,.25)}
+.dl-link{display:block;text-decoration:none;margin-top:6px;padding:10px 12px;border-radius:11px;background:rgba(0,255,200,.07);border:1px solid rgba(0,255,200,.15);color:var(--accent);font-size:.875rem;font-weight:700;text-align:center;transition:background .2s}
+.dl-link:hover{background:rgba(0,255,200,.13)}
+.hist-head{display:flex;align-items:center;justify-content:space-between;margin:16px 4px 8px}
+.hist-head .side-label{margin:0;padding:0}
+.clear-btn{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:5px 8px;font-size:.7rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s}
+.clear-btn:hover{color:var(--accent);border-color:rgba(0,255,200,.3)}
+.history{display:grid;gap:6px;flex:1;overflow-y:auto}
+.hist-item{padding:9px 10px;background:#07111c;border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:border-color .15s}
+.hist-item:hover{border-color:rgba(0,255,200,.25)}
+.hist-item b{display:block;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.hist-item span{font-size:.72rem;color:var(--muted);margin-top:2px;display:block}
+.empty-hist{color:var(--muted);font-size:.8rem;line-height:1.5;padding:9px 10px;background:#07111c;border:1px dashed var(--line);border-radius:10px}
+.logout-btn{margin-top:12px;width:100%;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:10px;padding:9px;font-family:'DM Sans',sans-serif;font-size:.8rem;cursor:pointer;transition:all .2s}
+.logout-btn:hover{color:var(--danger);border-color:rgba(251,113,133,.3)}
+
+/* MAIN */
+.main{padding:24px;max-width:960px;width:100%;margin:0 auto}
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px}
+.mobile-logo{display:none;font-family:'Syne',sans-serif;font-weight:800;font-size:1.2rem}
+.mobile-logo em{color:var(--accent);font-style:normal}
+.drawer-btn{display:none;background:#0b1928;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:.85rem;cursor:pointer;font-family:'DM Sans',sans-serif}
+.region-select{background:#07111c;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:.875rem;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer}
+
+/* MOBILE HISTORY */
+.mobile-history{display:none;margin-bottom:16px}
+.mob-hist-scroll{display:flex;overflow-x:auto;gap:8px;padding-bottom:3px}
+.mob-hist-scroll .hist-item{min-width:180px;flex-shrink:0}
+
+/* GUIDE TIPS */
+.guide{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.tip{background:#071018;border:1px solid var(--line);border-radius:14px;padding:12px}
+.tip b{font-size:.82rem;font-weight:700;color:var(--text);display:block;margin-bottom:4px}
+.tip p{color:var(--muted);font-size:.77rem;line-height:1.45;margin:0}
+
+/* STUDIO CARD */
+.studio-card{background:rgba(7,17,28,.9);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 24px 64px rgba(0,0,0,.3)}
+.prompt-input{width:100%;min-height:145px;background:#050e18;color:var(--text);border:1px solid var(--line);border-radius:16px;padding:15px;font:500 15px/1.6 'DM Sans',sans-serif;resize:vertical;outline:none;transition:border-color .2s}
+.prompt-input:focus{border-color:rgba(0,255,200,.4);box-shadow:0 0 0 3px rgba(0,255,200,.06)}
+.prompt-input::placeholder{color:var(--muted)}
+.actions-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
+.hint{font-size:.77rem;color:var(--muted)}
+.gen-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#030e0a;font-weight:800;padding:13px 22px;font-size:.95rem;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s;white-space:nowrap}
+.gen-btn:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(0,255,200,.3)}
+.gen-btn:disabled{opacity:.5;transform:none;box-shadow:none}
+.err-box{display:none;margin-top:12px;color:#fecdd3;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:11px 14px;border-radius:12px;font-size:.875rem}
+.premium-lock{display:none;margin-top:14px;padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(0,255,200,.08),rgba(255,184,0,.06));border:1px solid rgba(255,184,0,.25)}
+.premium-lock.show{display:block}
+.premium-lock h3{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;margin:0 0 5px}
+.premium-lock p{margin:0 0 12px;color:var(--muted);font-size:.85rem;line-height:1.5}
+
+/* OUTPUT */
+.output-section{display:none;margin-top:20px}
+.output-section.show{display:block}
+.output-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.output-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem}
+.copy-all-btn{background:#0b1928;color:var(--accent);border:1px solid rgba(0,255,200,.25);border-radius:9px;padding:7px 13px;font-size:.8rem;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s}
+.copy-all-btn:hover{background:rgba(0,255,200,.1)}
+
+/* RESULT ITEMS — each with its own copy button */
+.result-list{display:grid;gap:10px}
+.result-item{background:#050e18;border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative;transition:border-color .2s}
+.result-item:hover{border-color:rgba(0,255,200,.2)}
+.result-item-text{white-space:pre-wrap;line-height:1.7;color:#d0e8ff;font-size:.9rem;padding-right:80px}
+.item-copy-btn{position:absolute;top:10px;right:10px;background:#0b1928;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:.72rem;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s;white-space:nowrap}
+.item-copy-btn:hover{color:var(--accent);border-color:rgba(0,255,200,.3);background:rgba(0,255,200,.06)}
+.item-copy-btn.copied{color:var(--accent);border-color:var(--accent)}
+
+/* Raw fallback (for script/non-list output) */
+.result-raw{white-space:pre-wrap;line-height:1.75;color:#d0e8ff;background:#050e18;border:1px solid var(--line);border-radius:16px;padding:16px;font-size:.9rem}
+
+/* MOBILE DRAWER */
+.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;backdrop-filter:blur(4px)}
+.drawer-overlay.show{display:block}
+.drawer-panel{position:absolute;left:0;top:0;bottom:0;width:88%;max-width:300px;background:#07111c;border-right:1px solid var(--line);padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:0}
+
+@media(max-width:820px){
+  .app{display:block}
+  .side{display:none}
+  .main{padding:14px}
+  .mobile-logo{display:block}
+  .drawer-btn{display:block}
+  .top-bar{position:sticky;top:0;z-index:10;background:rgba(3,5,10,.95);padding:12px 0;border-bottom:1px solid var(--line);backdrop-filter:blur(14px)}
+  .guide{grid-template-columns:1fr}
+  .studio-card{padding:14px;border-radius:18px}
+  .prompt-input{min-height:120px}
+  .actions-row{flex-direction:column;align-items:stretch}
+  .gen-btn{width:100%}
+  .mobile-history{display:block}
+}
 </style>
 </head>
 <body>
 <div class="app">
+
+<!-- SIDEBAR -->
 <aside class="side" id="desktopSide">
-  <div class="logo">Tik<span>Genius</span></div>
-  <div class="user"><div id="userEmail">Loading...</div></div>
-  <div class="usage"><strong id="usesLabel">5/5 free generations left</strong><div class="bar"><div class="fill" id="barFill"></div></div><button type="button" class="upgrade" id="upgradeBtn" data-upgrade onclick="doUpgrade(event)">Upgrade to Premium</button></div>
-  <div class="section-title">Create for TikTok & X</div><div class="modes" id="modes"></div>
-  <a class="dl-link" href="/download">⬇ Download TikTok Videos</a>
-  <div class="history-head"><div class="section-title">Recent history</div><button class="clear-history" onclick="clearHistory()">Clear</button></div><div class="history" id="historyList"><div class="empty">Your TikTok and X content history will appear here.</div></div>
-  <button class="logout" onclick="doLogout()">Log out</button>
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 200 200" fill="none">
+      <defs>
+        <linearGradient id="dG1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffc8"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient>
+        <linearGradient id="dG2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffc8"/></linearGradient>
+      </defs>
+      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#dG1)"/>
+      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#dG1)"/>
+      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#dG2)" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#dG2)"/>
+    </svg>
+    Tik<em>Genius</em>
+  </div>
+  <div class="user-chip" id="userEmail">Loading...</div>
+  <div class="usage-box">
+    <strong id="usesLabel">5/5 free generations left</strong>
+    <div class="bar-bg"><div class="bar-fill" id="barFill" style="width:100%"></div></div>
+    <button type="button" class="upgrade-btn" id="upgradeBtn" data-upgrade onclick="doUpgrade(event)">✦ Upgrade to Premium</button>
+  </div>
+  <div class="side-label">Create Content</div>
+  <div class="modes" id="modes"></div>
+  <a class="dl-link" href="/download">⬇ TikTok Downloader</a>
+  <div class="hist-head">
+    <div class="side-label">Recent History</div>
+    <button class="clear-btn" onclick="clearHistory()">Clear</button>
+  </div>
+  <div class="history" id="historyList"><div class="empty-hist">Your TikTok and X content history will appear here.</div></div>
+  <button class="logout-btn" onclick="doLogout()">Log out</button>
 </aside>
-<div class="modal" id="drawer" onclick="closeDrawer(event)"><div class="modal-panel" id="drawerPanel"></div></div>
+
+<!-- MOBILE DRAWER -->
+<div class="drawer-overlay" id="drawer" onclick="closeDrawer(event)">
+  <div class="drawer-panel" id="drawerPanel"></div>
+</div>
+
+<!-- MAIN -->
 <main class="main">
-  <div class="top">
-    <div class="mobile-logo">Tik<span style="color:var(--brand2)">Genius</span></div>
+  <div class="top-bar">
+    <div class="mobile-logo">Tik<em>Genius</em></div>
     <button class="drawer-btn" onclick="openDrawer()">☰ Menu</button>
-    <a href="/download" style="text-decoration:none"><button class="mode" style="padding:9px 13px;border-radius:11px;font-size:.83rem;white-space:nowrap">⬇ Downloader</button></a>
-    <select class="region" id="regionSelect" onchange="changeRegion(this.value)">
+    <a href="/download" style="text-decoration:none"><button class="mode" style="padding:8px 12px;border-radius:10px;font-size:.8rem;white-space:nowrap">⬇ Downloader</button></a>
+    <select class="region-select" id="regionSelect" onchange="changeRegion(this.value)">
       <option value="global">🌍 Global</option>
       <option value="nigeria">🇳🇬 Nigerian</option>
       <option value="usa">🇺🇸 American</option>
@@ -1713,54 +1915,227 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <option value="southafrica">🇿🇦 South African</option>
     </select>
   </div>
-  <div class="mobile-history"><div class="history-head"><div class="section-title">Recent history</div><button class="clear-history" onclick="clearHistory()">Clear</button></div><div class="history" id="historyMobile"><div class="empty">No TikTok/X history yet.</div></div></div>
-  <section class="card">
-    <div class="guide"><div class="tip"><b>1. Choose TikTok or X</b><p>Pick captions, hooks, scripts, hashtags, or X threads from the menu.</p></div><div class="tip"><b>2. Be specific</b><p>Say the topic, audience, emotion, platform, and goal.</p></div><div class="tip"><b>3. Add your style</b><p>Example: funny Nigerian street voice, luxury, Gen Z, or bold X thought-leader.</p></div></div>
-    <textarea class="prompt" id="topicInput" placeholder="Example: Give me 5 TikTok captions for a skincare video targeting young women who want clear skin. Or: write an X thread about building discipline as a young creator."></textarea>
-    <div class="actions"><div class="hint">Minimum 3 words. Works for TikTok and X.</div><button class="generate" id="generateBtn" onclick="generate()">Generate</button></div>
-    <div class="error" id="errorMsg"></div>
-    <div class="premium-lock" id="premiumLock"><h3>You used your 5 free generations</h3><p>Upgrade to Premium to keep generating unlimited captions, hooks, scripts and content ideas.</p><button type="button" class="upgrade show" data-upgrade onclick="doUpgrade(event)">Upgrade to Premium</button></div>
+
+  <!-- MOBILE HISTORY -->
+  <div class="mobile-history">
+    <div class="hist-head">
+      <div class="side-label">Recent History</div>
+      <button class="clear-btn" onclick="clearHistory()">Clear</button>
+    </div>
+    <div class="mob-hist-scroll" id="historyMobile"><div class="empty-hist">No TikTok/X history yet.</div></div>
+  </div>
+
+  <!-- GUIDE -->
+  <div class="guide">
+    <div class="tip"><b>1. Choose a mode</b><p>Pick captions, hooks, scripts, hashtags, POVs, or X content from the sidebar.</p></div>
+    <div class="tip"><b>2. Be specific</b><p>Include your niche, target audience, emotion, and goal for the best results.</p></div>
+    <div class="tip"><b>3. Copy &amp; post</b><p>Each result has its own copy button — grab the best one and post it today.</p></div>
+  </div>
+
+  <!-- STUDIO CARD -->
+  <section class="studio-card">
+    <textarea class="prompt-input" id="topicInput" placeholder="Example: Give me 5 TikTok captions for a skincare video targeting young women who want clear skin.&#10;&#10;Or: Write an X thread about building discipline as a young creator."></textarea>
+    <div class="actions-row">
+      <div class="hint">Minimum 3 words · Works for TikTok and X</div>
+      <button class="gen-btn" id="generateBtn" onclick="generate()">✦ Generate</button>
+    </div>
+    <div class="err-box" id="errorMsg"></div>
+    <div class="premium-lock" id="premiumLock">
+      <h3>You used your 5 free generations</h3>
+      <p>Upgrade to Premium to generate unlimited captions, hooks, scripts and content ideas every day.</p>
+      <button type="button" class="upgrade-btn show" data-upgrade onclick="doUpgrade(event)">✦ Upgrade to Premium</button>
+    </div>
   </section>
-  <section class="output" id="outputCard"><div class="output-head"><b id="outputTitle">Ready to post</b><button class="copy" onclick="copyOutput()">Copy</button></div><div class="result" id="outputText"></div></section>
+
+  <!-- OUTPUT -->
+  <section class="output-section" id="outputCard">
+    <div class="output-header">
+      <div class="output-title" id="outputTitle">Ready to post</div>
+      <button class="copy-all-btn" onclick="copyOutput()">Copy All</button>
+    </div>
+    <div id="outputBody"></div>
+  </section>
 </main>
 </div>
+
 <script>
-let currentMode='captions', currentPlatform='tiktok', userData={};
-const modes=[['captions','TikTok Captions','tiktok'],['hooks','Viral Hooks','tiktok'],['pov','POV Ideas','tiktok'],['script','Video Script','tiktok'],['hashtags','Hashtags','tiktok'],['threads','X Thread','x'],['hooks','X Hooks','x']];
+let currentMode='captions',currentPlatform='tiktok',userData={};
+const modes=[
+  ['captions','📝 TikTok Captions','tiktok'],
+  ['hooks','🪝 Viral Hooks','tiktok'],
+  ['pov','🎭 POV Ideas','tiktok'],
+  ['script','🎬 Video Script','tiktok'],
+  ['hashtags','# Hashtags','tiktok'],
+  ['captions','🐦 X Posts','x'],
+  ['hooks','🧵 X Hooks','x'],
+  ['threads','📖 X Thread','x']
+];
 const modeTitles={captions:'Captions',hooks:'Hooks',pov:'POV Ideas',script:'Video Script',hashtags:'Hashtags',threads:'X Thread'};
-function renderModes(target='modes'){const el=document.getElementById(target);if(!el)return;el.innerHTML=modes.map((m,i)=>`<button class="mode ${i==0?'active':''}" onclick="setMode('${m[0]}','${m[2]}',this)">${m[1]}</button>`).join('')}
-function setMode(m,p,btn){currentMode=m;currentPlatform=p;document.querySelectorAll('.mode').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');document.getElementById('outputCard').classList.remove('show')}
-async function loadUser(){const res=await fetch('/api/me');if(res.status===401){location.href='/';return}userData=await res.json();document.querySelectorAll('#userEmail').forEach(e=>e.textContent=userData.email);document.getElementById('regionSelect').value=userData.region||'global';updateUsage(userData.uses_remaining,userData.unlimited);loadHistory()}
-function updateUsage(rem,unlimited){const label=document.getElementById('usesLabel'),fill=document.getElementById('barFill'),up=document.getElementById('upgradeBtn');if(unlimited){label.textContent='Premium: unlimited generations';fill.style.width='100%';up.classList.remove('show');return}label.textContent=rem+'/5 free generations left';fill.style.width=(rem/5*100)+'%';if(rem<=0){up.classList.add('show');document.getElementById('premiumLock').classList.add('show')}else{up.classList.remove('show')}}
-async function loadHistory(){const res=await fetch('/api/history');const data=await res.json();const html=(data.items&&data.items.length)?data.items.map(i=>{const platform=(i.platform==='x')?'X':'TikTok';return `<div class="hist" onclick='showHistory(${JSON.stringify(i).replace(/'/g,"&#39;")})'><b>${escapeHtml(i.topic||'Untitled')}</b><span>${platform} • ${i.mode} • ${new Date(i.created_at).toLocaleDateString()}</span></div>`}).join(''):'<div class="empty">Your TikTok and X content history will appear here.</div>';['historyList','historyMobile','drawerHistory'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html})}
-async function clearHistory(){if(!confirm('Clear all your TikTok and X generation history?'))return;const res=await fetch('/api/history/clear',{method:'POST'});if(res.ok){document.getElementById('outputCard').classList.remove('show');loadHistory()}else{showError('Could not clear history. Please try again.')}}
-function showHistory(i){document.getElementById('topicInput').value=i.topic||'';document.getElementById('outputText').textContent=i.result||'';document.getElementById('outputTitle').textContent=(modeTitles[i.mode]||i.mode)+' from history';document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});document.getElementById('drawer').classList.remove('show')}
+
+function renderModes(targetId='modes'){
+  const el=document.getElementById(targetId);
+  if(!el)return;
+  let tiktok=modes.filter(m=>m[2]==='tiktok');
+  let x=modes.filter(m=>m[2]==='x');
+  let html='<div style="font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:5px">TikTok</div>';
+  tiktok.forEach((m,i)=>{html+=`<button class="mode ${i==0?'active':''}" onclick="setMode('${m[0]}','${m[2]}',this)">${m[1]}</button>`});
+  html+='<div style="font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:10px 0 5px">X / Twitter</div>';
+  x.forEach(m=>{html+=`<button class="mode" onclick="setMode('${m[0]}','${m[2]}',this)">${m[1]}</button>`});
+  el.innerHTML=html;
+}
+
+function setMode(m,p,btn){
+  currentMode=m;currentPlatform=p;
+  document.querySelectorAll('.mode').forEach(x=>x.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  document.getElementById('outputCard').classList.remove('show');
+}
+
+async function loadUser(){
+  const res=await fetch('/api/me');
+  if(res.status===401){location.href='/';return}
+  userData=await res.json();
+  document.querySelectorAll('#userEmail').forEach(e=>e.textContent=userData.email);
+  document.getElementById('regionSelect').value=userData.region||'global';
+  updateUsage(userData.uses_remaining,userData.unlimited);
+  loadHistory();
+}
+
+function updateUsage(rem,unlimited){
+  const label=document.getElementById('usesLabel'),fill=document.getElementById('barFill'),up=document.getElementById('upgradeBtn');
+  if(unlimited){label.textContent='✦ Premium: unlimited generations';fill.style.width='100%';up.classList.remove('show');return}
+  label.textContent=rem+'/5 free generations left';
+  fill.style.width=(rem/5*100)+'%';
+  if(rem<=0){up.classList.add('show');document.getElementById('premiumLock').classList.add('show')}else{up.classList.remove('show')}
+}
+
+async function loadHistory(){
+  const res=await fetch('/api/history');const data=await res.json();
+  const html=(data.items&&data.items.length)?data.items.map(i=>{
+    const plat=(i.platform==='x')?'X':'TikTok';
+    return `<div class="hist-item" onclick='showHistory(${JSON.stringify(i).replace(/'/g,"&#39;")})'><b>${escapeHtml(i.topic||'Untitled')}</b><span>${plat} · ${i.mode} · ${new Date(i.created_at).toLocaleDateString()}</span></div>`;
+  }).join(''):'<div class="empty-hist">Your TikTok and X content history will appear here.</div>';
+  ['historyList','historyMobile','drawerHistory'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html});
+}
+
+async function clearHistory(){
+  if(!confirm('Clear all your generation history?'))return;
+  const res=await fetch('/api/history/clear',{method:'POST'});
+  if(res.ok){document.getElementById('outputCard').classList.remove('show');loadHistory()}
+  else showError('Could not clear history. Please try again.');
+}
+
+function showHistory(i){
+  document.getElementById('topicInput').value=i.topic||'';
+  document.getElementById('outputTitle').textContent=(modeTitles[i.mode]||i.mode)+' · from history';
+  renderOutputItems(i.result||'');
+  document.getElementById('outputCard').classList.add('show');
+  document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});
+  document.getElementById('drawer') && document.getElementById('drawer').classList.remove('show');
+}
+
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-async function changeRegion(region){await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region})})}
-async function generate(){const topic=document.getElementById('topicInput').value.trim(),btn=document.getElementById('generateBtn');hideError();if(!topic)return showError('Please enter your prompt.');if(topic.split(/\s+/).length<3)return showError('Please add at least 3 words.');btn.disabled=true;btn.textContent='Generating...';const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:currentMode,platform:currentPlatform,topic})});const data=await res.json();btn.disabled=false;btn.textContent='Generate';if(data.error){showError(data.error);if(res.status===429)document.getElementById('premiumLock').classList.add('show');return}document.getElementById('outputText').textContent=data.result;document.getElementById('outputTitle').textContent=(modeTitles[currentMode]||currentMode)+' — ready to post';document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});if(data.uses_remaining!==undefined)updateUsage(data.uses_remaining,false);loadHistory()}
-function showError(m){const e=document.getElementById('errorMsg');e.textContent=m;e.style.display='block'}function hideError(){document.getElementById('errorMsg').style.display='none'}
-function copyOutput(){navigator.clipboard.writeText(document.getElementById('outputText').textContent)}
+
+async function changeRegion(region){
+  await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region})});
+}
+
+// Parse numbered list into individual items
+function parseResultItems(text){
+  // Try splitting on numbered items: 1) 2) or 1. 2. etc
+  const parts=text.split(/\\n(?=\\d+[.)\\s])/);
+  if(parts.length>1)return parts.map(p=>p.trim()).filter(Boolean);
+  // Try splitting by double newlines
+  const paras=text.split(/\\n\\n+/);
+  if(paras.length>1)return paras.map(p=>p.trim()).filter(Boolean);
+  return null; // fallback: single block
+}
+
+function renderOutputItems(text){
+  const body=document.getElementById('outputBody');
+  const items=parseResultItems(text);
+  if(items&&items.length>1){
+    body.innerHTML='<div class="result-list">'+items.map((item,idx)=>`
+      <div class="result-item">
+        <div class="result-item-text">${escapeHtml(item)}</div>
+        <button class="item-copy-btn" onclick="copyItem(this,'${escapeHtml(item).replace(/'/g,"&#39;").replace(/\\n/g,'\\\\n')}')" title="Copy this result">Copy</button>
+      </div>`).join('')+'</div>';
+  } else {
+    body.innerHTML=`<div style="position:relative"><div class="result-raw">${escapeHtml(text)}</div></div>`;
+  }
+  // store raw text for Copy All
+  body.dataset.raw=text;
+}
+
+function copyItem(btn,text){
+  const raw=text.replace(/&#39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/\\\\n/g,'\\n');
+  navigator.clipboard.writeText(raw).then(()=>{
+    btn.textContent='Copied!';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied')},1600);
+  });
+}
+
+function copyOutput(){
+  const raw=document.getElementById('outputBody').dataset.raw||'';
+  navigator.clipboard.writeText(raw).then(()=>{
+    const btn=document.querySelector('.copy-all-btn');
+    btn.textContent='Copied!';
+    setTimeout(()=>btn.textContent='Copy All',1600);
+  });
+}
+
+async function generate(){
+  const topic=document.getElementById('topicInput').value.trim(),btn=document.getElementById('generateBtn');
+  hideError();
+  if(!topic)return showError('Please enter your prompt.');
+  if(topic.split(/\\s+/).length<3)return showError('Please add at least 3 words.');
+  btn.disabled=true;btn.textContent='Generating...';
+  const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:currentMode,platform:currentPlatform,topic})});
+  const data=await res.json();
+  btn.disabled=false;btn.textContent='✦ Generate';
+  if(data.error){showError(data.error);if(res.status===429)document.getElementById('premiumLock').classList.add('show');return}
+  document.getElementById('outputTitle').textContent=(modeTitles[currentMode]||currentMode)+' — ready to post';
+  renderOutputItems(data.result);
+  document.getElementById('outputCard').classList.add('show');
+  document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});
+  if(data.uses_remaining!==undefined)updateUsage(data.uses_remaining,false);
+  loadHistory();
+}
+
+function showError(m){const e=document.getElementById('errorMsg');e.textContent=m;e.style.display='block'}
+function hideError(){document.getElementById('errorMsg').style.display='none'}
+
 let upgradeInProgress=false;
 async function doUpgrade(event){
   if(event&&event.preventDefault)event.preventDefault();
   if(upgradeInProgress)return false;
   upgradeInProgress=true;hideError();
-  const buttons=Array.from(document.querySelectorAll('[data-upgrade], .upgrade'));
+  const buttons=Array.from(document.querySelectorAll('[data-upgrade],.upgrade-btn'));
   buttons.forEach(b=>{b.disabled=true;b.dataset.oldText=b.textContent;b.textContent='Opening payment...'});
   try{
-    const res=await fetch('/api/upgrade',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'}});
-    let data={};try{data=await res.json()}catch(e){}
+    const res=await fetch('/api/upgrade',{method:'POST',credentials:'same-origin',cache:'no-store'});
+    let d={};try{d=await res.json()}catch(e){}
     if(res.status===401){location.href='/';return false}
-    if(data.url){window.location.assign(data.url);return false}
-    showError(data.error||'Could not open payment page. Please try again.');
-  }catch(e){showError('Network error. Please check your connection and try again.');}
-  finally{upgradeInProgress=false;buttons.forEach(b=>{b.disabled=false;b.textContent=b.dataset.oldText||'Upgrade to Premium'})}
+    if(d.url){window.location.assign(d.url);return false}
+    showError(d.error||'Could not open payment page. Please try again.');
+  }catch(e){showError('Network error. Please try again.')}
+  finally{upgradeInProgress=false;buttons.forEach(b=>{b.disabled=false;b.textContent=b.dataset.oldText||'✦ Upgrade to Premium'})}
   return false;
 }
-document.addEventListener('click',function(e){const btn=e.target.closest('[data-upgrade]');if(btn){doUpgrade(e)}},false);
+document.addEventListener('click',function(e){const btn=e.target.closest('[data-upgrade]');if(btn)doUpgrade(e)},false);
+
 async function doLogout(){await fetch('/api/logout',{method:'POST'});location.href='/'}
-function openDrawer(){const p=document.getElementById('drawerPanel');p.innerHTML=document.getElementById('desktopSide').innerHTML;const h=p.querySelector('#historyList');if(h)h.id='drawerHistory';const m=p.querySelector('#modes');if(m)m.id='drawerModes';document.getElementById('drawer').classList.add('show');renderModes('drawerModes');loadHistory()}
+
+function openDrawer(){
+  const p=document.getElementById('drawerPanel');
+  p.innerHTML=document.getElementById('desktopSide').innerHTML;
+  const h=p.querySelector('#historyList');if(h)h.id='drawerHistory';
+  const m=p.querySelector('#modes');if(m)m.id='drawerModes';
+  document.getElementById('drawer').classList.add('show');
+  renderModes('drawerModes');loadHistory();
+}
 function closeDrawer(e){if(e.target.id==='drawer')document.getElementById('drawer').classList.remove('show')}
+
 renderModes();loadUser();
 </script>
 </body>
@@ -1772,134 +2147,157 @@ DOWNLOAD_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>TikGenius — Download TikTok Videos (No Watermark)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#05070a;--surface:#0b1117;--card:#0f1923;--card2:#111e2b;--line:#1d2c3a;
-  --text:#eef6ff;--muted:#7a90a6;--brand:#14b8a6;--brand2:#38bdf8;--gold:#f6b21a;
-  --green:#22c55e;--danger:#fb7185;
+  --bg:#03050a;--surface:#07111c;--card:#0b1928;--border:#14253a;
+  --text:#f0f8ff;--muted:#607a90;
+  --accent:#00ffc8;--accent2:#0af;--gold:#ffb800;--green:#22c55e;--danger:#fb7185;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:radial-gradient(circle at 60% -5%,rgba(20,184,166,.14) 0,transparent 38%),radial-gradient(circle at 5% 90%,rgba(56,189,248,.08) 0,transparent 32%),var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
-nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 1.4rem;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:200;background:rgba(5,7,10,.92);backdrop-filter:blur(16px)}
-.logo{display:flex;align-items:center;gap:9px;text-decoration:none}
-.logo-text{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.08rem;background:linear-gradient(135deg,#fff,var(--brand2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.nav-right{display:flex;gap:.7rem;align-items:center}
-.nav-link{color:var(--muted);text-decoration:none;font-size:.88rem;font-weight:600;padding:.45rem .9rem;border-radius:8px;transition:color .2s}
-.nav-link:hover{color:var(--text)}
-.nav-link.active{color:var(--brand2)}
-.btn-nav{background:linear-gradient(135deg,var(--brand),var(--brand2));border:none;color:#031013;padding:.52rem 1.1rem;border-radius:9px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:.86rem;font-weight:800;text-decoration:none}
-.hero{text-align:center;padding:3.8rem 1.25rem 2.5rem;max-width:680px;margin:0 auto}
-.hero-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(20,184,166,.12);border:1px solid rgba(20,184,166,.28);color:var(--brand2);padding:.38rem 1rem;border-radius:100px;font-size:.8rem;font-weight:700;margin-bottom:1.8rem;letter-spacing:.03em}
-.hero h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(2rem,8vw,3.6rem);font-weight:800;line-height:1.06;margin-bottom:1rem;letter-spacing:-.04em}
-.hero h1 em{font-style:normal;background:linear-gradient(135deg,var(--brand),var(--brand2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hero p{color:var(--muted);font-size:1.05rem;line-height:1.7;max-width:500px;margin:0 auto 2.2rem}
-.main-wrap{max-width:720px;margin:0 auto;padding:0 1.25rem 4rem}
-.downloader-card{background:linear-gradient(160deg,rgba(17,30,43,.96),rgba(11,17,23,.98));border:1px solid var(--line);border-radius:24px;padding:1.8rem;box-shadow:0 24px 70px rgba(0,0,0,.35)}
-.input-row{display:flex;gap:.75rem;margin-bottom:.75rem}
-.url-input{flex:1;background:#071018;border:1.5px solid var(--line);color:var(--text);padding:1rem 1.15rem;border-radius:14px;font-family:'Plus Jakarta Sans',sans-serif;font-size:1rem;outline:none;transition:border-color .2s}
-.url-input:focus{border-color:var(--brand2);box-shadow:0 0 0 4px rgba(56,189,248,.08)}
+body{background:radial-gradient(ellipse at 70% -10%,rgba(0,170,255,.1),transparent 38%),radial-gradient(ellipse at 10% 85%,rgba(0,255,200,.07),transparent 35%),var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* NAV */
+nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.4rem;position:sticky;top:0;z-index:100;background:rgba(3,5,10,.85);backdrop-filter:blur(18px);border-bottom:1px solid rgba(0,255,200,.07)}
+.logo{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--text);font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:-.03em}
+.logo em{color:var(--accent);font-style:normal}
+.nav-right{display:flex;align-items:center;gap:.65rem}
+.nav-link{text-decoration:none;color:var(--muted);font-size:.875rem;font-weight:600;transition:color .2s;padding:.4rem .6rem;border-radius:7px}
+.nav-link:hover,.nav-link.active{color:var(--accent)}
+.btn-nav{background:var(--accent);color:#030e0a;border:none;padding:.45rem 1.1rem;border-radius:8px;font-size:.875rem;font-weight:700;cursor:pointer;text-decoration:none;font-family:'DM Sans',sans-serif;transition:all .2s}
+.btn-nav:hover{transform:translateY(-1px);box-shadow:0 0 20px rgba(0,255,200,.3)}
+
+/* HERO */
+.hero{text-align:center;padding:5rem 1.5rem 2.5rem;max-width:680px;margin:0 auto}
+.hero-badge{display:inline-flex;align-items:center;gap:.45rem;background:rgba(0,255,200,.08);border:1px solid rgba(0,255,200,.2);color:var(--accent);padding:.35rem 1rem;border-radius:100px;font-size:.75rem;font-weight:700;margin-bottom:1.8rem;letter-spacing:.05em;text-transform:uppercase}
+.hero h1{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(2rem,7vw,3.6rem);line-height:1.0;letter-spacing:-.045em;margin-bottom:1rem}
+.hero h1 em{color:var(--accent);font-style:normal}
+.hero p{color:var(--muted);font-size:1rem;line-height:1.7;max-width:500px;margin:0 auto}
+
+/* MAIN WRAP */
+.main-wrap{max-width:700px;margin:0 auto;padding:0 1.25rem 5rem}
+
+/* DOWNLOADER CARD */
+.dl-card{background:rgba(7,17,28,.9);border:1px solid var(--border);border-radius:24px;padding:24px;box-shadow:0 32px 80px rgba(0,0,0,.35)}
+.how-tip{background:#050e18;border:1px solid var(--border);border-radius:12px;padding:11px 14px;font-size:.8rem;color:var(--muted);margin-bottom:16px;line-height:1.5}
+.how-tip strong{color:var(--text)}
+.input-row{display:flex;gap:10px;margin-bottom:8px}
+.url-input{flex:1;background:#050e18;color:var(--text);border:1px solid var(--border);border-radius:13px;padding:13px 16px;font-size:.95rem;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;min-width:0}
+.url-input:focus{border-color:rgba(0,255,200,.4);box-shadow:0 0 0 3px rgba(0,255,200,.06)}
 .url-input::placeholder{color:var(--muted)}
-.fetch-btn{background:linear-gradient(135deg,var(--brand),var(--brand2));border:none;border-radius:14px;color:#031013;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:.95rem;padding:.95rem 1.5rem;cursor:pointer;white-space:nowrap;transition:opacity .2s}
-.fetch-btn:disabled{opacity:.5;cursor:not-allowed}
-.input-hint{font-size:.8rem;color:var(--muted);margin-bottom:1.3rem}
-.how{background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.14);border-radius:14px;padding:1rem 1.15rem;margin-bottom:1.3rem;font-size:.86rem;color:var(--muted);line-height:1.6}
-.how strong{color:var(--brand2)}
-.error-box{display:none;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.28);color:#fecdd3;border-radius:14px;padding:.9rem 1.1rem;font-size:.9rem;margin-bottom:1rem}
-.error-box.show{display:block}
-.loader{display:none;text-align:center;padding:2rem;color:var(--muted);font-size:.95rem}
-.loader.show{display:block}
-.spin{display:inline-block;width:36px;height:36px;border:3px solid var(--line);border-top-color:var(--brand2);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:.85rem}
+.fetch-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:13px;color:#030e0a;font-weight:800;padding:13px 20px;font-size:.9rem;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;transition:all .2s}
+.fetch-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,255,200,.3)}
+.fetch-btn:disabled{opacity:.55;transform:none;box-shadow:none}
+.input-hint{font-size:.75rem;color:var(--muted);margin-bottom:12px}
+.err-box{display:none;margin-bottom:10px;color:#fecdd3;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:10px 14px;border-radius:11px;font-size:.85rem}
+.err-box.show{display:block}
+.loader{display:none;flex-direction:column;align-items:center;gap:10px;padding:24px 0;color:var(--muted);font-size:.875rem}
+.loader.show{display:flex}
+.spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.preview{display:none;margin-top:1.2rem}
-.preview.show{display:block}
-.vid-card{background:#071018;border:1px solid var(--line);border-radius:18px;overflow:hidden}
-.vid-top{display:flex;gap:1rem;padding:1.1rem}
-.vid-cover{width:80px;height:80px;border-radius:12px;object-fit:cover;background:#111;flex-shrink:0}
+
+/* PREVIEW */
+.preview{display:none}
+.preview.show{display:block;margin-top:14px}
+.vid-card{background:#050e18;border:1px solid var(--border);border-radius:18px;overflow:hidden}
+.vid-top{display:flex;gap:14px;padding:16px}
+.vid-cover{width:70px;height:70px;object-fit:cover;border-radius:10px;flex-shrink:0;background:#0b1928}
 .vid-info{flex:1;min-width:0}
-.vid-title{font-weight:700;font-size:.96rem;line-height:1.4;margin-bottom:.35rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.vid-author{font-size:.8rem;color:var(--muted);margin-bottom:.5rem}
-.vid-meta{display:flex;gap:.5rem;flex-wrap:wrap}
-.meta-tag{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.18);color:var(--brand2);font-size:.72rem;font-weight:700;padding:.25rem .6rem;border-radius:100px}
-.ad-gate{display:none;background:linear-gradient(135deg,rgba(246,178,26,.1),rgba(20,184,166,.08));border:1px solid rgba(246,178,26,.28);border-radius:0 0 18px 18px;padding:1.3rem 1.1rem 1.4rem}
-.ad-gate.show{display:block}
-.ad-gate-title{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.05rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem}
-.ad-gate-sub{color:var(--muted);font-size:.87rem;line-height:1.55;margin-bottom:1.1rem}
-.ad-gate-choices{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
-.choice-btn{border:none;border-radius:14px;padding:1rem;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:.9rem;transition:transform .15s,box-shadow .15s}
-.choice-btn:active{transform:scale(.98)}
-.choice-watch{background:linear-gradient(135deg,#f6b21a,#f97316);color:#07090b}
-.choice-watch:hover{box-shadow:0 6px 24px rgba(246,178,26,.35)}
-.choice-pro{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#031013}
-.choice-pro:hover{box-shadow:0 6px 24px rgba(56,189,248,.3)}
-.choice-label{display:block;font-size:.72rem;font-weight:600;opacity:.75;margin-top:.2rem;letter-spacing:.04em}
-.ad-container{display:none;text-align:center;padding:1.2rem;background:rgba(0,0,0,.25);border-radius:14px;margin:.75rem 0}
-.ad-container.show{display:block}
-.ad-countdown{font-size:.88rem;color:var(--muted);margin-top:.75rem}
-.ad-countdown strong{color:var(--gold)}
-.pro-skip{display:none;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.22);border-radius:0 0 18px 18px;padding:.9rem 1.1rem}
-.pro-skip.show{display:block}
-.pro-skip-inner{display:flex;align-items:center;gap:.7rem;font-size:.9rem;font-weight:600;color:#86efac}
-.dl-panel{display:none;padding:1.1rem;border-top:1px solid var(--line)}
+.vid-title{font-size:.9rem;font-weight:700;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;margin-bottom:4px}
+.vid-author{font-size:.8rem;color:var(--accent);font-weight:600;margin-bottom:6px}
+.vid-meta{display:flex;flex-wrap:wrap;gap:5px}
+.meta-tag{background:#0b1928;border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:.7rem;color:var(--muted);font-weight:600}
+
+/* AD GATE */
+.ad-gate{padding:18px 16px;border-top:1px solid var(--border)}
+.ad-gate-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;margin-bottom:.4rem}
+.ad-gate-sub{color:var(--muted);font-size:.82rem;line-height:1.55;margin-bottom:14px}
+.choices{display:grid;gap:10px}
+.choice-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:15px;border-radius:14px;font-family:'DM Sans',sans-serif;cursor:pointer;font-size:.9rem;font-weight:700;transition:all .2s;border:2px solid transparent}
+.choice-btn .choice-label{font-size:.73rem;font-weight:500;opacity:.75}
+.choice-free{background:#0b1928;border-color:var(--border);color:var(--text)}
+.choice-free:hover{border-color:rgba(0,255,200,.35);color:var(--accent)}
+.choice-pro{background:linear-gradient(135deg,rgba(0,255,200,.12),rgba(255,184,0,.08));border-color:rgba(255,184,0,.35);color:var(--gold)}
+.choice-pro:hover{border-color:var(--gold);transform:translateY(-1px)}
+
+/* PRO SKIP */
+.pro-skip{display:none;padding:12px 16px;border-top:1px solid var(--border);background:rgba(0,255,200,.05)}
+.pro-skip.show{display:flex;align-items:center;gap:10px}
+.pro-skip-text{font-size:.85rem;font-weight:600;color:var(--accent)}
+.pro-skip-sub{font-size:.75rem;color:var(--muted);margin-top:2px}
+
+/* DOWNLOAD PANEL */
+.dl-panel{display:none;padding:16px;border-top:1px solid var(--border)}
 .dl-panel.show{display:block}
-.dl-title{font-size:.82rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.75rem}
-.dl-buttons{display:grid;gap:.6rem}
-.dl-btn{display:flex;align-items:center;justify-content:space-between;padding:.95rem 1.1rem;border-radius:14px;text-decoration:none;font-weight:700;font-size:.92rem;border:none;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:opacity .18s}
-.dl-btn:hover{opacity:.88}
-.dl-btn .dl-meta{font-size:.75rem;font-weight:600;opacity:.75}
-.dl-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#031013}
-.dl-secondary{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.22);color:var(--brand2)}
-.dl-audio{background:rgba(246,178,26,.1);border:1px solid rgba(246,178,26,.22);color:var(--gold)}
-.features{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;margin:2rem 0}
-.feat{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:1.1rem 1rem;text-align:center}
-.feat-icon{font-size:1.6rem;margin-bottom:.6rem}
-.feat h3{font-size:.9rem;font-weight:700;margin-bottom:.35rem}
-.feat p{font-size:.78rem;color:var(--muted);line-height:1.5}
-.also-try{background:linear-gradient(135deg,rgba(124,58,237,.14),rgba(246,178,26,.1));border:1px solid rgba(124,58,237,.25);border-radius:18px;padding:1.3rem 1.4rem;margin:1.5rem 0;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
-.also-try-text strong{display:block;font-weight:800;margin-bottom:.25rem}
-.also-try-text span{color:var(--muted);font-size:.87rem}
-.also-try-btn{background:linear-gradient(135deg,#7c3aed,#f6b21a);border:none;color:white;border-radius:12px;padding:.75rem 1.3rem;font-weight:800;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:.9rem;text-decoration:none;white-space:nowrap}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(10px);z-index:500;align-items:center;justify-content:center;padding:1rem}
+.dl-panel-title{font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.dl-buttons{display:grid;gap:9px}
+.dl-btn{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;border-radius:12px;text-decoration:none;font-size:.875rem;font-weight:700;font-family:'DM Sans',sans-serif;transition:all .2s;border:1px solid transparent}
+.dl-btn-meta{font-size:.73rem;font-weight:500;opacity:.75}
+.dl-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#030e0a;border-color:transparent}
+.dl-primary:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,255,200,.3)}
+.dl-secondary{background:#0b1928;color:var(--text);border-color:var(--border)}
+.dl-secondary:hover{border-color:rgba(0,255,200,.25)}
+.dl-audio{background:#0b1928;color:var(--muted);border-color:var(--border)}
+.dl-audio:hover{border-color:rgba(0,170,255,.3);color:var(--accent2)}
+
+/* FEATURES */
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem;margin-top:2.5rem}
+.feat{background:rgba(7,17,28,.8);border:1px solid var(--border);border-radius:16px;padding:1.25rem;display:flex;flex-direction:column;gap:.5rem}
+.feat-icon{font-size:1.5rem}
+.feat h3{font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem}
+.feat p{color:var(--muted);font-size:.8rem;line-height:1.55}
+
+/* ALSO TRY BAND */
+.also-try{margin-top:2rem;background:linear-gradient(135deg,rgba(0,255,200,.07),rgba(0,170,255,.05));border:1px solid rgba(0,255,200,.15);border-radius:18px;padding:1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.also-try-text strong{display:block;font-family:'Syne',sans-serif;font-weight:800;font-size:.95rem;margin-bottom:.25rem;color:var(--accent)}
+.also-try-text span{color:var(--muted);font-size:.82rem}
+.also-try-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#030e0a;border:none;border-radius:10px;padding:10px 18px;font-size:.875rem;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none;transition:all .2s}
+.also-try-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,255,200,.3)}
+
+/* AUTH MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
 .modal-overlay.active{display:flex}
-.modal{background:var(--card2);border:1px solid var(--line);border-radius:22px;padding:2rem;width:100%;max-width:400px}
-.modal h2{font-family:'Space Grotesk',sans-serif;font-size:1.35rem;font-weight:800;margin-bottom:.4rem}
-.modal p{color:var(--muted);font-size:.88rem;margin-bottom:1.4rem}
-.modal-tabs{display:flex;background:#071018;border-radius:10px;padding:.22rem;gap:.3rem;margin-bottom:1.3rem}
-.modal-tab{flex:1;padding:.6rem;text-align:center;border-radius:8px;cursor:pointer;font-size:.87rem;font-weight:700;border:none;background:transparent;color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif;transition:all .2s}
-.modal-tab.active{background:var(--brand);color:#031013}
+.modal{background:#0b1928;border:1px solid rgba(0,255,200,.2);border-radius:22px;padding:2rem;width:100%;max-width:400px;margin:1rem}
+.modal h2{font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;margin-bottom:.3rem}
+.modal p{color:var(--muted);font-size:.85rem;margin-bottom:1.3rem;line-height:1.5}
+.modal-tabs{display:flex;background:#050e18;border-radius:10px;padding:3px;gap:3px;margin-bottom:1.3rem}
+.modal-tab{flex:1;padding:.5rem;border:none;border-radius:7px;background:transparent;color:var(--muted);font-size:.85rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s}
+.modal-tab.active{background:#14253a;color:var(--text)}
 .fg{margin-bottom:.9rem}
-.fg label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:.35rem}
-.fg input{width:100%;background:#071018;border:1.5px solid var(--line);color:var(--text);padding:.75rem 1rem;border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:.95rem;outline:none}
-.fg input:focus{border-color:var(--brand2)}
-.ferr{color:var(--danger);font-size:.82rem;margin-top:.4rem;display:none}
-.modal-btn{width:100%;padding:.85rem;border-radius:10px;font-size:.97rem;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;background:linear-gradient(135deg,var(--brand),var(--brand2));border:none;color:#031013;margin-top:.4rem}
-.modal-cancel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.84rem;margin-top:.9rem;display:block;width:100%;text-align:center;font-family:'Plus Jakarta Sans',sans-serif}
+.fg label{display:block;font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:.4rem;letter-spacing:.04em;text-transform:uppercase}
+.fg input{width:100%;background:#050e18;border:1px solid var(--border);color:var(--text);padding:.7rem 1rem;border-radius:10px;font-size:.875rem;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s}
+.fg input:focus{border-color:var(--accent)}
+.ferr{display:none;color:#fb7185;font-size:.8rem;margin-bottom:.8rem;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:.55rem .85rem;border-radius:8px}
+.modal-btn{width:100%;padding:.8rem;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#030e0a;font-size:.9rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:.7rem;transition:all .2s}
+.modal-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,255,200,.25)}
+.modal-cancel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;font-family:'DM Sans',sans-serif;width:100%;padding:.4rem}
+
 @media(max-width:600px){
-  nav{padding:.75rem 1rem}.nav-link{display:none}
-  .hero{padding:2.6rem 1rem 1.8rem}.hero h1{font-size:2rem}
-  .main-wrap{padding:0 .9rem 3rem}.downloader-card{padding:1.2rem;border-radius:20px}
-  .input-row{flex-direction:column}.fetch-btn{border-radius:12px;padding:.9rem}
-  .ad-gate-choices{grid-template-columns:1fr}.features{grid-template-columns:1fr}
-  .also-try{flex-direction:column}.vid-top{gap:.8rem}.vid-cover{width:70px;height:70px}
+  .hero{padding:3.5rem 1rem 2rem}
+  .main-wrap{padding:0 1rem 4rem}
+  .dl-card{padding:16px;border-radius:18px}
+  .input-row{flex-direction:column}
+  .fetch-btn{width:100%}
+  .nav-link{display:none}
+  .choices{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
+
 <nav>
   <a class="logo" href="/">
-    <svg width="30" height="30" viewBox="0 0 200 200" fill="none">
+    <svg width="26" height="26" viewBox="0 0 200 200" fill="none">
       <defs>
-        <linearGradient id="ntG" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#fff"/><stop offset="1" stop-color="rgba(255,255,255,.7)"/></linearGradient>
-        <linearGradient id="ngG" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00c8ff"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+        <linearGradient id="dlG1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffc8"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient>
+        <linearGradient id="dlG2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffc8"/></linearGradient>
       </defs>
-      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#ntG)"/>
-      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#ntG)"/>
-      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#ngG)" stroke-width="7" fill="none" stroke-linecap="round"/>
-      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#ngG)"/>
+      <rect x="52" y="58" width="52" height="7" rx="2" fill="url(#dlG1)"/>
+      <rect x="74" y="65" width="8" height="70" rx="2" fill="url(#dlG1)"/>
+      <path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#dlG2)" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#dlG2)"/>
     </svg>
-    <span class="logo-text">TikGenius</span>
+    Tik<em>Genius</em>
   </a>
   <div class="nav-right">
     <a class="nav-link" href="/dashboard">✦ AI Studio</a>
@@ -1907,26 +2305,29 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
     <a class="btn-nav" href="/dashboard">Open Studio</a>
   </div>
 </nav>
+
 <div class="hero">
   <div class="hero-badge">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.19 8.19 0 004.79 1.54V6.78a4.85 4.85 0 01-1.02-.09z"/></svg>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.19 8.19 0 004.79 1.54V6.78a4.85 4.85 0 01-1.02-.09z"/></svg>
     TikTok Video Downloader
   </div>
   <h1>Download TikToks<br><em>No watermark.</em></h1>
-  <p>Paste any TikTok link and save the video in HD — no watermark, no app needed. Free users get 3 downloads per day, or go Premium for unlimited downloads.</p>
+  <p>Paste any TikTok link and save the video in HD — clean, no watermark. Free users get 3 downloads/day. Premium unlocks unlimited.</p>
 </div>
+
 <div class="main-wrap">
-  <div class="downloader-card" id="downloaderCard">
-    <div class="how"><strong>How to get the link:</strong> Open TikTok → tap the video → Share → Copy Link — then paste it below.</div>
+  <div class="dl-card" id="downloaderCard">
+    <div class="how-tip"><strong>How to get the link:</strong> Open TikTok → tap Share → Copy Link → paste below.</div>
     <div class="input-row">
       <input type="url" class="url-input" id="urlInput" placeholder="https://www.tiktok.com/@user/video/..." autocomplete="off" autocorrect="off" spellcheck="false">
       <button class="fetch-btn" id="fetchBtn" onclick="fetchVideo()">Fetch Video</button>
     </div>
-    <div class="input-hint">Works with TikTok links, vm.tiktok.com short links, and /t/ links.</div>
-    <div class="error-box" id="errorBox"></div>
+    <div class="input-hint">Works with tiktok.com, vm.tiktok.com and /t/ short links.</div>
+    <div class="err-box" id="errorBox"></div>
     <div class="loader" id="loader"><div class="spin"></div><div>Fetching video info...</div></div>
+
     <div class="preview" id="previewSection">
-      <div class="vid-card" id="vidCard">
+      <div class="vid-card">
         <div class="vid-top">
           <img class="vid-cover" id="vidCover" src="" alt="cover">
           <div class="vid-info">
@@ -1935,39 +2336,48 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
             <div class="vid-meta" id="vidMeta"></div>
           </div>
         </div>
+
         <div class="ad-gate" id="adGate">
-          <div class="ad-gate-title">🎬 One quick step to download</div>
-          <div class="ad-gate-sub">You get 3 free TikTok downloads per day — or upgrade to Premium for instant, unlimited downloads with no interruptions.</div>
-          <div class="ad-gate-choices">
-            <button class="choice-btn choice-watch" onclick="useFreeDownload()">⬇ Use Free Download<span class="choice-label">3 free per day</span></button>
-            <button class="choice-btn choice-pro" onclick="upgradeToPro()">⚡ Go Premium<span class="choice-label">₦2,000/month • Instant always</span></button>
-          </div>
-          <div class="ad-container" id="adContainer">
-            <div id="adCountdown" class="ad-countdown">Ad is loading... <strong id="countdownNum">15</strong>s remaining</div>
+          <div class="ad-gate-title">🎬 One quick step to unlock your download</div>
+          <div class="ad-gate-sub">3 free TikTok downloads per day — or go Premium for instant, unlimited downloads with no wait.</div>
+          <div class="choices">
+            <button class="choice-btn choice-free" onclick="useFreeDownload()">⬇ Use Free Download<span class="choice-label">3 free per day</span></button>
+            <button class="choice-btn choice-pro" onclick="upgradeToPro()">⚡ Go Premium<span class="choice-label">₦2,000/month · Instant always</span></button>
           </div>
         </div>
+
         <div class="pro-skip" id="proSkip">
-          <div class="pro-skip-inner">
-            <span style="font-size:1.3rem">✅</span>
-            <div><div>Premium — no ads, instant download</div><div style="font-size:.78rem;color:var(--muted);font-weight:500;margin-top:.15rem">Your Pro subscription unlocks unlimited downloads</div></div>
+          <span style="font-size:1.2rem">✅</span>
+          <div>
+            <div class="pro-skip-text">Premium — instant download, no wait</div>
+            <div class="pro-skip-sub">Your Pro subscription unlocks unlimited downloads</div>
           </div>
         </div>
+
         <div class="dl-panel" id="dlPanel">
-          <div class="dl-title">Choose your download</div>
+          <div class="dl-panel-title">Choose your format</div>
           <div class="dl-buttons">
-            <a class="dl-btn dl-primary" id="dlNoWatermark" href="#" download onclick="confirmDownload(event,'nowm')"><span>⬇ Download — No Watermark</span><span class="dl-meta">HD · MP4</span></a>
-            <a class="dl-btn dl-secondary" id="dlWatermark" href="#" download onclick="confirmDownload(event,'wm')"><span>⬇ Download — Original</span><span class="dl-meta">With TikTok watermark</span></a>
-            <a class="dl-btn dl-audio" id="dlAudio" href="#" download onclick="confirmDownload(event,'audio')"><span>⬇ Download Audio Only</span><span class="dl-meta">MP3 · Background music</span></a>
+            <a class="dl-btn dl-primary" id="dlNoWatermark" href="#" download onclick="confirmDownload(event,'nowm')">
+              <span>⬇ No Watermark — HD</span><span class="dl-btn-meta">Clean · MP4</span>
+            </a>
+            <a class="dl-btn dl-secondary" id="dlWatermark" href="#" download onclick="confirmDownload(event,'wm')">
+              <span>⬇ Original with Watermark</span><span class="dl-btn-meta">MP4</span>
+            </a>
+            <a class="dl-btn dl-audio" id="dlAudio" href="#" download onclick="confirmDownload(event,'audio')">
+              <span>⬇ Audio Only</span><span class="dl-btn-meta">MP3</span>
+            </a>
           </div>
         </div>
       </div>
     </div>
   </div>
+
   <div class="features">
     <div class="feat"><div class="feat-icon">🚫</div><h3>No Watermark</h3><p>Clean HD video — no TikTok logo burned in, ready to repost anywhere.</p></div>
-    <div class="feat"><div class="feat-icon">⚡</div><h3>Instant for Premium</h3><p>Premium users skip every ad and download instantly, every time.</p></div>
-    <div class="feat"><div class="feat-icon">🎵</div><h3>Audio Extraction</h3><p>Grab the background music or voiceover as a standalone audio file.</p></div>
+    <div class="feat"><div class="feat-icon">⚡</div><h3>Instant for Premium</h3><p>Premium users skip every gate and download instantly, every time.</p></div>
+    <div class="feat"><div class="feat-icon">🎵</div><h3>Audio Extraction</h3><p>Save the background music or voiceover as a standalone MP3.</p></div>
   </div>
+
   <div class="also-try">
     <div class="also-try-text"><strong>✦ Also try the TikGenius AI Studio</strong><span>Write viral captions, hooks, POVs, scripts, and X threads — powered by AI</span></div>
     <a class="also-try-btn" href="/dashboard">Open AI Studio →</a>
@@ -2000,7 +2410,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.9rem 
 </div>
 
 <script>
-var videoData=null,userLoggedIn=false,userIsPro=false,adTimer=null;
+var videoData=null,userLoggedIn=false,userIsPro=false;
 window.addEventListener('DOMContentLoaded',async function(){
   try{var res=await fetch('/api/me');if(res.ok){var d=await res.json();userLoggedIn=true;userIsPro=(d.plan==='pro');}}catch(e){}
 });
@@ -2026,32 +2436,18 @@ function renderPreview(d){
   meta.innerHTML+='<span class="meta-tag">No Watermark</span><span class="meta-tag">HD</span>';
   document.getElementById('previewSection').classList.add('show');
   if(d.is_pro){document.getElementById('proSkip').classList.add('show');revealDownloads(d);}
-  else{document.getElementById('adGate').classList.add('show');}
+  else{document.getElementById('adGate').style.display='block';}
 }
 async function useFreeDownload(){
   hideError();
   if(!videoData){showError('Please fetch a TikTok video first.');return;}
-
   try{
-    var res=await fetch('/api/download/confirm',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        url:document.getElementById('urlInput').value.trim(),
-        title:videoData?videoData.title:''
-      })
-    });
+    var res=await fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});
     var d=await res.json();
-
-    if(!res.ok||d.error){
-      showError(d.error||'Could not unlock download.');
-      return;
-    }
-
+    if(!res.ok||d.error){showError(d.error||'Could not unlock download.');return;}
+    document.getElementById('adGate').style.display='none';
     revealDownloads(videoData);
-  }catch(e){
-    showError('Network error — please try again.');
-  }
+  }catch(e){showError('Network error — please try again.');}
 }
 async function upgradeToPro(){
   try{var res=await fetch('/api/upgrade',{method:'POST',credentials:'same-origin'});var d=await res.json();
@@ -2074,9 +2470,7 @@ function revealDownloads(d){
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function confirmDownload(e,type){
-  // Free users are counted when they press "Use Free Download".
-  // Premium users are counted here for admin analytics.
-  if(!userIsPro){return;}
+  if(!userIsPro)return;
   try{fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});}catch(err){}
 }
 var _postAuthAction=null;
@@ -2112,10 +2506,10 @@ async function doLogin(){
 }
 document.getElementById('authModal').addEventListener('click',function(e){if(e.target===this)closeAuthModal();});
 function setLoading(show){document.getElementById('loader').classList.toggle('show',show);document.getElementById('fetchBtn').disabled=show;document.getElementById('fetchBtn').textContent=show?'Fetching...':'Fetch Video';}
-function resetPreview(){adUnlocked=false;if(adTimer){clearInterval(adTimer);adTimer=null;}document.getElementById('previewSection').classList.remove('show');document.getElementById('adGate').classList.remove('show');document.getElementById('adContainer').classList.remove('show');document.getElementById('proSkip').classList.remove('show');document.getElementById('dlPanel').classList.remove('show');}
+function resetPreview(){if(document.getElementById('adGate'))document.getElementById('adGate').style.display='';document.getElementById('previewSection').classList.remove('show');document.getElementById('proSkip').classList.remove('show');document.getElementById('dlPanel').classList.remove('show');}
 function showError(msg){var b=document.getElementById('errorBox');b.textContent=msg;b.classList.add('show');}
 function hideError(){document.getElementById('errorBox').classList.remove('show');}
-function sanitizeFilename(s){return s.replace(/[^a-z0-9_\-]/gi,'_').slice(0,60);}
+function sanitizeFilename(s){return s.replace(/[^a-z0-9_\\-]/gi,'_').slice(0,60);}
 document.getElementById('urlInput').addEventListener('keydown',function(e){if(e.key==='Enter')fetchVideo();});
 </script>
 </body>

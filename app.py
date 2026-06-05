@@ -2182,10 +2182,10 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.8rem 
 .logout-btn:hover{color:var(--danger);border-color:rgba(251,113,133,.3)}
 
 /* ── MAIN ── */
-.main{padding:20px;max-width:820px;width:100%;margin:0 auto}
+.main{padding:20px;max-width:760px;width:100%;margin:0 auto}
 
 /* ── HERO (logged out only) ── */
-.hero-section{text-align:center;padding:2.5rem 0 1.5rem;display:none}
+.hero-section{text-align:center;padding:2rem 0 1.2rem;display:none}
 .hero-section.show{display:block}
 .hero-badge{display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,255,200,.08);border:1px solid rgba(0,255,200,.2);color:var(--accent);padding:.3rem .9rem;border-radius:100px;font-size:.75rem;font-weight:700;margin-bottom:1.4rem;letter-spacing:.05em;text-transform:uppercase}
 .hero-badge::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block;animation:blink 1.6s infinite}
@@ -2221,14 +2221,14 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.8rem 
 .generate-btn:disabled{opacity:.5;transform:none;box-shadow:none}
 
 /* ── IDEA INPUT ── */
-.idea-row{display:flex;gap:10px;align-items:flex-end}
-.idea-input{flex:1;background:#050e18;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:13px 15px;font-size:.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;resize:none;min-height:52px;max-height:140px}
+.idea-row{display:flex;flex-direction:column;gap:10px}
+.idea-input{width:100%;background:#050e18;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:13px 15px;font-size:.95rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;resize:vertical;min-height:80px}
 .idea-input:focus{border-color:rgba(0,255,200,.4);box-shadow:0 0 0 3px rgba(0,255,200,.06)}
 .idea-input::placeholder{color:var(--muted)}
-.send-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#030e0a;font-weight:800;padding:13px 18px;font-size:.9rem;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;transition:all .2s;flex-shrink:0}
+.send-btn{width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#030e0a;font-weight:800;padding:15px;font-size:1rem;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
 .send-btn:hover{transform:translateY(-1px);box-shadow:0 5px 20px rgba(0,255,200,.3)}
 .send-btn:disabled{opacity:.5;transform:none;box-shadow:none}
-.input-hint{font-size:.75rem;color:var(--muted);margin-top:6px}
+.input-hint{font-size:.75rem;color:var(--muted);margin-top:6px;text-align:center}
 
 /* ── REGION SELECT ── */
 .region-row{display:flex;align-items:center;gap:8px;margin-bottom:14px}
@@ -2295,10 +2295,10 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.8rem 
   .app{display:block}
   .sidebar{display:none}
   .menu-btn{display:block}
-  .main{padding:14px}
-  .idea-row{flex-direction:column}
-  .send-btn{width:100%}
+  .main{padding:12px}
   .hero-title{font-size:clamp(1.8rem,8vw,2.8rem)}
+  .studio-card{padding:16px;border-radius:16px}
+  .nav-user{display:none!important}
 }
 </style>
 </head>

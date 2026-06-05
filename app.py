@@ -2127,7 +2127,7 @@ def telegram_webhook():
 
 # ========================= HTML PAGES =========================
 
-HOME_HTML = """<!DOCTYPE html>
+STUDIO_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">

@@ -2796,7 +2796,7 @@ function loadHistItem(item) {
   document.getElementById('chatMessages').innerHTML = '';
   addMsg('user', item.topic || 'Past generation');
   renderOutput(item.result || '');
-  closeDrawer();
+  closeProfile();
 }
 
 async function clearHistory() {

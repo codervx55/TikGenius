@@ -2582,7 +2582,8 @@ function applyUser() {
   var isPro = user.plan === 'pro';
   // Nav CTA
   document.getElementById('navCta').textContent = isPro ? '✦ Premium' : 'Upgrade';
-  document.getElementById('navCta').onclick = isPro ? null : doUpgrade;
+  if (!isPro) document.getElementById('navCta').setAttribute('onclick', 'doUpgrade()');
+  else document.getElementById('navCta').removeAttribute('onclick');
   document.getElementById('navCenter').style.display = 'flex';
   document.getElementById('navPlan').textContent = isPro ? '✦ Premium' : 'Free Plan';
   // Profile button — show initials
@@ -2601,7 +2602,7 @@ function applyUser() {
 
 function showGuest() {
   document.getElementById('navCta').textContent = 'Start Free →';
-  document.getElementById('navCta').onclick = function(){ openModal('signup'); };
+  document.getElementById('navCta').setAttribute('onclick', "openModal('signup')");
 }
 
 function updateUsage(rem, unlimited) {
@@ -2623,9 +2624,10 @@ function updateUsage(rem, unlimited) {
 // ─── CHAT FLOW ───────────────────────────────────────────
 function handleSend() {
   if (!user) { openModal('signup'); return; }
-  var text = document.getElementById('chatInput').value.trim();
+  var text = (document.getElementById('chatInput').value || '').trim();
   if (!text) return;
   if (stage === 'idle') startIdea(text);
+  else if (stage === 'done') { resetChat(); }
 }
 
 async function startIdea(text) {
@@ -2767,13 +2769,25 @@ function renderOutput(text) {
 
 function resetChat() {
   idea = ''; questions = []; stage = 'idle';
-  document.getElementById('chatMessages').innerHTML = '';
-  var welcome = document.createElement('div');
-  welcome.className = 'welcome';
-  welcome.id = 'welcomeState';
-  welcome.innerHTML = document.querySelector('.welcome').outerHTML.replace('<div class="welcome" id="welcomeState">','').replace(/<\/div>$/,'');
-  // Just reload the page — cleanest reset
-  location.reload();
+  var msgs = document.getElementById('chatMessages');
+  msgs.innerHTML = '';
+  // Re-inject welcome state
+  msgs.innerHTML = '<div class="welcome" id="welcomeState">' +
+    '<div class="welcome-icon">✦</div>' +
+    '<h2>What do you want to <span>create today?</span></h2>' +
+    '<p>Describe your content idea below. The AI will ask 3 quick questions, then generate captions, hooks, scripts, hashtags and more.</p>' +
+    '<div class="welcome-pills">' +
+    '<span class="wpill" onclick="fillExample(this)">My fitness transformation journey</span>' +
+    '<span class="wpill" onclick="fillExample(this)">How I make money online</span>' +
+    '<span class="wpill" onclick="fillExample(this)">Nigerian food recipes</span>' +
+    '<span class="wpill" onclick="fillExample(this)">Motivational content for students</span>' +
+    '<span class="wpill" onclick="fillExample(this)">My business growth story</span>' +
+    '<span class="wpill" onclick="fillExample(this)">Fashion and style tips</span>' +
+    '</div></div>';
+  document.getElementById('chatInput').value = '';
+  document.getElementById('inputHint').textContent = 'Type your idea and press Enter';
+  document.getElementById('submitBtn').disabled = false;
+  hideErr(); hideBanner();
 }
 
 // ─── HISTORY ─────────────────────────────────────────────
@@ -2834,8 +2848,9 @@ function hideBanner() { document.getElementById('upgradeBanner').classList.remov
 
 function fillExample(el) {
   document.getElementById('chatInput').value = el.textContent;
-  document.getElementById('chatInput').focus();
   autoResize(document.getElementById('chatInput'));
+  if (!user) { openModal('signup'); return; }
+  document.getElementById('chatInput').focus();
 }
 
 function autoResize(el) {

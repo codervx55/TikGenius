@@ -2290,12 +2290,39 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .region-sel{background:transparent;border:none;color:var(--muted);font-size:.72rem;font-family:var(--font);cursor:pointer;outline:none;padding:2px 4px}
 .region-sel option{background:var(--card)}
 
-/* DRAWER */
-.drawer-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;backdrop-filter:blur(4px)}
-.drawer-backdrop.open{display:block}
-.drawer{position:fixed;left:0;top:0;bottom:0;width:78%;max-width:260px;background:var(--sidebar);border-right:1px solid var(--border);z-index:210;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;transform:translateX(-100%);transition:transform .25s ease}
-.drawer.open{transform:translateX(0)}
-.drawer-close{background:transparent;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;align-self:flex-end;padding:2px 6px}
+/* PROFILE PANEL */
+.profile-btn{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#050a08;font-weight:800;font-size:.8rem;cursor:pointer;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-family:var(--font)}
+.profile-btn:hover{box-shadow:0 0 14px rgba(0,255,204,.4);transform:scale(1.05)}
+.profile-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;backdrop-filter:blur(4px)}
+.profile-backdrop.open{display:block}
+.profile-panel{position:fixed;right:0;top:0;bottom:0;width:88%;max-width:320px;background:var(--sidebar);border-left:1px solid var(--border);z-index:210;overflow-y:auto;padding:0;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .28s ease}
+.profile-panel.open{transform:translateX(0)}
+.profile-head{padding:20px 18px 16px;background:linear-gradient(135deg,#0d1f2d,#0a1520);border-bottom:1px solid var(--border)}
+.profile-avatar{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.2rem;color:#050a08;margin-bottom:12px}
+.profile-name{font-family:var(--font-h);font-weight:700;font-size:1rem;margin-bottom:2px}
+.profile-email{font-size:.78rem;color:var(--muted);margin-bottom:10px;word-break:break-all}
+.profile-plan{display:inline-flex;align-items:center;gap:5px;background:rgba(0,255,204,.1);border:1px solid rgba(0,255,204,.2);color:var(--accent);padding:4px 10px;border-radius:100px;font-size:.72rem;font-weight:700}
+.profile-plan.pro{background:rgba(255,184,0,.1);border-color:rgba(255,184,0,.3);color:var(--gold)}
+.profile-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px;flex:1}
+.profile-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.profile-section-head{padding:10px 14px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--border);font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.profile-section-body{padding:14px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.stat-row:last-child{border-bottom:none;padding-bottom:0}
+.stat-row .stat-label{font-size:.8rem;color:var(--muted)}
+.stat-row .stat-val{font-size:.9rem;font-weight:700;color:var(--text)}
+.stat-row .stat-val.green{color:var(--accent)}
+.stat-row .stat-val.gold{color:var(--gold)}
+.ref-link-box{display:flex;gap:6px;margin-top:8px}
+.ref-link-input{flex:1;background:#0d0d14;border:1px solid var(--border);color:var(--accent);padding:8px 10px;border-radius:8px;font-size:.72rem;font-family:var(--font);outline:none;min-width:0}
+.ref-copy-btn{background:var(--accent);border:none;border-radius:8px;color:#050a08;font-weight:800;font-size:.72rem;padding:8px 10px;cursor:pointer;white-space:nowrap;font-family:var(--font);transition:all .2s}
+.ref-copy-btn:hover{box-shadow:0 0 12px rgba(0,255,204,.3)}
+.profile-action-btn{width:100%;padding:11px;border-radius:10px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:var(--font);transition:all .2s;text-decoration:none;display:block;text-align:center}
+.profile-action-btn.earn{background:linear-gradient(135deg,rgba(255,184,0,.15),rgba(255,184,0,.08));border:1px solid rgba(255,184,0,.3);color:var(--gold)}
+.profile-action-btn.upgrade{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#050a08}
+.profile-action-btn.danger{background:transparent;border:1px solid rgba(255,77,109,.25);color:var(--danger)}
+.profile-action-btn:hover{transform:translateY(-1px)}
+.profile-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.07);border:none;color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:.9rem;font-family:var(--font)}
 
 /* AUTH MODAL */
 .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(8px);padding:16px}
@@ -2319,7 +2346,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   html,body{overflow:auto}
   .body{flex-direction:column;overflow:visible}
   .sidebar{display:none}
-  .hamburger{display:block}
   .chat-main{overflow:visible}
   .chat-messages{overflow:visible;min-height:40vh;padding:14px 12px}
   .input-bar{position:sticky;bottom:0;z-index:50}
@@ -2343,7 +2369,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   <div class="nav-right">
     <a class="nav-btn ghost" href="/download">⬇ Downloader</a>
     <button class="nav-btn primary" id="navCta" onclick="openModal('signup')">Start Free →</button>
-    <button class="hamburger" onclick="openDrawer()">☰</button>
+    <button class="profile-btn" id="profileBtn" onclick="openProfile()" title="Your Profile">P</button>
   </div>
 </nav>
 
@@ -2455,32 +2481,45 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   </div>
 </template>
 
-<!-- DRAWER (mobile) -->
-<div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
-<div class="drawer" id="drawer">
-  <button class="drawer-close" onclick="closeDrawer()">✕</button>
-  <div class="plan-box" id="drawerPlanBox" style="display:none">
-    <div class="plan-name" id="drawerPlanName">Free Plan</div>
-    <div class="plan-email" id="drawerPlanEmail"></div>
-    <div class="usage-bar-bg"><div class="usage-bar" id="drawerUsageBar" style="width:100%"></div></div>
-    <div class="usage-text" id="drawerUsageText">5 / 5 left today</div>
+<!-- PROFILE PANEL -->
+<div class="profile-backdrop" id="profileBackdrop" onclick="closeProfile()"></div>
+<div class="profile-panel" id="profilePanel">
+  <button class="profile-close" onclick="closeProfile()">✕</button>
+  <div class="profile-head">
+    <div class="profile-avatar" id="profAvatar">?</div>
+    <div class="profile-name" id="profName">Your Account</div>
+    <div class="profile-email" id="profEmail"></div>
+    <div class="profile-plan" id="profPlan">Free Plan</div>
   </div>
-  <div class="upgrade-box" id="drawerUpgradeBox">
-    <p>Upgrade for unlimited generations.</p>
-    <button onclick="doUpgrade()">✦ Upgrade — ₦2,000/mo</button>
-  </div>
-  <a class="s-item accent" href="/download">⬇ TikTok Downloader</a>
-  <a class="s-item gold" href="/refer" id="drawerEarnLink" style="display:none">💰 Earn ₦500/Referral</a>
-  <div class="s-divider"></div>
-  <div class="s-label" style="display:flex;justify-content:space-between">
-    <span>History</span>
-    <button onclick="clearHistory()" style="background:transparent;border:none;color:var(--muted);font-size:.68rem;cursor:pointer;font-family:var(--font)">Clear</button>
-  </div>
-  <div class="hist-scroll" id="drawerHistScroll">
-    <div class="hist-empty">No history yet</div>
-  </div>
-  <div style="margin-top:auto;padding-top:12px">
-    <button class="logout-btn" id="drawerLogout" style="display:none" onclick="doLogout()">Log out</button>
+  <div class="profile-body">
+    <!-- Usage -->
+    <div class="profile-section">
+      <div class="profile-section-head">Daily Usage</div>
+      <div class="profile-section-body">
+        <div class="stat-row"><span class="stat-label">Generations today</span><span class="stat-val" id="profUsage">—</span></div>
+        <div class="stat-row"><span class="stat-label">Plan</span><span class="stat-val green" id="profPlanTxt">Free (5/day)</span></div>
+      </div>
+    </div>
+    <!-- Referral earnings -->
+    <div class="profile-section">
+      <div class="profile-section-head">💰 Referral Earnings</div>
+      <div class="profile-section-body">
+        <div class="stat-row"><span class="stat-label">Wallet balance</span><span class="stat-val gold" id="profBalance">Loading...</span></div>
+        <div class="stat-row"><span class="stat-label">Total earned</span><span class="stat-val" id="profTotalEarned">—</span></div>
+        <div class="stat-row"><span class="stat-label">Total withdrawn</span><span class="stat-val" id="profWithdrawn">—</span></div>
+        <div class="stat-row"><span class="stat-label">Paid referrals</span><span class="stat-val green" id="profPaidRefs">—</span></div>
+        <div class="stat-row"><span class="stat-label">Pending referrals</span><span class="stat-val" id="profPendingRefs">—</span></div>
+        <div style="margin-top:10px;font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:600">YOUR REFERRAL LINK</div>
+        <div class="ref-link-box">
+          <input class="ref-link-input" id="profRefLink" readonly value="Loading...">
+          <button class="ref-copy-btn" onclick="copyRefLink()">Copy</button>
+        </div>
+      </div>
+    </div>
+    <!-- Actions -->
+    <a class="profile-action-btn earn" href="/refer">💳 Withdraw Earnings →</a>
+    <button class="profile-action-btn upgrade" id="profUpgradeBtn" onclick="doUpgrade()" style="display:none">✦ Upgrade to Premium — ₦2,000/mo</button>
+    <button class="profile-action-btn danger" onclick="doLogout()">Log out</button>
   </div>
 </div>
 
@@ -2537,22 +2576,22 @@ async function init() {
 }
 
 function applyUser() {
-  // Nav
-  document.getElementById('navCta').textContent = user.plan==='pro' ? '✦ Premium' : 'Upgrade';
-  document.getElementById('navCta').onclick = user.plan==='pro' ? null : doUpgrade;
+  var isPro = user.plan === 'pro';
+  // Nav CTA
+  document.getElementById('navCta').textContent = isPro ? '✦ Premium' : 'Upgrade';
+  document.getElementById('navCta').onclick = isPro ? null : doUpgrade;
   document.getElementById('navCenter').style.display = 'flex';
-  document.getElementById('navPlan').textContent = user.plan==='pro' ? '✦ Premium' : 'Free Plan';
+  document.getElementById('navPlan').textContent = isPro ? '✦ Premium' : 'Free Plan';
+  // Profile button — show initials
+  var pb = document.getElementById('profileBtn');
+  pb.style.display = 'flex';
+  pb.textContent = (user.email || 'U')[0].toUpperCase();
   // Sidebar
   document.getElementById('planBox').style.display = 'block';
-  document.getElementById('drawerPlanBox').style.display = 'block';
-  document.getElementById('planName').textContent = user.plan==='pro' ? '✦ Premium' : 'Free Plan';
-  document.getElementById('drawerPlanName').textContent = document.getElementById('planName').textContent;
+  document.getElementById('planName').textContent = isPro ? '✦ Premium' : 'Free Plan';
   document.getElementById('planEmail').textContent = user.email;
-  document.getElementById('drawerPlanEmail').textContent = user.email;
   document.getElementById('logoutBtn').style.display = 'block';
-  document.getElementById('drawerLogout').style.display = 'block';
   document.getElementById('earnLink').style.display = 'flex';
-  document.getElementById('drawerEarnLink').style.display = 'flex';
   document.getElementById('regionSel').value = user.region || 'global';
   updateUsage(user.uses_remaining, user.unlimited);
 }
@@ -2563,12 +2602,19 @@ function showGuest() {
 }
 
 function updateUsage(rem, unlimited) {
-  var pct = unlimited ? 100 : (rem/5*100);
-  var txt = unlimited ? 'Unlimited ✦' : (rem + ' / 5 left today');
-  ['usageBar','drawerUsageBar'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.width=pct+'%'; });
-  ['usageText','drawerUsageText'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=txt; });
-  var show = !unlimited && rem<=0;
-  ['upgradeBox','drawerUpgradeBox'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.toggle('show', show); });
+  var pct = unlimited ? 100 : ((rem||0)/5*100);
+  var txt = unlimited ? 'Unlimited ✦' : ((rem||0) + ' / 5 left today');
+  var ub = document.getElementById('usageBar'); if(ub) ub.style.width=pct+'%';
+  var ut = document.getElementById('usageText'); if(ut) ut.textContent=txt;
+  var show = !unlimited && (rem||0)<=0;
+  var ub2 = document.getElementById('upgradeBox'); if(ub2) ub2.classList.toggle('show', show);
+  // Profile panel usage
+  var pu = document.getElementById('profUsage');
+  if(pu) pu.textContent = unlimited ? 'Unlimited' : ((5-(rem||0)) + ' / 5 used');
+  var pp = document.getElementById('profPlanTxt');
+  if(pp) pp.textContent = unlimited ? 'Premium — Unlimited' : 'Free (5/day)';
+  var pup = document.getElementById('profUpgradeBtn');
+  if(pup) pup.style.display = (!unlimited) ? 'block' : 'none';
 }
 
 // ─── CHAT FLOW ───────────────────────────────────────────
@@ -2738,7 +2784,7 @@ async function loadHistory() {
         '<b>' + escHtml((i.topic||'Untitled').slice(0,40)) + '</b>' +
         '<span>' + new Date(i.created_at).toLocaleDateString() + '</span></div>';
     }).join('') : '<div class="hist-empty">Generate something to see history</div>';
-    ['histScroll','drawerHistScroll'].forEach(function(id){ var e=document.getElementById(id); if(e) e.innerHTML=html; });
+    var hs=document.getElementById('histScroll'); if(hs) hs.innerHTML=html;
   } catch(e) {}
 }
 
@@ -2865,9 +2911,45 @@ async function saveRegion(v) {
   await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region:v})});
 }
 
-// ─── DRAWER ───────────────────────────────────────────────
-function openDrawer(){ document.getElementById('drawer').classList.add('open'); document.getElementById('drawerBackdrop').classList.add('open'); }
-function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); document.getElementById('drawerBackdrop').classList.remove('open'); }
+// ─── PROFILE PANEL ────────────────────────────────────────
+async function openProfile() {
+  document.getElementById('profilePanel').classList.add('open');
+  document.getElementById('profileBackdrop').classList.add('open');
+  if (!user) return;
+  var isPro = user.plan === 'pro';
+  // Set static fields
+  document.getElementById('profAvatar').textContent = (user.email||'U')[0].toUpperCase();
+  document.getElementById('profName').textContent = user.email.split('@')[0];
+  document.getElementById('profEmail').textContent = user.email;
+  var planEl = document.getElementById('profPlan');
+  planEl.textContent = isPro ? '✦ Premium' : 'Free Plan';
+  planEl.className = 'profile-plan' + (isPro ? ' pro' : '');
+  // Load referral stats
+  try {
+    var r = await fetch('/api/referral/stats');
+    var d = await r.json();
+    document.getElementById('profBalance').textContent = '₦' + (d.balance_ngn||0).toLocaleString();
+    document.getElementById('profTotalEarned').textContent = '₦' + (d.total_earned_ngn||0).toLocaleString();
+    document.getElementById('profWithdrawn').textContent = '₦' + (d.total_withdrawn_ngn||0).toLocaleString();
+    document.getElementById('profPaidRefs').textContent = (d.paid_referrals||0) + ' people';
+    document.getElementById('profPendingRefs').textContent = (d.pending_referrals||0) + ' pending';
+    document.getElementById('profRefLink').value = d.referral_link || '';
+  } catch(e) {
+    document.getElementById('profBalance').textContent = 'Error loading';
+  }
+}
+function closeProfile() {
+  document.getElementById('profilePanel').classList.remove('open');
+  document.getElementById('profileBackdrop').classList.remove('open');
+}
+function copyRefLink() {
+  var link = document.getElementById('profRefLink').value;
+  navigator.clipboard.writeText(link).then(function(){
+    var btn = document.querySelector('.ref-copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(function(){ btn.textContent = 'Copy'; }, 1600);
+  });
+}
 
 init();
 </script>

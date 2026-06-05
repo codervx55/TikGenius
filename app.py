@@ -2395,7 +2395,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
       </div>
       <div class="s-divider"></div>
       <a class="s-item accent" href="/download">⬇ TikTok Downloader</a>
-      <a class="s-item gold" href="/refer" id="earnLink" style="display:none">💰 Earn ₦500/Referral</a>
+      <button class="s-item gold" id="earnLink" style="display:none" onclick="openProfile()">💰 Earn ₦500/Referral</button>
       <div class="s-divider"></div>
       <div class="s-label" style="display:flex;justify-content:space-between;align-items:center;padding-right:4px">
         <span>History</span>
@@ -2596,6 +2596,7 @@ function applyUser() {
   document.getElementById('planEmail').textContent = user.email;
   document.getElementById('logoutBtn').style.display = 'block';
   document.getElementById('earnLink').style.display = 'flex';
+  var enl = document.getElementById('earnNavLink'); if(enl) enl.style.display = 'block';
   document.getElementById('regionSel').value = user.region || 'global';
   updateUsage(user.uses_remaining, user.unlimited);
 }
@@ -2623,9 +2624,14 @@ function updateUsage(rem, unlimited) {
 
 // ─── CHAT FLOW ───────────────────────────────────────────
 function handleSend() {
-  if (!user) { openModal('signup'); return; }
   var text = (document.getElementById('chatInput').value || '').trim();
   if (!text) return;
+  if (!user) {
+    // Store idea so it auto-fills after signup
+    sessionStorage.setItem('pendingIdea', text);
+    openModal('signup');
+    return;
+  }
   if (stage === 'idle') startIdea(text);
   else if (stage === 'done') { resetChat(); }
 }
@@ -2849,7 +2855,6 @@ function hideBanner() { document.getElementById('upgradeBanner').classList.remov
 function fillExample(el) {
   document.getElementById('chatInput').value = el.textContent;
   autoResize(document.getElementById('chatInput'));
-  if (!user) { openModal('signup'); return; }
   document.getElementById('chatInput').focus();
 }
 
@@ -2895,6 +2900,8 @@ async function doSignup() {
   var d=await r.json();
   if(d.error){err.textContent=d.error;err.style.display='block';return;}
   closeModal(); user=null; await init();
+  var pending = sessionStorage.getItem('pendingIdea');
+  if (pending) { sessionStorage.removeItem('pendingIdea'); document.getElementById('chatInput').value = pending; setTimeout(function(){ handleSend(); }, 300); }
 }
 async function doLogin() {
   var email=document.getElementById('lEmail').value.trim();
@@ -2904,6 +2911,8 @@ async function doLogin() {
   var d=await r.json();
   if(d.error){err.textContent=d.error;err.style.display='block';return;}
   closeModal(); user=null; await init();
+  var pending = sessionStorage.getItem('pendingIdea');
+  if (pending) { sessionStorage.removeItem('pendingIdea'); document.getElementById('chatInput').value = pending; setTimeout(function(){ handleSend(); }, 300); }
 }
 async function doLogout() { await fetch('/api/logout',{method:'POST'}); location.reload(); }
 document.getElementById('authBackdrop').addEventListener('click',function(e){if(e.target===this)closeModal();});

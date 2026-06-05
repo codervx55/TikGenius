@@ -436,7 +436,10 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user_id" not in session:
-            return jsonify({"error": "Please log in"}), 401
+            # API requests get JSON, page requests get redirect
+            if request.path.startswith('/api/'):
+                return jsonify({"error": "Please log in"}), 401
+            return redirect("/?login=1")
         return f(*args, **kwargs)
     return decorated
 
@@ -2951,6 +2954,7 @@ function copyRefLink() {
   });
 }
 
+if (location.search.includes('login=1')) { setTimeout(function(){ if(!user) openModal('login'); }, 500); }
 init();
 </script>
 </body>

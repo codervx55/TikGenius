@@ -2127,307 +2127,375 @@ def telegram_webhook():
 
 # ========================= HTML PAGES =========================
 
-STUDIO_HTML = """<!DOCTYPE html>
+"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>TikGenius — AI Content Studio</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#03050a;--card:#0b1928;--border:#14253a;--text:#f0f8ff;--muted:#607a90;--accent:#00ffc8;--accent2:#0af;--gold:#ffb800;--danger:#fb7185;--green:#22c55e}
-body{background:radial-gradient(ellipse at 70% -5%,rgba(0,170,255,.09),transparent 40%),var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+:root{
+  --bg:#0a0a0f;--sidebar:#111118;--card:#16161e;--border:#1e1e2e;
+  --text:#f4f4f8;--muted:#6b6b80;--accent:#00ffcc;--accent2:#00aaff;
+  --gold:#ffb800;--danger:#ff4d6d;--green:#00c896;
+  --radius:14px;--font:'Inter',system-ui,sans-serif;--font-h:'Space Grotesk',system-ui,sans-serif;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
 
-/* ── NAV ── */
-nav{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1.25rem;position:sticky;top:0;z-index:200;background:rgba(3,5,10,.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,255,200,.08)}
-.logo{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.2rem;letter-spacing:-.03em;display:flex;align-items:center;gap:.45rem;text-decoration:none;color:var(--text)}
+/* NAV */
+.nav{height:52px;min-height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(10,10,15,.95);border-bottom:1px solid var(--border);position:relative;z-index:100;flex-shrink:0}
+.logo{font-family:var(--font-h);font-weight:800;font-size:1.15rem;letter-spacing:-.03em;display:flex;align-items:center;gap:8px;color:var(--text);text-decoration:none}
 .logo em{color:var(--accent);font-style:normal}
-.nav-right{display:flex;gap:.5rem;align-items:center}
-.nav-user{font-size:.8rem;color:var(--muted);padding:.4rem .8rem;border:1px solid var(--border);border-radius:8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nav-btn{background:var(--accent);color:#030e0a;border:none;padding:.45rem 1rem;border-radius:8px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;transition:all .2s;white-space:nowrap}
-.nav-btn:hover{transform:translateY(-1px);box-shadow:0 0 18px rgba(0,255,200,.3)}
-.nav-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.45rem 1rem;border-radius:8px;font-size:.8rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;transition:all .2s}
-.nav-ghost:hover{border-color:var(--accent);color:var(--accent)}
-.menu-btn{display:none;background:#0b1928;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:.5rem .75rem;cursor:pointer;font-size:1rem;line-height:1}
+.logo svg{flex-shrink:0}
+.nav-center{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+.nav-pill{background:rgba(0,255,204,.07);border:1px solid rgba(0,255,204,.15);color:var(--accent);padding:5px 12px;border-radius:100px;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.nav-right{display:flex;gap:8px;align-items:center}
+.nav-btn{padding:7px 14px;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:var(--font);border:none;transition:all .18s;text-decoration:none;white-space:nowrap}
+.nav-btn.primary{background:var(--accent);color:#050a08}
+.nav-btn.primary:hover{box-shadow:0 0 18px rgba(0,255,204,.35)}
+.nav-btn.ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.nav-btn.ghost:hover{border-color:var(--accent);color:var(--accent)}
+.hamburger{display:none;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:6px 10px;cursor:pointer;font-size:.9rem;line-height:1}
 
-/* ── LAYOUT ── */
-.app{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 53px)}
+/* BODY LAYOUT */
+.body{display:flex;flex:1;overflow:hidden}
 
-/* ── SIDEBAR ── */
-.sidebar{background:rgba(7,17,28,.97);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:12px;position:sticky;top:53px;height:calc(100vh - 53px);overflow-y:auto}
-.usage-box{background:linear-gradient(135deg,#071828,#0b1928);border:1px solid var(--border);border-radius:14px;padding:14px}
-.usage-label{font-size:.78rem;font-weight:600;margin-bottom:8px;color:var(--text)}
-.bar-bg{height:4px;background:#0f2030;border-radius:99px;overflow:hidden;margin-bottom:10px}
-.bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width .4s}
-.upgrade-btn{width:100%;padding:10px;background:linear-gradient(135deg,var(--accent),var(--gold));border:none;border-radius:10px;color:#030e0a;font-weight:800;font-size:.85rem;font-family:'Inter',sans-serif;cursor:pointer;display:none;transition:opacity .2s}
-.upgrade-btn.show{display:block}
-.side-label{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 2px}
-.side-link{display:flex;align-items:center;gap:.5rem;padding:10px 12px;border-radius:10px;text-decoration:none;font-size:.875rem;font-weight:500;color:var(--muted);border:1px solid transparent;transition:all .15s;cursor:pointer;background:transparent;font-family:'Inter',sans-serif;width:100%;text-align:left}
-.side-link:hover{background:#0b1928;color:var(--text);border-color:var(--border)}
-.side-link.earn{background:rgba(255,184,0,.06);border-color:rgba(255,184,0,.2);color:var(--gold)}
-.side-link.earn:hover{background:rgba(255,184,0,.12)}
-.side-link.dl{background:rgba(0,255,200,.05);border-color:rgba(0,255,200,.15);color:var(--accent)}
-.side-link.dl:hover{background:rgba(0,255,200,.1)}
-.hist-head{display:flex;justify-content:space-between;align-items:center}
-.clear-btn{background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:99px;padding:4px 8px;font-size:.68rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s}
-.clear-btn:hover{color:var(--accent);border-color:rgba(0,255,200,.3)}
-.hist-list{display:flex;flex-direction:column;gap:5px;flex:1;overflow-y:auto}
-.hist-item{padding:9px 10px;background:#07111c;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:border-color .15s}
-.hist-item:hover{border-color:rgba(0,255,200,.25)}
-.hist-item b{display:block;font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
-.hist-item span{font-size:.7rem;color:var(--muted);margin-top:2px;display:block}
-.empty-hist{color:var(--muted);font-size:.78rem;padding:10px;background:#07111c;border:1px dashed var(--border);border-radius:9px;line-height:1.5;text-align:center}
-.logout-btn{margin-top:auto;width:100%;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:9px;padding:9px;font-family:'Inter',sans-serif;font-size:.78rem;cursor:pointer;transition:all .2s}
-.logout-btn:hover{color:var(--danger);border-color:rgba(251,113,133,.3)}
+/* SIDEBAR */
+.sidebar{width:240px;min-width:240px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.sidebar-inner{padding:14px;display:flex;flex-direction:column;gap:8px;flex:1}
+.plan-box{background:linear-gradient(135deg,#0d1f2d,#0a1520);border:1px solid rgba(0,255,204,.15);border-radius:var(--radius);padding:14px}
+.plan-box .plan-name{font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.plan-box .plan-email{font-size:.78rem;color:var(--muted);margin-bottom:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.usage-bar-bg{height:4px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin-bottom:6px}
+.usage-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width .4s}
+.usage-text{font-size:.72rem;color:var(--muted)}
+.upgrade-box{background:linear-gradient(135deg,rgba(0,255,204,.1),rgba(255,184,0,.07));border:1px solid rgba(255,184,0,.25);border-radius:var(--radius);padding:12px;display:none}
+.upgrade-box.show{display:block}
+.upgrade-box p{font-size:.78rem;color:var(--muted);line-height:1.5;margin-bottom:8px}
+.upgrade-box button{width:100%;padding:9px;background:linear-gradient(135deg,var(--accent),var(--gold));border:none;border-radius:9px;color:#050a08;font-weight:800;font-size:.82rem;font-family:var(--font);cursor:pointer}
+.s-divider{height:1px;background:var(--border);margin:4px 0}
+.s-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:10px;text-decoration:none;font-size:.85rem;font-weight:500;color:var(--muted);border:1px solid transparent;transition:all .15s;cursor:pointer;background:transparent;font-family:var(--font);width:100%;text-align:left}
+.s-item:hover{background:var(--card);color:var(--text);border-color:var(--border)}
+.s-item.accent{color:var(--accent);background:rgba(0,255,204,.05);border-color:rgba(0,255,204,.12)}
+.s-item.gold{color:var(--gold);background:rgba(255,184,0,.05);border-color:rgba(255,184,0,.15)}
+.s-label{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:4px 10px 2px}
+.hist-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px;max-height:220px}
+.hist-item{padding:8px 10px;background:var(--card);border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:border-color .15s}
+.hist-item:hover{border-color:rgba(0,255,204,.2)}
+.hist-item b{display:block;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--text)}
+.hist-item span{font-size:.68rem;color:var(--muted);margin-top:1px;display:block}
+.hist-empty{font-size:.75rem;color:var(--muted);text-align:center;padding:12px 8px;line-height:1.5}
+.sidebar-footer{padding:12px 14px;border-top:1px solid var(--border)}
+.logout-btn{width:100%;padding:8px;background:transparent;border:1px solid var(--border);border-radius:9px;color:var(--muted);font-family:var(--font);font-size:.78rem;cursor:pointer;transition:all .2s}
+.logout-btn:hover{color:var(--danger);border-color:rgba(255,77,109,.3)}
 
-/* ── MAIN ── */
-.main{padding:20px;max-width:760px;width:100%;margin:0 auto}
+/* CHAT MAIN */
+.chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.chat-messages{flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+.chat-messages::-webkit-scrollbar{width:4px}
+.chat-messages::-webkit-scrollbar-track{background:transparent}
+.chat-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
 
-/* ── HERO (logged out only) ── */
-.hero-section{text-align:center;padding:2rem 0 1.2rem;display:none}
-.hero-section.show{display:block}
-.hero-badge{display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,255,200,.08);border:1px solid rgba(0,255,200,.2);color:var(--accent);padding:.3rem .9rem;border-radius:100px;font-size:.75rem;font-weight:700;margin-bottom:1.4rem;letter-spacing:.05em;text-transform:uppercase}
-.hero-badge::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block;animation:blink 1.6s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
-.hero-title{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:clamp(2rem,8vw,3.8rem);line-height:1;letter-spacing:-.045em;margin-bottom:1rem}
-.hero-title .hl{background:linear-gradient(130deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hero-sub{color:var(--muted);font-size:.95rem;line-height:1.7;max-width:460px;margin:0 auto 1.8rem}
-.hero-features{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin-bottom:1.8rem}
-.feat-pill{background:rgba(11,25,40,.8);border:1px solid var(--border);border-radius:100px;padding:.3rem .85rem;font-size:.75rem;color:var(--muted);font-weight:500}
+/* WELCOME STATE */
+.welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:32px 20px;text-align:center;gap:16px}
+.welcome-icon{width:56px;height:56px;background:linear-gradient(135deg,rgba(0,255,204,.15),rgba(0,170,255,.1));border:1px solid rgba(0,255,204,.25);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:1.6rem}
+.welcome h2{font-family:var(--font-h);font-weight:800;font-size:clamp(1.4rem,4vw,1.9rem);letter-spacing:-.04em}
+.welcome h2 span{background:linear-gradient(130deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.welcome p{color:var(--muted);font-size:.9rem;line-height:1.65;max-width:420px}
+.welcome-pills{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;max-width:480px}
+.wpill{background:var(--card);border:1px solid var(--border);border-radius:100px;padding:5px 12px;font-size:.75rem;color:var(--muted);cursor:pointer;transition:all .18s}
+.wpill:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,255,204,.05)}
 
-/* ── STUDIO CARD ── */
-.studio-card{background:rgba(7,17,28,.9);border:1px solid var(--border);border-radius:20px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin-bottom:16px}
-.studio-label{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:.5rem}
-.studio-label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent)}
+/* MESSAGES */
+.msg{display:flex;gap:10px;max-width:800px;width:100%;animation:fadeUp .25s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{align-self:flex-end;flex-direction:row-reverse}
+.msg-avatar{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;flex-shrink:0;margin-top:2px}
+.msg.ai .msg-avatar{background:linear-gradient(135deg,rgba(0,255,204,.2),rgba(0,170,255,.15));border:1px solid rgba(0,255,204,.2);color:var(--accent)}
+.msg.user .msg-avatar{background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--muted)}
+.msg-body{flex:1;min-width:0}
+.msg-name{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px}
+.msg.ai .msg-name{color:var(--accent)}
+.msg.user .msg-name{color:var(--muted);text-align:right}
+.msg-bubble{padding:12px 15px;border-radius:14px;font-size:.9rem;line-height:1.65}
+.msg.ai .msg-bubble{background:var(--card);border:1px solid var(--border);color:var(--text);border-top-left-radius:4px}
+.msg.user .msg-bubble{background:rgba(0,255,204,.09);border:1px solid rgba(0,255,204,.18);color:var(--text);border-top-right-radius:4px}
 
-/* ── CHAT FLOW ── */
-.chat-area{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
-.bubble{padding:14px 16px;border-radius:14px;font-size:.9rem;line-height:1.65;max-width:100%}
-.bubble.ai{background:#0b1928;border:1px solid var(--border);color:var(--text)}
-.bubble.ai .bubble-label{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
-.bubble.user{background:rgba(0,255,200,.07);border:1px solid rgba(0,255,200,.15);color:var(--text);text-align:right}
-
-/* ── QUESTIONS FORM ── */
-.questions-form{display:none;background:#0b1928;border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}
-.questions-form.show{display:block}
-.q-item{margin-bottom:14px}
+/* QUESTIONS */
+.q-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:none}
+.q-card.show{display:block}
+.q-card-title{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.q-item{margin-bottom:12px}
 .q-item:last-child{margin-bottom:0}
-.q-label{font-size:.8rem;font-weight:600;color:var(--accent);margin-bottom:6px;display:block}
-.q-input{width:100%;background:#050e18;border:1px solid var(--border);color:var(--text);padding:11px 14px;border-radius:10px;font-size:.875rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;resize:none}
-.q-input:focus{border-color:rgba(0,255,200,.4);box-shadow:0 0 0 3px rgba(0,255,200,.06)}
-.generate-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#030e0a;font-weight:800;font-size:.95rem;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;margin-top:14px}
-.generate-btn:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(0,255,200,.3)}
-.generate-btn:disabled{opacity:.5;transform:none;box-shadow:none}
+.q-item label{display:block;font-size:.8rem;font-weight:600;color:var(--text);margin-bottom:5px;line-height:1.4}
+.q-item textarea{width:100%;background:#0d0d14;border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:9px;font-size:.875rem;font-family:var(--font);outline:none;resize:none;transition:border-color .2s;line-height:1.5}
+.q-item textarea:focus{border-color:rgba(0,255,204,.4);box-shadow:0 0 0 3px rgba(0,255,204,.06)}
+.gen-btn{width:100%;margin-top:14px;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:11px;color:#050a08;font-weight:800;font-size:.95rem;font-family:var(--font);cursor:pointer;transition:all .2s}
+.gen-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,255,204,.3)}
+.gen-btn:disabled{opacity:.5;transform:none;box-shadow:none}
 
-/* ── IDEA INPUT ── */
-.idea-row{display:flex;flex-direction:column;gap:10px}
-.idea-input{width:100%;background:#050e18;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:13px 15px;font-size:.95rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;resize:vertical;min-height:80px}
-.idea-input:focus{border-color:rgba(0,255,200,.4);box-shadow:0 0 0 3px rgba(0,255,200,.06)}
-.idea-input::placeholder{color:var(--muted)}
-.send-btn{width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#030e0a;font-weight:800;padding:15px;font-size:1rem;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
-.send-btn:hover{transform:translateY(-1px);box-shadow:0 5px 20px rgba(0,255,200,.3)}
-.send-btn:disabled{opacity:.5;transform:none;box-shadow:none}
-.input-hint{font-size:.75rem;color:var(--muted);margin-top:6px;text-align:center}
+/* OUTPUT */
+.output-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:none}
+.output-card.show{display:block}
+.output-top{display:flex;justify-content:space-between;align-items:center;padding:12px 15px;border-bottom:1px solid var(--border);background:#0d0d14}
+.output-top span{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.copy-all{background:transparent;border:1px solid rgba(0,255,204,.2);color:var(--accent);border-radius:7px;padding:5px 10px;font-size:.72rem;font-weight:700;font-family:var(--font);cursor:pointer;transition:all .2s}
+.copy-all:hover{background:rgba(0,255,204,.08)}
+.output-sections{display:flex;flex-direction:column}
+.out-section{border-bottom:1px solid var(--border)}
+.out-section:last-child{border-bottom:none}
+.out-section-head{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:rgba(0,0,0,.2);cursor:pointer;user-select:none}
+.out-section-head span{font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.out-section-body{padding:14px 15px;white-space:pre-wrap;font-size:.875rem;line-height:1.72;color:#ccd6f6}
+.sect-copy{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 8px;font-size:.68rem;font-weight:700;font-family:var(--font);cursor:pointer;transition:all .2s;white-space:nowrap}
+.sect-copy:hover{border-color:var(--accent);color:var(--accent)}
+.new-idea{width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:var(--font);font-size:.85rem;font-weight:600;cursor:pointer;margin-top:10px;transition:all .2s}
+.new-idea:hover{border-color:var(--accent);color:var(--accent)}
 
-/* ── REGION SELECT ── */
-.region-row{display:flex;align-items:center;gap:8px;margin-bottom:14px}
-.region-row label{font-size:.75rem;color:var(--muted);font-weight:600;white-space:nowrap}
-.region-select{background:#050e18;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.8rem;font-family:'Inter',sans-serif;outline:none;cursor:pointer;flex:1}
+/* THINKING */
+.thinking-msg{display:none;align-items:center;gap:10px;padding:12px 15px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);color:var(--muted);font-size:.85rem;max-width:800px}
+.thinking-msg.show{display:flex}
+.dots{display:flex;gap:4px}
+.dots span{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce .9s ease-in-out infinite}
+.dots span:nth-child(2){animation-delay:.15s}
+.dots span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,80%,100%{transform:scale(.5);opacity:.3}40%{transform:scale(1);opacity:1}}
 
-/* ── OUTPUT ── */
-.output-section{display:none;margin-top:4px}
-.output-section.show{display:block}
-.output-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.output-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1rem}
-.copy-all-btn{background:#0b1928;color:var(--accent);border:1px solid rgba(0,255,200,.25);border-radius:8px;padding:6px 12px;font-size:.75rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
-.copy-all-btn:hover{background:rgba(0,255,200,.08)}
-.result-sections{display:flex;flex-direction:column;gap:10px}
-.result-section{background:#050e18;border:1px solid var(--border);border-radius:14px;overflow:hidden}
-.result-section-head{padding:10px 14px;background:#0b1928;border-bottom:1px solid var(--border);font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);display:flex;justify-content:space-between;align-items:center}
-.result-section-body{padding:14px;white-space:pre-wrap;line-height:1.7;color:#d0e8ff;font-size:.88rem}
-.sect-copy-btn{background:transparent;border:1px solid rgba(0,255,200,.2);color:var(--accent);border-radius:6px;padding:3px 8px;font-size:.68rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
-.sect-copy-btn:hover{background:rgba(0,255,200,.08)}
-.new-idea-btn{width:100%;margin-top:14px;padding:12px;background:#0b1928;border:1px solid var(--border);border-radius:12px;color:var(--text);font-weight:700;font-size:.875rem;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
-.new-idea-btn:hover{border-color:rgba(0,255,200,.3);color:var(--accent)}
+/* ERROR */
+.err-msg{display:none;padding:10px 14px;background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.2);border-radius:10px;font-size:.83rem;color:#ff8099;max-width:800px}
+.err-msg.show{display:block}
 
-/* ── ERR / LOCK ── */
-.err-box{display:none;margin-top:10px;color:#fecdd3;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:10px 14px;border-radius:10px;font-size:.85rem}
-.premium-lock{display:none;margin-top:12px;padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(0,255,200,.07),rgba(255,184,0,.05));border:1px solid rgba(255,184,0,.25)}
-.premium-lock.show{display:block}
-.premium-lock h3{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:.95rem;margin:0 0 5px}
-.premium-lock p{margin:0 0 10px;color:var(--muted);font-size:.82rem;line-height:1.5}
+/* UPGRADE BANNER */
+.upgrade-banner{display:none;padding:14px 16px;background:linear-gradient(135deg,rgba(0,255,204,.07),rgba(255,184,0,.05));border:1px solid rgba(255,184,0,.25);border-radius:var(--radius);max-width:800px}
+.upgrade-banner.show{display:block}
+.upgrade-banner h4{font-family:var(--font-h);font-weight:800;font-size:.9rem;margin-bottom:4px}
+.upgrade-banner p{color:var(--muted);font-size:.8rem;margin-bottom:10px;line-height:1.5}
+.upgrade-banner button{padding:9px 18px;background:linear-gradient(135deg,var(--accent),var(--gold));border:none;border-radius:9px;color:#050a08;font-weight:800;font-size:.85rem;font-family:var(--font);cursor:pointer}
 
-/* ── AUTH MODAL ── */
-.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
-.overlay.active{display:flex}
-.modal{background:#0b1928;border:1px solid rgba(0,255,200,.2);border-radius:20px;padding:22px;width:100%;max-width:400px;margin:1rem}
-.modal h2{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.3rem;margin-bottom:.3rem}
-.modal-sub{color:var(--muted);font-size:.83rem;margin-bottom:1.2rem;line-height:1.5}
-.modal-tabs{display:flex;background:#050e18;border-radius:9px;padding:3px;gap:3px;margin-bottom:1.2rem}
-.modal-tab{flex:1;padding:.5rem;border:none;border-radius:7px;background:transparent;color:var(--muted);font-size:.83rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:'Inter',sans-serif}
-.modal-tab.active{background:#14253a;color:var(--text)}
-.fg{margin-bottom:.9rem}
-.fg label{display:block;font-size:.73rem;font-weight:700;color:var(--muted);margin-bottom:.4rem;letter-spacing:.04em;text-transform:uppercase}
-.fg input,.fg select{width:100%;background:#050e18;border:1px solid var(--border);color:var(--text);padding:.7rem .9rem;border-radius:9px;font-size:.875rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s}
-.fg input:focus,.fg select:focus{border-color:var(--accent)}
-.modal-err{display:none;color:#fb7185;font-size:.78rem;margin-bottom:.8rem;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:.55rem .85rem;border-radius:8px}
-.modal-btn{width:100%;padding:.8rem;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#030e0a;font-size:.9rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:.6rem;transition:all .2s}
-.modal-btn:hover{transform:translateY(-1px);box-shadow:0 5px 20px rgba(0,255,200,.25)}
-.modal-cancel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.78rem;font-family:'Inter',sans-serif;width:100%;padding:.35rem}
+/* INPUT BAR */
+.input-bar{padding:12px 16px;border-top:1px solid var(--border);background:rgba(10,10,15,.98);flex-shrink:0}
+.input-inner{max-width:800px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.input-row{display:flex;gap:8px;align-items:flex-end}
+.chat-input{flex:1;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px 15px;font-size:.9rem;font-family:var(--font);outline:none;resize:none;min-height:48px;max-height:160px;line-height:1.5;transition:border-color .2s}
+.chat-input:focus{border-color:rgba(0,255,204,.35);box-shadow:0 0 0 3px rgba(0,255,204,.05)}
+.chat-input::placeholder{color:var(--muted)}
+.submit-btn{width:44px;height:44px;background:var(--accent);border:none;border-radius:11px;color:#050a08;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .18s}
+.submit-btn:hover{box-shadow:0 0 16px rgba(0,255,204,.35)}
+.submit-btn:disabled{opacity:.4}
+.input-meta{display:flex;justify-content:space-between;align-items:center}
+.input-hint{font-size:.72rem;color:var(--muted)}
+.region-sel{background:transparent;border:none;color:var(--muted);font-size:.72rem;font-family:var(--font);cursor:pointer;outline:none;padding:2px 4px}
+.region-sel option{background:var(--card)}
 
-/* ── DRAWER (mobile) ── */
-.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:150;backdrop-filter:blur(4px)}
-.drawer-overlay.open{display:block}
-.drawer{position:fixed;left:0;top:0;bottom:0;width:82%;max-width:280px;background:#07111c;border-right:1px solid var(--border);z-index:160;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;transform:translateX(-100%);transition:transform .25s ease}
+/* DRAWER */
+.drawer-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;backdrop-filter:blur(4px)}
+.drawer-backdrop.open{display:block}
+.drawer{position:fixed;left:0;top:0;bottom:0;width:78%;max-width:260px;background:var(--sidebar);border-right:1px solid var(--border);z-index:210;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;transform:translateX(-100%);transition:transform .25s ease}
 .drawer.open{transform:translateX(0)}
+.drawer-close{background:transparent;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;align-self:flex-end;padding:2px 6px}
 
-/* ── LOADER ── */
-.thinking{display:none;align-items:center;gap:10px;padding:14px 16px;background:#0b1928;border:1px solid var(--border);border-radius:14px;color:var(--muted);font-size:.85rem}
-.thinking.show{display:flex}
-.dot-spin{display:flex;gap:4px}
-.dot-spin span{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:ds .9s ease-in-out infinite}
-.dot-spin span:nth-child(2){animation-delay:.15s}
-.dot-spin span:nth-child(3){animation-delay:.3s}
-@keyframes ds{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+/* AUTH MODAL */
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(8px);padding:16px}
+.modal-backdrop.open{display:flex}
+.modal{background:#13131a;border:1px solid rgba(0,255,204,.15);border-radius:20px;padding:22px;width:100%;max-width:380px}
+.modal h2{font-family:var(--font-h);font-weight:800;font-size:1.25rem;margin-bottom:.25rem}
+.modal-sub{color:var(--muted);font-size:.8rem;margin-bottom:1.1rem;line-height:1.5}
+.modal-tabs{display:flex;background:#0d0d14;border-radius:9px;padding:3px;gap:3px;margin-bottom:1.1rem}
+.modal-tab{flex:1;padding:.45rem;border:none;border-radius:7px;background:transparent;color:var(--muted);font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:var(--font)}
+.modal-tab.on{background:var(--card);color:var(--text)}
+.fg{margin-bottom:.85rem}
+.fg label{display:block;font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:.35rem;letter-spacing:.04em;text-transform:uppercase}
+.fg input,.fg select{width:100%;background:#0d0d14;border:1px solid var(--border);color:var(--text);padding:.65rem .85rem;border-radius:8px;font-size:.85rem;font-family:var(--font);outline:none;transition:border-color .2s}
+.fg input:focus,.fg select:focus{border-color:var(--accent)}
+.modal-err{display:none;color:#ff8099;font-size:.76rem;margin-bottom:.75rem;background:rgba(255,77,109,.07);border:1px solid rgba(255,77,109,.2);padding:.5rem .8rem;border-radius:7px}
+.modal-btn{width:100%;padding:.75rem;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:9px;color:#050a08;font-size:.875rem;font-weight:800;cursor:pointer;font-family:var(--font);margin-bottom:.55rem;transition:all .2s}
+.modal-btn:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(0,255,204,.25)}
+.modal-cancel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.76rem;font-family:var(--font);width:100%;padding:.3rem}
 
-@media(max-width:800px){
-  .app{display:block}
+@media(max-width:768px){
+  html,body{overflow:auto}
+  .body{flex-direction:column;overflow:visible}
   .sidebar{display:none}
-  .menu-btn{display:block}
-  .main{padding:12px}
-  .hero-title{font-size:clamp(1.8rem,8vw,2.8rem)}
-  .studio-card{padding:16px;border-radius:16px}
-  .nav-user{display:none!important}
+  .hamburger{display:block}
+  .chat-main{overflow:visible}
+  .chat-messages{overflow:visible;min-height:40vh;padding:14px 12px}
+  .input-bar{position:sticky;bottom:0;z-index:50}
+  .nav-center{display:none}
+  .welcome{padding:20px 16px;gap:12px}
+  .welcome h2{font-size:1.3rem}
 }
 </style>
 </head>
 <body>
 
-<nav>
-  <a class="logo" href="/"><svg width="22" height="22" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="g1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffc8"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient><linearGradient id="g2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffc8"/></linearGradient></defs><rect x="52" y="58" width="52" height="7" rx="2" fill="url(#g1)"/><rect x="74" y="65" width="8" height="70" rx="2" fill="url(#g1)"/><path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#g2)" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#g2)"/></svg>Tik<em>Genius</em></a>
+<!-- NAV -->
+<nav class="nav">
+  <a class="logo" href="/">
+    <svg width="24" height="24" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="lg1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffcc"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient><linearGradient id="lg2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffcc"/></linearGradient></defs><rect x="52" y="58" width="52" height="7" rx="2" fill="url(#lg1)"/><rect x="74" y="65" width="8" height="70" rx="2" fill="url(#lg1)"/><path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#lg2)" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#lg2)"/></svg>
+    Tik<em>Genius</em>
+  </a>
+  <div class="nav-center" id="navCenter" style="display:none">
+    <span class="nav-pill" id="navPlan">Free Plan</span>
+  </div>
   <div class="nav-right">
-    <span class="nav-user" id="navUser" style="display:none"></span>
-    <a class="nav-ghost" href="/refer" id="earnLink" style="display:none">💰 Earn</a>
-    <a class="nav-ghost" href="/download">⬇ Downloader</a>
-    <button class="nav-btn" id="navAction" onclick="openModal('signup')">Start Free →</button>
-    <button class="menu-btn" id="menuBtn" onclick="openDrawer()">☰</button>
+    <a class="nav-btn ghost" href="/download">⬇ Downloader</a>
+    <button class="nav-btn primary" id="navCta" onclick="openModal('signup')">Start Free →</button>
+    <button class="hamburger" onclick="openDrawer()">☰</button>
   </div>
 </nav>
 
-<div class="app">
-  <!-- SIDEBAR (desktop) -->
+<!-- BODY -->
+<div class="body">
+
+  <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
-    <div class="usage-box">
-      <div class="usage-label" id="usageLabel">5 / 5 free generations left</div>
-      <div class="bar-bg"><div class="bar-fill" id="barFill" style="width:100%"></div></div>
-      <button class="upgrade-btn" id="upgradeBtn" onclick="doUpgrade()">✦ Upgrade to Premium — ₦2,000/mo</button>
+    <div class="sidebar-inner">
+      <!-- Plan box -->
+      <div class="plan-box" id="planBox" style="display:none">
+        <div class="plan-name" id="planName">Free Plan</div>
+        <div class="plan-email" id="planEmail"></div>
+        <div class="usage-bar-bg"><div class="usage-bar" id="usageBar" style="width:100%"></div></div>
+        <div class="usage-text" id="usageText">5 / 5 left today</div>
+      </div>
+      <div class="upgrade-box" id="upgradeBox">
+        <p>You've used all your free generations. Upgrade for unlimited.</p>
+        <button onclick="doUpgrade()">✦ Upgrade — ₦2,000/mo</button>
+      </div>
+      <div class="s-divider"></div>
+      <a class="s-item accent" href="/download">⬇ TikTok Downloader</a>
+      <a class="s-item gold" href="/refer" id="earnLink" style="display:none">💰 Earn ₦500/Referral</a>
+      <div class="s-divider"></div>
+      <div class="s-label" style="display:flex;justify-content:space-between;align-items:center;padding-right:4px">
+        <span>History</span>
+        <button onclick="clearHistory()" style="background:transparent;border:none;color:var(--muted);font-size:.68rem;cursor:pointer;font-family:var(--font)">Clear</button>
+      </div>
+      <div class="hist-scroll" id="histScroll">
+        <div class="hist-empty">Generate something to see history</div>
+      </div>
     </div>
-    <div class="side-label">Quick Links</div>
-    <a class="side-link dl" href="/download">⬇ TikTok Downloader</a>
-    <a class="side-link earn" href="/refer">💰 Earn ₦500/Referral</a>
-    <div class="side-label hist-head" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-      <span>History</span><button class="clear-btn" onclick="clearHistory()">Clear</button>
+    <div class="sidebar-footer">
+      <button class="logout-btn" id="logoutBtn" style="display:none" onclick="doLogout()">Log out</button>
     </div>
-    <div class="hist-list" id="histList"><div class="empty-hist">Your generations appear here</div></div>
-    <button class="logout-btn" onclick="doLogout()">Log out</button>
   </aside>
 
-  <!-- MAIN -->
-  <main class="main">
+  <!-- CHAT MAIN -->
+  <div class="chat-main">
+    <div class="chat-messages" id="chatMessages">
 
-    <!-- Hero (logged out) -->
-    <div class="hero-section" id="heroSection">
-      <div class="hero-badge">✦ AI Content Studio for Creators</div>
-      <h1 class="hero-title">Tell us your idea.<br><span class="hl">We make it viral.</span></h1>
-      <p class="hero-sub">No templates. No mode-picking. Just describe your content idea and TikGenius figures out exactly what to create for you.</p>
-      <div class="hero-features">
-        <span class="feat-pill">🎬 TikTok Captions</span>
-        <span class="feat-pill">🪝 Viral Hooks</span>
-        <span class="feat-pill">🎭 POV Ideas</span>
-        <span class="feat-pill">📜 Video Scripts</span>
-        <span class="feat-pill"># Hashtags</span>
-        <span class="feat-pill">🐦 X Threads</span>
-        <span class="feat-pill">🌍 7 Regions</span>
-        <span class="feat-pill">💰 Earn ₦500/Referral</span>
-      </div>
-    </div>
-
-    <!-- Studio -->
-    <div class="studio-card">
-      <div class="studio-label">AI Content Studio</div>
-
-      <div class="region-row">
-        <label>Your region:</label>
-        <select class="region-select" id="regionSelect" onchange="saveRegion(this.value)">
-          <option value="global">🌍 Global</option>
-          <option value="nigeria">🇳🇬 Nigerian</option>
-          <option value="usa">🇺🇸 American</option>
-          <option value="uk">🇬🇧 British</option>
-          <option value="caribbean">🇯🇲 Caribbean</option>
-          <option value="eastafrica">🇰🇪 East African</option>
-          <option value="southafrica">🇿🇦 South African</option>
-        </select>
+      <!-- WELCOME (shown when no messages) -->
+      <div class="welcome" id="welcomeState">
+        <div class="welcome-icon">✦</div>
+        <h2>What do you want to <span>create today?</span></h2>
+        <p>Describe your content idea below. The AI will ask 3 quick questions, then generate captions, hooks, scripts, hashtags and more — all tuned to your audience.</p>
+        <div class="welcome-pills" id="examplePills">
+          <span class="wpill" onclick="fillExample(this)">My fitness transformation journey</span>
+          <span class="wpill" onclick="fillExample(this)">How I make money online</span>
+          <span class="wpill" onclick="fillExample(this)">Nigerian food recipes</span>
+          <span class="wpill" onclick="fillExample(this)">Motivational content for students</span>
+          <span class="wpill" onclick="fillExample(this)">My business growth story</span>
+          <span class="wpill" onclick="fillExample(this)">Fashion and style tips</span>
+        </div>
       </div>
 
-      <!-- Chat bubbles -->
-      <div class="chat-area" id="chatArea"></div>
+    </div><!-- end chat-messages -->
 
-      <!-- AI thinking indicator -->
-      <div class="thinking" id="thinking">
-        <div class="dot-spin"><span></span><span></span><span></span></div>
+    <!-- Thinking -->
+    <div style="padding:0 16px 8px;max-width:832px;margin:0 auto;width:100%">
+      <div class="thinking-msg" id="thinkingMsg">
+        <div class="dots"><span></span><span></span><span></span></div>
         <span id="thinkingText">TikGenius is thinking...</span>
       </div>
-
-      <!-- Questions form -->
-      <div class="questions-form" id="questionsForm">
-        <div id="questionsBody"></div>
-        <button class="generate-btn" id="generateBtn" onclick="submitAnswers()">✦ Generate My Content</button>
-      </div>
-
-      <!-- Idea input -->
-      <div id="ideaInputWrap">
-        <div class="idea-row">
-          <textarea class="idea-input" id="ideaInput" rows="2"
-            placeholder="e.g. I want to post about my skincare journey and how I cleared my acne..."></textarea>
-          <button class="send-btn" id="sendBtn" onclick="sendIdea()">Ask AI →</button>
-        </div>
-        <div class="input-hint">Describe your idea — the AI will ask 3 quick questions then generate everything</div>
-      </div>
-
-      <div class="err-box" id="errBox"></div>
-      <div class="premium-lock" id="premiumLock">
-        <h3>You've used your 5 free generations today</h3>
-        <p>Upgrade to Premium for unlimited content every day.</p>
-        <button class="upgrade-btn show" style="display:block;width:100%;padding:10px;background:linear-gradient(135deg,var(--accent),var(--gold));border:none;border-radius:10px;color:#030e0a;font-weight:800;font-size:.875rem;font-family:'Inter',sans-serif;cursor:pointer;" onclick="doUpgrade()">✦ Upgrade to Premium — ₦2,000/mo</button>
+      <div class="err-msg" id="errMsg"></div>
+      <div class="upgrade-banner" id="upgradeBanner">
+        <h4>Free generations used up</h4>
+        <p>Upgrade to Premium for unlimited content, every day.</p>
+        <button onclick="doUpgrade()">✦ Upgrade to Premium — ₦2,000/mo</button>
       </div>
     </div>
 
-    <!-- Output -->
-    <div class="output-section" id="outputSection">
-      <div class="output-header">
-        <div class="output-title">✦ Your content is ready</div>
-        <button class="copy-all-btn" onclick="copyAll()">Copy All</button>
-      </div>
-      <div class="result-sections" id="resultSections"></div>
-      <button class="new-idea-btn" onclick="resetStudio()">↺ New Idea</button>
-    </div>
+  </div><!-- end chat-main -->
 
-  </main>
+</div><!-- end body -->
+
+<!-- INPUT BAR -->
+<div class="input-bar">
+  <div class="input-inner">
+    <div class="input-row">
+      <textarea class="chat-input" id="chatInput" rows="1"
+        placeholder="Describe your content idea..."
+        onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="submit-btn" id="submitBtn" onclick="handleSend()" title="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </div>
+    <div class="input-meta">
+      <span class="input-hint" id="inputHint">Type your idea and press Enter</span>
+      <select class="region-sel" id="regionSel" onchange="saveRegion(this.value)">
+        <option value="global">🌍 Global</option>
+        <option value="nigeria">🇳🇬 Nigeria</option>
+        <option value="usa">🇺🇸 USA</option>
+        <option value="uk">🇬🇧 UK</option>
+        <option value="caribbean">🇯🇲 Caribbean</option>
+        <option value="eastafrica">🇰🇪 East Africa</option>
+        <option value="southafrica">🇿🇦 South Africa</option>
+      </select>
+    </div>
+  </div>
 </div>
 
-<!-- Auth Modal -->
-<div class="overlay" id="authOverlay">
+<!-- QUESTIONS CARD (injected into chat) -->
+<template id="qCardTpl">
+  <div class="q-card" id="qCard">
+    <div class="q-card-title">Answer these 3 questions</div>
+    <div id="qBody"></div>
+    <button class="gen-btn" onclick="submitAnswers()">✦ Generate My Content</button>
+  </div>
+</template>
+
+<!-- DRAWER (mobile) -->
+<div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  <div class="plan-box" id="drawerPlanBox" style="display:none">
+    <div class="plan-name" id="drawerPlanName">Free Plan</div>
+    <div class="plan-email" id="drawerPlanEmail"></div>
+    <div class="usage-bar-bg"><div class="usage-bar" id="drawerUsageBar" style="width:100%"></div></div>
+    <div class="usage-text" id="drawerUsageText">5 / 5 left today</div>
+  </div>
+  <div class="upgrade-box" id="drawerUpgradeBox">
+    <p>Upgrade for unlimited generations.</p>
+    <button onclick="doUpgrade()">✦ Upgrade — ₦2,000/mo</button>
+  </div>
+  <a class="s-item accent" href="/download">⬇ TikTok Downloader</a>
+  <a class="s-item gold" href="/refer" id="drawerEarnLink" style="display:none">💰 Earn ₦500/Referral</a>
+  <div class="s-divider"></div>
+  <div class="s-label" style="display:flex;justify-content:space-between">
+    <span>History</span>
+    <button onclick="clearHistory()" style="background:transparent;border:none;color:var(--muted);font-size:.68rem;cursor:pointer;font-family:var(--font)">Clear</button>
+  </div>
+  <div class="hist-scroll" id="drawerHistScroll">
+    <div class="hist-empty">No history yet</div>
+  </div>
+  <div style="margin-top:auto;padding-top:12px">
+    <button class="logout-btn" id="drawerLogout" style="display:none" onclick="doLogout()">Log out</button>
+  </div>
+</div>
+
+<!-- AUTH MODAL -->
+<div class="modal-backdrop" id="authBackdrop">
   <div class="modal">
-    <h2 id="modalTitle">Create your account</h2>
-    <p class="modal-sub" id="modalSub">5 free generations per day. No card needed.</p>
+    <h2 id="modalH">Create your account</h2>
+    <p class="modal-sub" id="modalSub">5 free AI generations per day — no card needed.</p>
     <div class="modal-tabs">
-      <button class="modal-tab active" id="tabSignup" onclick="switchTab('signup')">Sign Up</button>
-      <button class="modal-tab" id="tabLogin" onclick="switchTab('login')">Log In</button>
+      <button class="modal-tab on" id="tabA" onclick="switchTab('signup')">Sign Up</button>
+      <button class="modal-tab" id="tabB" onclick="switchTab('login')">Log In</button>
     </div>
-    <div id="formSignup">
-      <div class="fg"><label>Email</label><input type="email" id="sEmail" placeholder="you@example.com"></div>
-      <div class="fg"><label>Password</label><input type="password" id="sPass" placeholder="Min 6 characters"></div>
+    <div id="fmSignup">
+      <div class="fg"><label>Email</label><input type="email" id="sEmail" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="fg"><label>Password</label><input type="password" id="sPass" placeholder="Min 6 characters" autocomplete="new-password"></div>
       <div class="fg"><label>Your Region</label>
         <select id="sRegion">
           <option value="global">🌍 Global</option><option value="nigeria">🇳🇬 Nigerian</option>
@@ -2439,9 +2507,9 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.8rem 
       <div class="modal-err" id="sErr"></div>
       <button class="modal-btn" onclick="doSignup()">Create Account →</button>
     </div>
-    <div id="formLogin" style="display:none">
-      <div class="fg"><label>Email</label><input type="email" id="lEmail" placeholder="you@example.com"></div>
-      <div class="fg"><label>Password</label><input type="password" id="lPass" placeholder="Your password"></div>
+    <div id="fmLogin" style="display:none">
+      <div class="fg"><label>Email</label><input type="email" id="lEmail" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="fg"><label>Password</label><input type="password" id="lPass" placeholder="Your password" autocomplete="current-password"></div>
       <div class="modal-err" id="lErr"></div>
       <button class="modal-btn" onclick="doLogin()">Log In →</button>
     </div>
@@ -2449,376 +2517,357 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.8rem 
   </div>
 </div>
 
-<!-- Mobile Drawer -->
-<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
-<div class="drawer" id="drawer">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <span style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.1rem">Tik<em style="color:var(--accent);font-style:normal">Genius</em></span>
-    <button onclick="closeDrawer()" style="background:transparent;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
-  </div>
-  <div class="usage-box">
-    <div class="usage-label" id="drawerUsageLabel">5 / 5 free generations left</div>
-    <div class="bar-bg"><div class="bar-fill" id="drawerBarFill" style="width:100%"></div></div>
-    <button class="upgrade-btn" id="drawerUpgradeBtn" onclick="doUpgrade()">✦ Upgrade to Premium</button>
-  </div>
-  <a class="side-link dl" href="/download">⬇ TikTok Downloader</a>
-  <a class="side-link earn" href="/refer">💰 Earn ₦500/Referral</a>
-  <div style="font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:8px;padding:0 2px;display:flex;justify-content:space-between;align-items:center">
-    <span>History</span><button class="clear-btn" onclick="clearHistory()">Clear</button>
-  </div>
-  <div class="hist-list" id="drawerHistList"><div class="empty-hist">No history yet</div></div>
-  <button class="logout-btn" onclick="doLogout()">Log out</button>
-</div>
-
 <script>
-var userData = null;
-var currentIdea = '';
-var currentQuestions = [];
-var urlRef = (new URLSearchParams(window.location.search)).get('ref') || '';
+var user = null;
+var idea = '';
+var questions = [];
+var stage = 'idle'; // idle | asked | done
+var urlRef = new URLSearchParams(location.search).get('ref') || '';
 
-// ── INIT ──
+// ─── INIT ───────────────────────────────────────────────
 async function init() {
   try {
-    var res = await fetch('/api/me');
-    if (res.ok) {
-      userData = await res.json();
-      onLoggedIn();
-    } else {
-      onLoggedOut();
-    }
-  } catch(e) { onLoggedOut(); }
-}
-
-function onLoggedIn() {
-  document.getElementById('heroSection').classList.remove('show');
-  document.getElementById('navUser').textContent = userData.email;
-  document.getElementById('navUser').style.display = 'block';
-  document.getElementById('earnLink').style.display = 'block';
-  document.getElementById('navAction').textContent = 'Premium ✦';
-  document.getElementById('navAction').onclick = doUpgrade;
-  if (userData.plan === 'pro') {
-    document.getElementById('navAction').style.background = 'linear-gradient(135deg,var(--accent),var(--gold))';
-    document.getElementById('navAction').textContent = '✦ Premium';
-    document.getElementById('navAction').onclick = null;
+    var r = await fetch('/api/me');
+    if (r.ok) { user = await r.json(); applyUser(); loadHistory(); }
+    else { showGuest(); }
+  } catch(e) { showGuest(); }
+  if (location.search.includes('payment=success')) {
+    setTimeout(async function(){ user=null; await init(); }, 600);
   }
-  document.getElementById('regionSelect').value = userData.region || 'global';
-  updateUsage(userData.uses_remaining, userData.unlimited);
-  loadHistory();
-  // Show sidebar
-  document.getElementById('sidebar').style.display = 'flex';
 }
 
-function onLoggedOut() {
-  document.getElementById('heroSection').classList.add('show');
-  document.getElementById('sidebar').style.display = 'none';
-  document.getElementById('navUser').style.display = 'none';
-  document.getElementById('earnLink').style.display = 'none';
-  document.getElementById('navAction').textContent = 'Start Free →';
-  document.getElementById('navAction').onclick = function(){ openModal('signup'); };
+function applyUser() {
+  // Nav
+  document.getElementById('navCta').textContent = user.plan==='pro' ? '✦ Premium' : 'Upgrade';
+  document.getElementById('navCta').onclick = user.plan==='pro' ? null : doUpgrade;
+  document.getElementById('navCenter').style.display = 'flex';
+  document.getElementById('navPlan').textContent = user.plan==='pro' ? '✦ Premium' : 'Free Plan';
+  // Sidebar
+  document.getElementById('planBox').style.display = 'block';
+  document.getElementById('drawerPlanBox').style.display = 'block';
+  document.getElementById('planName').textContent = user.plan==='pro' ? '✦ Premium' : 'Free Plan';
+  document.getElementById('drawerPlanName').textContent = document.getElementById('planName').textContent;
+  document.getElementById('planEmail').textContent = user.email;
+  document.getElementById('drawerPlanEmail').textContent = user.email;
+  document.getElementById('logoutBtn').style.display = 'block';
+  document.getElementById('drawerLogout').style.display = 'block';
+  document.getElementById('earnLink').style.display = 'flex';
+  document.getElementById('drawerEarnLink').style.display = 'flex';
+  document.getElementById('regionSel').value = user.region || 'global';
+  updateUsage(user.uses_remaining, user.unlimited);
+}
+
+function showGuest() {
+  document.getElementById('navCta').textContent = 'Start Free →';
+  document.getElementById('navCta').onclick = function(){ openModal('signup'); };
 }
 
 function updateUsage(rem, unlimited) {
-  var label = unlimited ? '✦ Premium — unlimited' : (rem + ' / 5 free generations left');
-  var pct = unlimited ? 100 : (rem / 5 * 100);
-  ['usageLabel','drawerUsageLabel'].forEach(function(id){
-    var el = document.getElementById(id); if(el) el.textContent = label;
-  });
-  ['barFill','drawerBarFill'].forEach(function(id){
-    var el = document.getElementById(id); if(el) el.style.width = pct + '%';
-  });
-  var showUpgrade = !unlimited && rem <= 0;
-  ['upgradeBtn','drawerUpgradeBtn'].forEach(function(id){
-    var el = document.getElementById(id);
-    if(el) { el.classList.toggle('show', showUpgrade); el.style.display = showUpgrade ? 'block' : 'none'; }
-  });
-  if (showUpgrade) document.getElementById('premiumLock').classList.add('show');
+  var pct = unlimited ? 100 : (rem/5*100);
+  var txt = unlimited ? 'Unlimited ✦' : (rem + ' / 5 left today');
+  ['usageBar','drawerUsageBar'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.width=pct+'%'; });
+  ['usageText','drawerUsageText'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=txt; });
+  var show = !unlimited && rem<=0;
+  ['upgradeBox','drawerUpgradeBox'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.toggle('show', show); });
 }
 
-// ── STUDIO FLOW ──
-async function sendIdea() {
-  if (!userData) { openModal('signup'); return; }
-  var idea = document.getElementById('ideaInput').value.trim();
-  if (!idea || idea.split(' ').length < 3) { showErr('Tell us a bit more — at least 3 words'); return; }
-  hideErr();
-  currentIdea = idea;
+// ─── CHAT FLOW ───────────────────────────────────────────
+function handleSend() {
+  if (!user) { openModal('signup'); return; }
+  var text = document.getElementById('chatInput').value.trim();
+  if (!text) return;
+  if (stage === 'idle') startIdea(text);
+}
 
-  addBubble('user', idea);
-  document.getElementById('ideaInput').value = '';
-  document.getElementById('ideaInputWrap').style.display = 'none';
+async function startIdea(text) {
+  if (text.split(' ').length < 3) { showErr('Add a bit more detail — at least 3 words'); return; }
+  idea = text;
+  stage = 'asking';
+  hideErr(); hideBanner();
+  document.getElementById('chatInput').value = '';
+  autoResize(document.getElementById('chatInput'));
+  document.getElementById('welcomeState').style.display = 'none';
+
+  addMsg('user', text);
   setThinking(true, 'Understanding your idea...');
 
   try {
-    var res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ stage: 'question', idea: idea, region: document.getElementById('regionSelect').value })
-    });
-    var data = await res.json();
+    var r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ stage:'question', idea:idea, region: document.getElementById('regionSel').value }) });
+    var d = await r.json();
     setThinking(false);
-    if (data.error) { showErr(data.error); resetInput(); return; }
-    showQuestions(data.questions);
-  } catch(e) {
-    setThinking(false);
-    showErr('Network error — please try again.');
-    resetInput();
-  }
+    if (d.error) { showErr(d.error); stage='idle'; return; }
+    showQuestions(d.questions);
+  } catch(e) { setThinking(false); showErr('Network error — try again.'); stage='idle'; }
 }
 
-function showQuestions(questionsText) {
-  // Parse numbered questions
-  var lines = questionsText.split('\n').filter(function(l){ return l.trim().match(/^\d+[\.\)]/); });
-  if (!lines.length) lines = questionsText.split('\n').filter(function(l){ return l.trim().length > 5; });
-  currentQuestions = lines.map(function(l){ return l.replace(/^\d+[\.\)]\s*/, '').trim(); });
+function showQuestions(qText) {
+  addMsg('ai', qText);
+  // Parse numbered lines
+  var lines = qText.split('\n').filter(function(l){ return /^\d+[.)\s]/.test(l.trim()) && l.trim().length > 5; });
+  if (!lines.length) lines = qText.split('\n').filter(function(l){ return l.trim().length > 8; }).slice(0,3);
+  questions = lines.map(function(l){ return l.replace(/^\d+[.)\s]+/,'').trim(); });
 
-  addBubble('ai', questionsText);
-
-  var form = document.getElementById('questionsForm');
-  var body = document.getElementById('questionsBody');
-  body.innerHTML = currentQuestions.map(function(q, i) {
-    return '<div class="q-item"><label class="q-label">' + escHtml(q) + '</label>' +
-      '<textarea class="q-input" id="ans' + i + '" rows="2" placeholder="Your answer..."></textarea></div>';
+  var tpl = document.getElementById('qCardTpl').content.cloneNode(true);
+  var card = tpl.querySelector('.q-card');
+  card.id = 'qCard_' + Date.now();
+  var body = tpl.querySelector('#qBody');
+  body.innerHTML = questions.map(function(q,i){
+    return '<div class="q-item"><label>' + escHtml(q) + '</label>' +
+      '<textarea id="qa'+i+'" rows="2" placeholder="Your answer..."></textarea></div>';
   }).join('');
-  form.classList.add('show');
+  tpl.querySelector('.gen-btn').setAttribute('onclick','submitAnswers()');
+
+  var msgs = document.getElementById('chatMessages');
+  msgs.appendChild(tpl);
+  // Re-grab after append
+  var appended = msgs.lastElementChild;
+  appended.classList.add('show');
+  appended.id = 'activeQCard';
+  appended.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  stage = 'asked';
+
+  document.getElementById('inputHint').textContent = 'Answer the questions above, then click Generate';
+  document.getElementById('submitBtn').disabled = true;
 }
 
 async function submitAnswers() {
   var answers = {};
-  var allFilled = true;
-  currentQuestions.forEach(function(q, i) {
-    var val = (document.getElementById('ans' + i) || {}).value || '';
-    if (!val.trim()) allFilled = false;
-    answers[i + 1] = q + ': ' + val.trim();
+  var ok = true;
+  questions.forEach(function(q,i){
+    var el = document.getElementById('qa'+i);
+    var val = el ? el.value.trim() : '';
+    if (!val) ok = false;
+    answers[i+1] = q + ': ' + val;
   });
-  if (!allFilled) { showErr('Please answer all 3 questions'); return; }
+  if (!ok) { showErr('Please answer all 3 questions first'); return; }
   hideErr();
 
-  document.getElementById('questionsForm').classList.remove('show');
-  setThinking(true, 'Creating your content...');
-  document.getElementById('generateBtn').disabled = true;
+  var qCard = document.getElementById('activeQCard');
+  if (qCard) qCard.style.opacity = '.5';
+  var genBtn = qCard ? qCard.querySelector('.gen-btn') : null;
+  if (genBtn) genBtn.disabled = true;
+
+  setThinking(true, 'Creating your full content pack...');
 
   try {
-    var res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        stage: 'generate',
-        idea: currentIdea,
-        answers: answers,
-        region: document.getElementById('regionSelect').value
-      })
-    });
-    var data = await res.json();
+    var r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ stage:'generate', idea:idea, answers:answers, region: document.getElementById('regionSel').value }) });
+    var d = await r.json();
     setThinking(false);
-    if (data.error) {
-      showErr(data.error);
-      if (res.status === 429) document.getElementById('premiumLock').classList.add('show');
-      document.getElementById('questionsForm').classList.add('show');
-      document.getElementById('generateBtn').disabled = false;
+    if (d.error) {
+      showErr(d.error);
+      if (r.status===429) showBanner();
+      if (qCard) { qCard.style.opacity='1'; if(genBtn) genBtn.disabled=false; }
       return;
     }
-    renderOutput(data.result);
-    if (data.uses_remaining !== undefined) updateUsage(data.uses_remaining, false);
-    else if (data.unlimited) updateUsage(null, true);
+    if (qCard) qCard.remove();
+    renderOutput(d.result);
+    if (d.uses_remaining !== undefined) updateUsage(d.uses_remaining, false);
+    else if (d.unlimited) updateUsage(null, true);
     loadHistory();
+    stage = 'done';
+    document.getElementById('inputHint').textContent = 'Content ready ↑ — click New Idea to start again';
+    document.getElementById('submitBtn').disabled = false;
   } catch(e) {
     setThinking(false);
-    showErr('Network error — please try again.');
-    document.getElementById('questionsForm').classList.add('show');
-    document.getElementById('generateBtn').disabled = false;
+    showErr('Network error — try again.');
+    if (qCard) { qCard.style.opacity='1'; if(genBtn) genBtn.disabled=false; }
   }
 }
 
 function renderOutput(text) {
-  document.getElementById('outputSection').classList.add('show');
-  document.getElementById('outputSection').dataset.raw = text;
+  // Build output card
+  var card = document.createElement('div');
+  card.className = 'output-card show';
 
-  // Split into sections by **HEADING** pattern
+  // Split by **HEADING** pattern
   var sections = [];
-  var parts = text.split(/\n(?=\*\*[A-Z])/);
-  if (parts.length > 1) {
-    parts.forEach(function(p) {
-      var match = p.match(/^\*\*(.+?)\*\*\n?([\s\S]*)/);
-      if (match) sections.push({ title: match[1].trim(), body: match[2].trim() });
-      else if (p.trim()) sections.push({ title: 'Content', body: p.trim() });
-    });
-  } else {
-    sections.push({ title: 'Your Content', body: text.trim() });
-  }
+  var parts = text.split(/\n(?=\*\*[A-Z0-9])/);
+  parts.forEach(function(p) {
+    var m = p.match(/^\*\*(.+?)\*\*\s*\n?([\s\S]*)/);
+    if (m) sections.push({ h: m[1].trim(), b: m[2].trim() });
+    else if (p.trim()) sections.push({ h: 'Content', b: p.trim() });
+  });
+  if (!sections.length) sections.push({ h: 'Your Content', b: text.trim() });
 
-  document.getElementById('resultSections').innerHTML = sections.map(function(s) {
-    var bodyEsc = escHtml(s.body);
-    return '<div class="result-section">' +
-      '<div class="result-section-head"><span>' + escHtml(s.title) + '</span>' +
-      '<button class="sect-copy-btn" onclick="copySect(this,`' + s.body.replace(/`/g,'\`').replace(/
+  card.innerHTML = '<div class="output-top"><span>✦ Content Ready</span><button class="copy-all" onclick="copyRaw(this,`' +
+    text.replace(/`/g,'\`').replace(/
+/g,'\n') + '`)">Copy All</button></div>' +
+    '<div class="output-sections">' +
+    sections.map(function(s) {
+      return '<div class="out-section">' +
+        '<div class="out-section-head"><span>' + escHtml(s.h) + '</span>' +
+        '<button class="sect-copy" onclick="copyRaw(this,`' + s.b.replace(/`/g,'\`').replace(/
 /g,'\n') + '`)">Copy</button></div>' +
-      '<div class="result-section-body">' + bodyEsc + '</div></div>';
-  }).join('');
+        '<div class="out-section-body">' + escHtml(s.b) + '</div></div>';
+    }).join('') + '</div>';
 
-  document.getElementById('outputSection').scrollIntoView({ behavior: 'smooth' });
+  var msgs = document.getElementById('chatMessages');
+  msgs.appendChild(card);
+
+  // New idea button
+  var btn = document.createElement('button');
+  btn.className = 'new-idea';
+  btn.textContent = '↺ New Idea';
+  btn.onclick = resetChat;
+  msgs.appendChild(btn);
+
+  card.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
-function resetStudio() {
-  currentIdea = '';
-  currentQuestions = [];
-  document.getElementById('chatArea').innerHTML = '';
-  document.getElementById('questionsForm').classList.remove('show');
-  document.getElementById('questionsBody').innerHTML = '';
-  document.getElementById('outputSection').classList.remove('show');
-  document.getElementById('ideaInputWrap').style.display = 'block';
-  document.getElementById('ideaInput').value = '';
-  document.getElementById('ideaInput').focus();
-  hideErr();
+function resetChat() {
+  idea = ''; questions = []; stage = 'idle';
+  document.getElementById('chatMessages').innerHTML = '';
+  var welcome = document.createElement('div');
+  welcome.className = 'welcome';
+  welcome.id = 'welcomeState';
+  welcome.innerHTML = document.querySelector('.welcome').outerHTML.replace('<div class="welcome" id="welcomeState">','').replace(/<\/div>$/,'');
+  // Just reload the page — cleanest reset
+  location.reload();
 }
 
-function addBubble(type, text) {
-  var area = document.getElementById('chatArea');
-  var div = document.createElement('div');
-  div.className = 'bubble ' + type;
-  if (type === 'ai') div.innerHTML = '<div class="bubble-label">TikGenius</div>' + escHtml(text).replace(/\n/g,'<br>');
-  else div.textContent = text;
-  area.appendChild(div);
-  div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-function setThinking(show, text) {
-  var el = document.getElementById('thinking');
-  el.classList.toggle('show', show);
-  if (text) document.getElementById('thinkingText').textContent = text;
-}
-
-function resetInput() {
-  document.getElementById('ideaInputWrap').style.display = 'block';
-}
-
-// ── HISTORY ──
+// ─── HISTORY ─────────────────────────────────────────────
 async function loadHistory() {
   try {
-    var res = await fetch('/api/history');
-    var data = await res.json();
-    var items = data.items || [];
-    var html = items.length ? items.map(function(i) {
-      return '<div class="hist-item" onclick='showHistItem(' + JSON.stringify(i).replace(/'/g,"&#39;") + ')'>' +
-        '<b>' + escHtml(i.topic || 'Untitled') + '</b>' +
+    var r = await fetch('/api/history');
+    var d = await r.json();
+    var items = d.items || [];
+    var html = items.length ? items.map(function(i){
+      return '<div class="hist-item" onclick='loadHistItem(' + JSON.stringify(i).replace(/'/g,"&#39;") + ')'>' +
+        '<b>' + escHtml((i.topic||'Untitled').slice(0,40)) + '</b>' +
         '<span>' + new Date(i.created_at).toLocaleDateString() + '</span></div>';
-    }).join('') : '<div class="empty-hist">No history yet</div>';
-    ['histList','drawerHistList'].forEach(function(id) {
-      var el = document.getElementById(id); if(el) el.innerHTML = html;
-    });
+    }).join('') : '<div class="hist-empty">Generate something to see history</div>';
+    ['histScroll','drawerHistScroll'].forEach(function(id){ var e=document.getElementById(id); if(e) e.innerHTML=html; });
   } catch(e) {}
 }
 
-function showHistItem(i) {
-  resetStudio();
-  addBubble('user', i.topic || '');
-  renderOutput(i.result || '');
+function loadHistItem(item) {
+  stage = 'done';
+  document.getElementById('chatMessages').innerHTML = '';
+  addMsg('user', item.topic || 'Past generation');
+  renderOutput(item.result || '');
   closeDrawer();
 }
 
 async function clearHistory() {
   if (!confirm('Clear all history?')) return;
-  await fetch('/api/history/clear', { method: 'POST' });
+  await fetch('/api/history/clear', { method:'POST' });
   loadHistory();
-  document.getElementById('outputSection').classList.remove('show');
 }
 
-// ── AUTH ──
-function openModal(tab) {
-  document.getElementById('authOverlay').classList.add('active');
-  switchTab(tab || 'signup');
+// ─── MISC UI ─────────────────────────────────────────────
+function addMsg(type, text) {
+  var msgs = document.getElementById('chatMessages');
+  var w = document.getElementById('welcomeState');
+  if (w) w.style.display = 'none';
+  var div = document.createElement('div');
+  div.className = 'msg ' + type;
+  var av = type==='ai' ? 'TG' : '👤';
+  var name = type==='ai' ? 'TikGenius' : 'You';
+  div.innerHTML = '<div class="msg-avatar">' + av + '</div>' +
+    '<div class="msg-body"><div class="msg-name">' + name + '</div>' +
+    '<div class="msg-bubble">' + escHtml(text).replace(/\n/g,'<br>') + '</div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
 }
-function closeModal() { document.getElementById('authOverlay').classList.remove('active'); }
+
+function setThinking(show, text) {
+  var el = document.getElementById('thinkingMsg');
+  el.classList.toggle('show', show);
+  if (text) document.getElementById('thinkingText').textContent = text;
+}
+
+function showErr(msg) { var e=document.getElementById('errMsg'); e.textContent=msg; e.classList.add('show'); }
+function hideErr() { document.getElementById('errMsg').classList.remove('show'); }
+function showBanner() { document.getElementById('upgradeBanner').classList.add('show'); }
+function hideBanner() { document.getElementById('upgradeBanner').classList.remove('show'); }
+
+function fillExample(el) {
+  document.getElementById('chatInput').value = el.textContent;
+  document.getElementById('chatInput').focus();
+  autoResize(document.getElementById('chatInput'));
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
+
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
+}
+
+function copyRaw(btn, text) {
+  var raw = text.replace(/\\n/g, '\n');
+  navigator.clipboard.writeText(raw).then(function(){
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(function(){ btn.textContent = orig; }, 1600);
+  });
+}
+
+// ─── AUTH ─────────────────────────────────────────────────
+function openModal(tab) { document.getElementById('authBackdrop').classList.add('open'); switchTab(tab||'signup'); }
+function closeModal() { document.getElementById('authBackdrop').classList.remove('open'); }
 function switchTab(tab) {
-  document.getElementById('formSignup').style.display = tab === 'signup' ? 'block' : 'none';
-  document.getElementById('formLogin').style.display = tab === 'login' ? 'block' : 'none';
-  document.getElementById('tabSignup').classList.toggle('active', tab === 'signup');
-  document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
-  document.getElementById('modalTitle').textContent = tab === 'signup' ? 'Create your account' : 'Welcome back';
-  document.getElementById('modalSub').textContent = tab === 'signup' ? '5 free generations per day. No card needed.' : 'Log in to your TikGenius account';
+  document.getElementById('fmSignup').style.display = tab==='signup' ? 'block' : 'none';
+  document.getElementById('fmLogin').style.display = tab==='login' ? 'block' : 'none';
+  document.getElementById('tabA').classList.toggle('on', tab==='signup');
+  document.getElementById('tabB').classList.toggle('on', tab==='login');
+  document.getElementById('modalH').textContent = tab==='signup' ? 'Create your account' : 'Welcome back';
+  document.getElementById('modalSub').textContent = tab==='signup' ? '5 free AI generations per day — no card needed.' : 'Log in to your TikGenius account';
 }
 async function doSignup() {
-  var email = document.getElementById('sEmail').value.trim();
-  var pass = document.getElementById('sPass').value;
-  var region = document.getElementById('sRegion').value;
-  var err = document.getElementById('sErr');
-  err.style.display = 'none';
-  var res = await fetch('/api/signup', { method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ email, password: pass, region, ref_code: urlRef }) });
-  var data = await res.json();
-  if (data.error) { err.textContent = data.error; err.style.display = 'block'; return; }
-  closeModal(); userData = null; await init();
+  var email=document.getElementById('sEmail').value.trim();
+  var pass=document.getElementById('sPass').value;
+  var region=document.getElementById('sRegion').value;
+  var err=document.getElementById('sErr'); err.style.display='none';
+  var r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass,region,ref_code:urlRef})});
+  var d=await r.json();
+  if(d.error){err.textContent=d.error;err.style.display='block';return;}
+  closeModal(); user=null; await init();
 }
 async function doLogin() {
-  var email = document.getElementById('lEmail').value.trim();
-  var pass = document.getElementById('lPass').value;
-  var err = document.getElementById('lErr');
-  err.style.display = 'none';
-  var res = await fetch('/api/login', { method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ email, password: pass }) });
-  var data = await res.json();
-  if (data.error) { err.textContent = data.error; err.style.display = 'block'; return; }
-  closeModal(); userData = null; await init();
+  var email=document.getElementById('lEmail').value.trim();
+  var pass=document.getElementById('lPass').value;
+  var err=document.getElementById('lErr'); err.style.display='none';
+  var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+  var d=await r.json();
+  if(d.error){err.textContent=d.error;err.style.display='block';return;}
+  closeModal(); user=null; await init();
 }
-async function doLogout() { await fetch('/api/logout', { method: 'POST' }); location.reload(); }
-document.getElementById('authOverlay').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+async function doLogout() { await fetch('/api/logout',{method:'POST'}); location.reload(); }
+document.getElementById('authBackdrop').addEventListener('click',function(e){if(e.target===this)closeModal();});
 
-// ── UPGRADE ──
-var upgradeInProgress = false;
+// ─── UPGRADE ──────────────────────────────────────────────
+var upgInProgress = false;
 async function doUpgrade() {
-  if (upgradeInProgress) return;
-  if (!userData) { openModal('signup'); return; }
-  upgradeInProgress = true;
+  if (!user) { openModal('signup'); return; }
+  if (upgInProgress) return; upgInProgress = true;
   try {
-    var res = await fetch('/api/upgrade', { method: 'POST', credentials: 'same-origin' });
-    var d = await res.json();
-    if (res.status === 401) { openModal('login'); return; }
+    var r = await fetch('/api/upgrade',{method:'POST',credentials:'same-origin'});
+    var d = await r.json();
+    if (r.status===401) { openModal('login'); return; }
     if (d.url) { window.location.assign(d.url); return; }
-    showErr(d.error || 'Could not open payment. Please try again.');
+    showErr(d.error || 'Could not open payment.');
   } catch(e) { showErr('Network error.'); }
-  finally { upgradeInProgress = false; }
+  finally { upgInProgress = false; }
 }
 
-// ── REGION ──
-async function saveRegion(region) {
-  if (!userData) return;
-  await fetch('/api/set-region', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ region }) });
+// ─── REGION ───────────────────────────────────────────────
+async function saveRegion(v) {
+  if (!user) return;
+  await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region:v})});
 }
 
-// ── DRAWER (mobile) ──
-function openDrawer() {
-  document.getElementById('drawer').classList.add('open');
-  document.getElementById('drawerOverlay').classList.add('open');
-}
-function closeDrawer() {
-  document.getElementById('drawer').classList.remove('open');
-  document.getElementById('drawerOverlay').classList.remove('open');
-}
-
-// ── HELPERS ──
-function showErr(msg) { var e = document.getElementById('errBox'); e.textContent = msg; e.style.display = 'block'; }
-function hideErr() { document.getElementById('errBox').style.display = 'none'; }
-function escHtml(s) { return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-function copyAll() {
-  var raw = document.getElementById('outputSection').dataset.raw || '';
-  navigator.clipboard.writeText(raw).then(function(){
-    var btn = document.querySelector('.copy-all-btn');
-    btn.textContent = 'Copied!'; setTimeout(function(){ btn.textContent = 'Copy All'; }, 1600);
-  });
-}
-function copySect(btn, text) {
-  navigator.clipboard.writeText(text.replace(/\\n/g,'\n')).then(function(){
-    btn.textContent = 'Copied!'; setTimeout(function(){ btn.textContent = 'Copy'; }, 1600);
-  });
-}
-
-// ── ENTER KEY ──
-document.getElementById('ideaInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendIdea(); }
-});
-
-// payment success check
-if (window.location.search.includes('payment=success')) {
-  setTimeout(async function() { userData = null; await init(); }, 500);
-}
+// ─── DRAWER ───────────────────────────────────────────────
+function openDrawer(){ document.getElementById('drawer').classList.add('open'); document.getElementById('drawerBackdrop').classList.add('open'); }
+function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); document.getElementById('drawerBackdrop').classList.remove('open'); }
 
 init();
 </script>

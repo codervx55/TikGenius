@@ -2131,265 +2131,699 @@ STUDIO_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TikGenius — Go Viral. In Your Voice.</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TikGenius — AI Content Studio</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#03050a;--surface:#07111c;--card:#0b1928;--border:#14253a;--accent:#00ffc8;--accent2:#0af;--gold:#ffb800;--text:#f0f8ff;--muted:#607a90}
-html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
-nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.4rem;position:sticky;top:0;z-index:100;background:rgba(3,5,10,.85);backdrop-filter:blur(18px);border-bottom:1px solid rgba(0,255,200,.07)}
-.logo{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.25rem;letter-spacing:-.03em;display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--text)}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#03050a;--card:#0b1928;--border:#14253a;--text:#f0f8ff;--muted:#607a90;--accent:#00ffc8;--accent2:#0af;--gold:#ffb800;--danger:#fb7185;--green:#22c55e}
+body{background:radial-gradient(ellipse at 70% -5%,rgba(0,170,255,.09),transparent 40%),var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+/* ── NAV ── */
+nav{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1.25rem;position:sticky;top:0;z-index:200;background:rgba(3,5,10,.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,255,200,.08)}
+.logo{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.2rem;letter-spacing:-.03em;display:flex;align-items:center;gap:.45rem;text-decoration:none;color:var(--text)}
 .logo em{color:var(--accent);font-style:normal}
-.nav-btns{display:flex;gap:.65rem;align-items:center}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.45rem 1.1rem;border-radius:8px;font-size:.875rem;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;text-decoration:none;display:inline-block}
-.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
-.btn-cta{background:var(--accent);border:none;color:#030e0a;padding:.5rem 1.2rem;border-radius:8px;cursor:pointer;font-family:'Inter',sans-serif;font-size:.875rem;font-weight:700;transition:all .2s;text-decoration:none;display:inline-block}
-.btn-cta:hover{transform:translateY(-1px);box-shadow:0 0 24px rgba(0,255,200,.35)}
-.hero-wrap{position:relative;padding:6rem 1.5rem 4rem;text-align:center;overflow:hidden}
-.hero-glow{position:absolute;top:-180px;left:50%;transform:translateX(-50%);width:700px;height:700px;background:radial-gradient(circle,rgba(0,255,200,.09) 0,transparent 65%);pointer-events:none}
-.hero-badge{display:inline-flex;align-items:center;gap:.45rem;background:rgba(0,255,200,.08);border:1px solid rgba(0,255,200,.2);color:var(--accent);padding:.35rem 1rem;border-radius:100px;font-size:.8rem;font-weight:600;margin-bottom:2.2rem;letter-spacing:.04em;text-transform:uppercase}
-.hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;animation:blink 1.6s infinite}
+.nav-right{display:flex;gap:.5rem;align-items:center}
+.nav-user{font-size:.8rem;color:var(--muted);padding:.4rem .8rem;border:1px solid var(--border);border-radius:8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-btn{background:var(--accent);color:#030e0a;border:none;padding:.45rem 1rem;border-radius:8px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;transition:all .2s;white-space:nowrap}
+.nav-btn:hover{transform:translateY(-1px);box-shadow:0 0 18px rgba(0,255,200,.3)}
+.nav-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.45rem 1rem;border-radius:8px;font-size:.8rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;transition:all .2s}
+.nav-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.menu-btn{display:none;background:#0b1928;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:.5rem .75rem;cursor:pointer;font-size:1rem;line-height:1}
+
+/* ── LAYOUT ── */
+.app{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 53px)}
+
+/* ── SIDEBAR ── */
+.sidebar{background:rgba(7,17,28,.97);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:12px;position:sticky;top:53px;height:calc(100vh - 53px);overflow-y:auto}
+.usage-box{background:linear-gradient(135deg,#071828,#0b1928);border:1px solid var(--border);border-radius:14px;padding:14px}
+.usage-label{font-size:.78rem;font-weight:600;margin-bottom:8px;color:var(--text)}
+.bar-bg{height:4px;background:#0f2030;border-radius:99px;overflow:hidden;margin-bottom:10px}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width .4s}
+.upgrade-btn{width:100%;padding:10px;background:linear-gradient(135deg,var(--accent),var(--gold));border:none;border-radius:10px;color:#030e0a;font-weight:800;font-size:.85rem;font-family:'Inter',sans-serif;cursor:pointer;display:none;transition:opacity .2s}
+.upgrade-btn.show{display:block}
+.side-label{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 2px}
+.side-link{display:flex;align-items:center;gap:.5rem;padding:10px 12px;border-radius:10px;text-decoration:none;font-size:.875rem;font-weight:500;color:var(--muted);border:1px solid transparent;transition:all .15s;cursor:pointer;background:transparent;font-family:'Inter',sans-serif;width:100%;text-align:left}
+.side-link:hover{background:#0b1928;color:var(--text);border-color:var(--border)}
+.side-link.earn{background:rgba(255,184,0,.06);border-color:rgba(255,184,0,.2);color:var(--gold)}
+.side-link.earn:hover{background:rgba(255,184,0,.12)}
+.side-link.dl{background:rgba(0,255,200,.05);border-color:rgba(0,255,200,.15);color:var(--accent)}
+.side-link.dl:hover{background:rgba(0,255,200,.1)}
+.hist-head{display:flex;justify-content:space-between;align-items:center}
+.clear-btn{background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:99px;padding:4px 8px;font-size:.68rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s}
+.clear-btn:hover{color:var(--accent);border-color:rgba(0,255,200,.3)}
+.hist-list{display:flex;flex-direction:column;gap:5px;flex:1;overflow-y:auto}
+.hist-item{padding:9px 10px;background:#07111c;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:border-color .15s}
+.hist-item:hover{border-color:rgba(0,255,200,.25)}
+.hist-item b{display:block;font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.hist-item span{font-size:.7rem;color:var(--muted);margin-top:2px;display:block}
+.empty-hist{color:var(--muted);font-size:.78rem;padding:10px;background:#07111c;border:1px dashed var(--border);border-radius:9px;line-height:1.5;text-align:center}
+.logout-btn{margin-top:auto;width:100%;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:9px;padding:9px;font-family:'Inter',sans-serif;font-size:.78rem;cursor:pointer;transition:all .2s}
+.logout-btn:hover{color:var(--danger);border-color:rgba(251,113,133,.3)}
+
+/* ── MAIN ── */
+.main{padding:20px;max-width:820px;width:100%;margin:0 auto}
+
+/* ── HERO (logged out only) ── */
+.hero-section{text-align:center;padding:2.5rem 0 1.5rem;display:none}
+.hero-section.show{display:block}
+.hero-badge{display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,255,200,.08);border:1px solid rgba(0,255,200,.2);color:var(--accent);padding:.3rem .9rem;border-radius:100px;font-size:.75rem;font-weight:700;margin-bottom:1.4rem;letter-spacing:.05em;text-transform:uppercase}
+.hero-badge::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block;animation:blink 1.6s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
-h1.hero-title{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:clamp(2.4rem,9vw,5rem);line-height:.98;letter-spacing:-.045em;margin-bottom:1.5rem;max-width:820px;margin-left:auto;margin-right:auto}
-h1.hero-title .hl{display:inline-block;background:linear-gradient(130deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hero-sub{color:var(--muted);font-size:1.1rem;line-height:1.7;max-width:520px;margin:0 auto 2.8rem}
-.hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.btn-hero{padding:.9rem 2.2rem;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .25s;text-decoration:none;display:inline-flex;align-items:center;gap:.5rem}
-.btn-hero.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#030e0a;border:none}
-.btn-hero.primary:hover{transform:translateY(-2px);box-shadow:0 8px 36px rgba(0,255,200,.3)}
-.btn-hero.outline{background:transparent;border:1px solid var(--border);color:var(--text)}
-.btn-hero.outline:hover{border-color:var(--accent);color:var(--accent)}
-.hero-note{margin-top:1.6rem;color:var(--muted);font-size:.82rem}
-.hero-note span{color:var(--accent)}
-.ticker-wrap{overflow:hidden;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:rgba(7,17,28,.6);padding:.65rem 0;margin:2rem 0}
-.ticker{display:flex;gap:2.5rem;animation:tick 28s linear infinite;white-space:nowrap}
-.ticker span{color:var(--muted);font-size:.8rem;letter-spacing:.06em;text-transform:uppercase}
-.ticker strong{color:var(--accent);font-weight:700}
-@keyframes tick{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-.section{padding:5rem 1.5rem;max-width:1150px;margin:0 auto}
-.section-tag{display:block;text-align:center;color:var(--accent);font-size:.75rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:.9rem}
-.section-title{text-align:center;font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:clamp(1.7rem,4vw,2.8rem);letter-spacing:-.04em;margin-bottom:.8rem}
-.section-sub{text-align:center;color:var(--muted);max-width:480px;margin:0 auto 3rem;line-height:1.65}
+.hero-title{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:clamp(2rem,8vw,3.8rem);line-height:1;letter-spacing:-.045em;margin-bottom:1rem}
+.hero-title .hl{background:linear-gradient(130deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{color:var(--muted);font-size:.95rem;line-height:1.7;max-width:460px;margin:0 auto 1.8rem}
+.hero-features{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin-bottom:1.8rem}
+.feat-pill{background:rgba(11,25,40,.8);border:1px solid var(--border);border-radius:100px;padding:.3rem .85rem;font-size:.75rem;color:var(--muted);font-weight:500}
 
-/* EARN BAND */
-.earn-band{background:linear-gradient(135deg,rgba(255,184,0,.1),rgba(0,255,200,.07));border:1px solid rgba(255,184,0,.25);border-radius:24px;padding:2rem;margin:2rem 1.5rem;max-width:1000px;margin-left:auto;margin-right:auto;display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap}
-.earn-band-text strong{display:block;font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.3rem;color:var(--gold);margin-bottom:.4rem}
-.earn-band-text p{color:var(--muted);font-size:.9rem;line-height:1.6}
-.earn-btn{background:linear-gradient(135deg,var(--gold),#ff8c00);color:#030e0a;border:none;border-radius:12px;padding:13px 24px;font-size:.95rem;font-weight:800;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none;transition:all .2s}
-.earn-btn:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(255,184,0,.35)}
+/* ── STUDIO CARD ── */
+.studio-card{background:rgba(7,17,28,.9);border:1px solid var(--border);border-radius:20px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin-bottom:16px}
+.studio-label{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:.5rem}
+.studio-label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent)}
 
-.examples-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.25rem}
-.ex-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.4rem;transition:border-color .2s,transform .2s}
-.ex-card:hover{border-color:rgba(0,255,200,.3);transform:translateY(-3px)}
-.ex-tag{display:inline-block;background:rgba(0,255,200,.1);color:var(--accent);padding:.2rem .7rem;border-radius:100px;font-size:.72rem;font-weight:600;margin-bottom:.9rem;letter-spacing:.05em;text-transform:uppercase}
-.ex-prompt{color:var(--muted);font-size:.82rem;margin-bottom:.85rem;font-style:italic}
-.ex-output{color:var(--text);font-size:.9rem;line-height:1.65}
-.ex-output p{margin-bottom:.45rem;padding-left:.7rem;border-left:2px solid var(--accent)}
-.steps-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1.5rem;margin-top:3rem}
-.step{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.6rem}
-.step-num{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:2.2rem;color:rgba(0,255,200,.2);line-height:1;margin-bottom:.8rem}
-.step h3{font-family:'Space Grotesk',sans-serif;font-size:1.05rem;font-weight:700;margin-bottom:.5rem}
-.step p{color:var(--muted);font-size:.875rem;line-height:1.6}
-.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.25rem}
-.feat{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.5rem;display:flex;gap:1rem;align-items:flex-start;transition:border-color .2s}
-.feat:hover{border-color:rgba(0,255,200,.25)}
-.feat-icon{font-size:1.6rem;flex-shrink:0}
-.feat-body h3{font-family:'Space Grotesk',sans-serif;font-size:.95rem;font-weight:700;margin-bottom:.35rem}
-.feat-body p{color:var(--muted);font-size:.83rem;line-height:1.55}
-.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;max-width:720px;margin:3rem auto 0}
-.plan{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:2rem;position:relative}
-.plan.pro{border-color:rgba(0,255,200,.4);background:linear-gradient(145deg,#0a1f2b,#0b1928)}
-.plan-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--accent);color:#030e0a;font-size:.7rem;font-weight:800;padding:.25rem .85rem;border-radius:100px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
-.plan h3{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.2rem;margin-bottom:.3rem}
-.plan .price{font-family:'Space Grotesk',sans-serif;font-size:2.5rem;font-weight:800;line-height:1;margin:.8rem 0 .3rem}
-.plan .price span{font-size:1rem;color:var(--muted);font-family:'Inter',sans-serif;font-weight:400}
-.plan .pdesc{color:var(--muted);font-size:.85rem;margin-bottom:1.4rem;line-height:1.5}
-.plan ul{list-style:none;display:grid;gap:.55rem;margin-bottom:1.6rem}
-.plan ul li{font-size:.875rem;color:var(--text);display:flex;align-items:center;gap:.5rem}
-.plan ul li::before{content:'✓';color:var(--accent);font-weight:700;font-size:.8rem;flex-shrink:0}
-.plan-btn{width:100%;padding:.8rem;border-radius:10px;font-size:.925rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;border:none}
-.plan-btn.free{background:transparent;border:1px solid var(--border);color:var(--muted)}
-.plan-btn.free:hover{border-color:var(--accent);color:var(--accent)}
-.plan-btn.prm{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#030e0a}
-.plan-btn.prm:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(0,255,200,.3)}
-.cta-band{background:linear-gradient(135deg,rgba(0,255,200,.08),rgba(0,170,255,.05));border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:4rem 1.5rem;text-align:center;margin:4rem 0 0}
-.cta-band h2{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:clamp(1.8rem,5vw,3rem);letter-spacing:-.04em;margin-bottom:.8rem}
-.cta-band p{color:var(--muted);margin-bottom:2rem;line-height:1.6}
-footer{padding:2rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border-top:1px solid var(--border);max-width:1150px;margin:0 auto}
-footer .brand{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1rem}
-footer .brand em{color:var(--accent);font-style:normal}
-footer .links{display:flex;gap:1.5rem}
-footer .links a{color:var(--muted);font-size:.8rem;text-decoration:none;transition:color .2s}
-footer .links a:hover{color:var(--accent)}
-footer .copy{color:var(--muted);font-size:.75rem}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
-.modal-overlay.active{display:flex}
-.modal{background:#0b1928;border:1px solid rgba(0,255,200,.2);border-radius:22px;padding:2rem;width:100%;max-width:420px;margin:1rem}
-.modal h2{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.4rem;margin-bottom:.35rem}
-.modal p{color:var(--muted);font-size:.875rem;margin-bottom:1.5rem;line-height:1.5}
-.modal-tabs{display:flex;background:#071018;border-radius:10px;padding:3px;gap:3px;margin-bottom:1.4rem}
-.modal-tab{flex:1;padding:.55rem;border:none;border-radius:8px;background:transparent;color:var(--muted);font-size:.875rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:'Inter',sans-serif}
+/* ── CHAT FLOW ── */
+.chat-area{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+.bubble{padding:14px 16px;border-radius:14px;font-size:.9rem;line-height:1.65;max-width:100%}
+.bubble.ai{background:#0b1928;border:1px solid var(--border);color:var(--text)}
+.bubble.ai .bubble-label{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.bubble.user{background:rgba(0,255,200,.07);border:1px solid rgba(0,255,200,.15);color:var(--text);text-align:right}
+
+/* ── QUESTIONS FORM ── */
+.questions-form{display:none;background:#0b1928;border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}
+.questions-form.show{display:block}
+.q-item{margin-bottom:14px}
+.q-item:last-child{margin-bottom:0}
+.q-label{font-size:.8rem;font-weight:600;color:var(--accent);margin-bottom:6px;display:block}
+.q-input{width:100%;background:#050e18;border:1px solid var(--border);color:var(--text);padding:11px 14px;border-radius:10px;font-size:.875rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;resize:none}
+.q-input:focus{border-color:rgba(0,255,200,.4);box-shadow:0 0 0 3px rgba(0,255,200,.06)}
+.generate-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#030e0a;font-weight:800;font-size:.95rem;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;margin-top:14px}
+.generate-btn:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(0,255,200,.3)}
+.generate-btn:disabled{opacity:.5;transform:none;box-shadow:none}
+
+/* ── IDEA INPUT ── */
+.idea-row{display:flex;gap:10px;align-items:flex-end}
+.idea-input{flex:1;background:#050e18;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:13px 15px;font-size:.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;resize:none;min-height:52px;max-height:140px}
+.idea-input:focus{border-color:rgba(0,255,200,.4);box-shadow:0 0 0 3px rgba(0,255,200,.06)}
+.idea-input::placeholder{color:var(--muted)}
+.send-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#030e0a;font-weight:800;padding:13px 18px;font-size:.9rem;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;transition:all .2s;flex-shrink:0}
+.send-btn:hover{transform:translateY(-1px);box-shadow:0 5px 20px rgba(0,255,200,.3)}
+.send-btn:disabled{opacity:.5;transform:none;box-shadow:none}
+.input-hint{font-size:.75rem;color:var(--muted);margin-top:6px}
+
+/* ── REGION SELECT ── */
+.region-row{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.region-row label{font-size:.75rem;color:var(--muted);font-weight:600;white-space:nowrap}
+.region-select{background:#050e18;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.8rem;font-family:'Inter',sans-serif;outline:none;cursor:pointer;flex:1}
+
+/* ── OUTPUT ── */
+.output-section{display:none;margin-top:4px}
+.output-section.show{display:block}
+.output-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.output-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1rem}
+.copy-all-btn{background:#0b1928;color:var(--accent);border:1px solid rgba(0,255,200,.25);border-radius:8px;padding:6px 12px;font-size:.75rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
+.copy-all-btn:hover{background:rgba(0,255,200,.08)}
+.result-sections{display:flex;flex-direction:column;gap:10px}
+.result-section{background:#050e18;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.result-section-head{padding:10px 14px;background:#0b1928;border-bottom:1px solid var(--border);font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);display:flex;justify-content:space-between;align-items:center}
+.result-section-body{padding:14px;white-space:pre-wrap;line-height:1.7;color:#d0e8ff;font-size:.88rem}
+.sect-copy-btn{background:transparent;border:1px solid rgba(0,255,200,.2);color:var(--accent);border-radius:6px;padding:3px 8px;font-size:.68rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
+.sect-copy-btn:hover{background:rgba(0,255,200,.08)}
+.new-idea-btn{width:100%;margin-top:14px;padding:12px;background:#0b1928;border:1px solid var(--border);border-radius:12px;color:var(--text);font-weight:700;font-size:.875rem;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
+.new-idea-btn:hover{border-color:rgba(0,255,200,.3);color:var(--accent)}
+
+/* ── ERR / LOCK ── */
+.err-box{display:none;margin-top:10px;color:#fecdd3;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:10px 14px;border-radius:10px;font-size:.85rem}
+.premium-lock{display:none;margin-top:12px;padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(0,255,200,.07),rgba(255,184,0,.05));border:1px solid rgba(255,184,0,.25)}
+.premium-lock.show{display:block}
+.premium-lock h3{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:.95rem;margin:0 0 5px}
+.premium-lock p{margin:0 0 10px;color:var(--muted);font-size:.82rem;line-height:1.5}
+
+/* ── AUTH MODAL ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
+.overlay.active{display:flex}
+.modal{background:#0b1928;border:1px solid rgba(0,255,200,.2);border-radius:20px;padding:22px;width:100%;max-width:400px;margin:1rem}
+.modal h2{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.3rem;margin-bottom:.3rem}
+.modal-sub{color:var(--muted);font-size:.83rem;margin-bottom:1.2rem;line-height:1.5}
+.modal-tabs{display:flex;background:#050e18;border-radius:9px;padding:3px;gap:3px;margin-bottom:1.2rem}
+.modal-tab{flex:1;padding:.5rem;border:none;border-radius:7px;background:transparent;color:var(--muted);font-size:.83rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:'Inter',sans-serif}
 .modal-tab.active{background:#14253a;color:var(--text)}
-.form-group{margin-bottom:1rem}
-.form-group label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:.45rem;letter-spacing:.04em;text-transform:uppercase}
-.form-group input,.form-group select{width:100%;background:#071018;border:1px solid var(--border);color:var(--text);padding:.75rem 1rem;border-radius:10px;font-size:.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s}
-.form-group input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,255,200,.08)}
-.form-error{display:none;color:#fb7185;font-size:.82rem;margin-bottom:.85rem;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:.6rem .85rem;border-radius:8px}
-.modal-btn{width:100%;padding:.85rem;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#030e0a;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;margin-bottom:.75rem}
-.modal-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,255,200,.25)}
-.modal-cancel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.83rem;font-family:'Inter',sans-serif;width:100%;padding:.4rem}
-@media(max-width:600px){nav{padding:.7rem 1rem}.hero-wrap{padding:4rem 1rem 3rem}.section{padding:3.5rem 1rem}footer{flex-direction:column;text-align:center}footer .links{justify-content:center}.earn-band{flex-direction:column;text-align:center}}
+.fg{margin-bottom:.9rem}
+.fg label{display:block;font-size:.73rem;font-weight:700;color:var(--muted);margin-bottom:.4rem;letter-spacing:.04em;text-transform:uppercase}
+.fg input,.fg select{width:100%;background:#050e18;border:1px solid var(--border);color:var(--text);padding:.7rem .9rem;border-radius:9px;font-size:.875rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s}
+.fg input:focus,.fg select:focus{border-color:var(--accent)}
+.modal-err{display:none;color:#fb7185;font-size:.78rem;margin-bottom:.8rem;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:.55rem .85rem;border-radius:8px}
+.modal-btn{width:100%;padding:.8rem;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#030e0a;font-size:.9rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:.6rem;transition:all .2s}
+.modal-btn:hover{transform:translateY(-1px);box-shadow:0 5px 20px rgba(0,255,200,.25)}
+.modal-cancel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.78rem;font-family:'Inter',sans-serif;width:100%;padding:.35rem}
+
+/* ── DRAWER (mobile) ── */
+.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:150;backdrop-filter:blur(4px)}
+.drawer-overlay.open{display:block}
+.drawer{position:fixed;left:0;top:0;bottom:0;width:82%;max-width:280px;background:#07111c;border-right:1px solid var(--border);z-index:160;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;transform:translateX(-100%);transition:transform .25s ease}
+.drawer.open{transform:translateX(0)}
+
+/* ── LOADER ── */
+.thinking{display:none;align-items:center;gap:10px;padding:14px 16px;background:#0b1928;border:1px solid var(--border);border-radius:14px;color:var(--muted);font-size:.85rem}
+.thinking.show{display:flex}
+.dot-spin{display:flex;gap:4px}
+.dot-spin span{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:ds .9s ease-in-out infinite}
+.dot-spin span:nth-child(2){animation-delay:.15s}
+.dot-spin span:nth-child(3){animation-delay:.3s}
+@keyframes ds{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+@media(max-width:800px){
+  .app{display:block}
+  .sidebar{display:none}
+  .menu-btn{display:block}
+  .main{padding:14px}
+  .idea-row{flex-direction:column}
+  .send-btn{width:100%}
+  .hero-title{font-size:clamp(1.8rem,8vw,2.8rem)}
+}
 </style>
 </head>
 <body>
+
 <nav>
-  <a class="logo" href="/"><svg width="26" height="26" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="hG1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffc8"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient><linearGradient id="hG2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffc8"/></linearGradient></defs><rect x="52" y="58" width="52" height="7" rx="2" fill="url(#hG1)"/><rect x="74" y="65" width="8" height="70" rx="2" fill="url(#hG1)"/><path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#hG2)" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#hG2)"/></svg>Tik<em>Genius</em></a>
-  <div class="nav-btns">
-    <a class="btn-ghost" href="/download">⬇ Downloader</a>
-    <a class="btn-ghost" href="#" onclick="openModal('login');return false">Log In</a>
-    <a class="btn-cta" href="#" onclick="openModal('signup');return false">Start Free →</a>
+  <a class="logo" href="/"><svg width="22" height="22" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="g1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffc8"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient><linearGradient id="g2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffc8"/></linearGradient></defs><rect x="52" y="58" width="52" height="7" rx="2" fill="url(#g1)"/><rect x="74" y="65" width="8" height="70" rx="2" fill="url(#g1)"/><path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#g2)" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#g2)"/></svg>Tik<em>Genius</em></a>
+  <div class="nav-right">
+    <span class="nav-user" id="navUser" style="display:none"></span>
+    <a class="nav-ghost" href="/refer" id="earnLink" style="display:none">💰 Earn</a>
+    <a class="nav-ghost" href="/download">⬇ Downloader</a>
+    <button class="nav-btn" id="navAction" onclick="openModal('signup')">Start Free →</button>
+    <button class="menu-btn" id="menuBtn" onclick="openDrawer()">☰</button>
   </div>
 </nav>
-<div class="hero-wrap">
-  <div class="hero-glow"></div>
-  <div class="hero-badge">✦ AI-powered for TikTok &amp; X creators</div>
-  <h1 class="hero-title">Go Viral.<br><span class="hl">In Your Voice.</span></h1>
-  <p class="hero-sub">Generate captions, hooks, POVs, scripts, hashtags and X threads that actually perform — tuned to your culture and niche.</p>
-  <div class="hero-btns">
-    <a class="btn-hero primary" href="#" onclick="openModal('signup');return false">✦ Start for Free</a>
-    <a class="btn-hero outline" href="/download">⬇ Download TikToks</a>
-  </div>
-  <p class="hero-note">Free forever · No credit card · <span>5 generations/day free</span></p>
-</div>
-<div class="ticker-wrap"><div class="ticker"><span>Viral Captions</span><strong>·</strong><span>Scroll-Stopping Hooks</span><strong>·</strong><span>POV Concepts</span><strong>·</strong><span>Full Video Scripts</span><strong>·</strong><span>Hashtag Sets</span><strong>·</strong><span>X Threads</span><strong>·</strong><span>Earn ₦500/Referral</span><strong>·</strong><span>7 Regions Supported</span><strong>·</strong><span>Viral Captions</span><strong>·</strong><span>Scroll-Stopping Hooks</span><strong>·</strong><span>POV Concepts</span><strong>·</strong><span>Full Video Scripts</span><strong>·</strong><span>Hashtag Sets</span><strong>·</strong><span>X Threads</span><strong>·</strong><span>Earn ₦500/Referral</span><strong>·</strong><span>7 Regions Supported</span><strong>·</strong></div></div>
 
-<!-- EARN BAND -->
-<div class="earn-band">
-  <div class="earn-band-text">
-    <strong>💰 Earn ₦500 for every person you refer</strong>
-    <p>Share your unique link. When someone upgrades to Premium through your link, you earn ₦500 — automatically paid to your bank account. No limit on how many you refer.</p>
-  </div>
-  <a class="earn-btn" href="#" onclick="openModal('signup');return false">Start Earning →</a>
+<div class="app">
+  <!-- SIDEBAR (desktop) -->
+  <aside class="sidebar" id="sidebar">
+    <div class="usage-box">
+      <div class="usage-label" id="usageLabel">5 / 5 free generations left</div>
+      <div class="bar-bg"><div class="bar-fill" id="barFill" style="width:100%"></div></div>
+      <button class="upgrade-btn" id="upgradeBtn" onclick="doUpgrade()">✦ Upgrade to Premium — ₦2,000/mo</button>
+    </div>
+    <div class="side-label">Quick Links</div>
+    <a class="side-link dl" href="/download">⬇ TikTok Downloader</a>
+    <a class="side-link earn" href="/refer">💰 Earn ₦500/Referral</a>
+    <div class="side-label hist-head" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+      <span>History</span><button class="clear-btn" onclick="clearHistory()">Clear</button>
+    </div>
+    <div class="hist-list" id="histList"><div class="empty-hist">Your generations appear here</div></div>
+    <button class="logout-btn" onclick="doLogout()">Log out</button>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- Hero (logged out) -->
+    <div class="hero-section" id="heroSection">
+      <div class="hero-badge">✦ AI Content Studio for Creators</div>
+      <h1 class="hero-title">Tell us your idea.<br><span class="hl">We make it viral.</span></h1>
+      <p class="hero-sub">No templates. No mode-picking. Just describe your content idea and TikGenius figures out exactly what to create for you.</p>
+      <div class="hero-features">
+        <span class="feat-pill">🎬 TikTok Captions</span>
+        <span class="feat-pill">🪝 Viral Hooks</span>
+        <span class="feat-pill">🎭 POV Ideas</span>
+        <span class="feat-pill">📜 Video Scripts</span>
+        <span class="feat-pill"># Hashtags</span>
+        <span class="feat-pill">🐦 X Threads</span>
+        <span class="feat-pill">🌍 7 Regions</span>
+        <span class="feat-pill">💰 Earn ₦500/Referral</span>
+      </div>
+    </div>
+
+    <!-- Studio -->
+    <div class="studio-card">
+      <div class="studio-label">AI Content Studio</div>
+
+      <div class="region-row">
+        <label>Your region:</label>
+        <select class="region-select" id="regionSelect" onchange="saveRegion(this.value)">
+          <option value="global">🌍 Global</option>
+          <option value="nigeria">🇳🇬 Nigerian</option>
+          <option value="usa">🇺🇸 American</option>
+          <option value="uk">🇬🇧 British</option>
+          <option value="caribbean">🇯🇲 Caribbean</option>
+          <option value="eastafrica">🇰🇪 East African</option>
+          <option value="southafrica">🇿🇦 South African</option>
+        </select>
+      </div>
+
+      <!-- Chat bubbles -->
+      <div class="chat-area" id="chatArea"></div>
+
+      <!-- AI thinking indicator -->
+      <div class="thinking" id="thinking">
+        <div class="dot-spin"><span></span><span></span><span></span></div>
+        <span id="thinkingText">TikGenius is thinking...</span>
+      </div>
+
+      <!-- Questions form -->
+      <div class="questions-form" id="questionsForm">
+        <div id="questionsBody"></div>
+        <button class="generate-btn" id="generateBtn" onclick="submitAnswers()">✦ Generate My Content</button>
+      </div>
+
+      <!-- Idea input -->
+      <div id="ideaInputWrap">
+        <div class="idea-row">
+          <textarea class="idea-input" id="ideaInput" rows="2"
+            placeholder="e.g. I want to post about my skincare journey and how I cleared my acne..."></textarea>
+          <button class="send-btn" id="sendBtn" onclick="sendIdea()">Ask AI →</button>
+        </div>
+        <div class="input-hint">Describe your idea — the AI will ask 3 quick questions then generate everything</div>
+      </div>
+
+      <div class="err-box" id="errBox"></div>
+      <div class="premium-lock" id="premiumLock">
+        <h3>You've used your 5 free generations today</h3>
+        <p>Upgrade to Premium for unlimited content every day.</p>
+        <button class="upgrade-btn show" style="display:block;width:100%;padding:10px;background:linear-gradient(135deg,var(--accent),var(--gold));border:none;border-radius:10px;color:#030e0a;font-weight:800;font-size:.875rem;font-family:'Inter',sans-serif;cursor:pointer;" onclick="doUpgrade()">✦ Upgrade to Premium — ₦2,000/mo</button>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="output-section" id="outputSection">
+      <div class="output-header">
+        <div class="output-title">✦ Your content is ready</div>
+        <button class="copy-all-btn" onclick="copyAll()">Copy All</button>
+      </div>
+      <div class="result-sections" id="resultSections"></div>
+      <button class="new-idea-btn" onclick="resetStudio()">↺ New Idea</button>
+    </div>
+
+  </main>
 </div>
 
-<div class="section">
-  <span class="section-tag">Real outputs</span>
-  <h2 class="section-title">Content that hits different</h2>
-  <p class="section-sub">Every output is crafted for your niche, audience, and culture — not generic AI filler.</p>
-  <div class="examples-grid">
-    <div class="ex-card"><div class="ex-tag">TikTok Captions</div><div class="ex-prompt">Topic: "soft life" hustle balance for Nigerian women</div><div class="ex-output"><p>Nobody warned me that ambition and peace could coexist.</p><p>I chose both. I don't apologise for either.</p><p>Soft life isn't lazy. It's strategic.</p></div></div>
-    <div class="ex-card"><div class="ex-tag">Viral Hooks</div><div class="ex-prompt">Topic: building a brand as a broke 22-year-old</div><div class="ex-output"><p>I had ₦4,000 and a borrowed laptop. Here's what happened in 90 days.</p><p>The algorithm doesn't care about your budget. It cares about your story.</p><p>Nobody tells you the first 100 posts feel like screaming into a void.</p></div></div>
-    <div class="ex-card"><div class="ex-tag">X Thread</div><div class="ex-prompt">Topic: why consistency beats talent on TikTok</div><div class="ex-output"><p>Talented creators quit every week. Consistent ones get rich. Here's the math:</p><p>Post 365 times before judging your growth. Most people quit at day 12.</p><p>Every "viral" creator you envy has 300 forgotten videos you never saw.</p></div></div>
-  </div>
-</div>
-<div class="section" style="padding-top:1rem">
-  <span class="section-tag">How it works</span>
-  <h2 class="section-title">Three steps to viral</h2>
-  <div class="steps-grid">
-    <div class="step"><div class="step-num">01</div><h3>Choose your mode</h3><p>Pick from captions, hooks, POVs, scripts, hashtags, X threads.</p></div>
-    <div class="step"><div class="step-num">02</div><h3>Describe your topic</h3><p>Tell TikGenius your niche, audience, emotion and goal. More specific = better output.</p></div>
-    <div class="step"><div class="step-num">03</div><h3>Copy and post</h3><p>Get 5–10 ready-to-post outputs. Pick the best one and watch the views come in.</p></div>
-  </div>
-</div>
-<div class="section" style="padding-top:1rem">
-  <span class="section-tag">Features</span>
-  <h2 class="section-title">Everything a creator needs</h2>
-  <div class="features-grid">
-    <div class="feat"><div class="feat-icon">🌍</div><div class="feat-body"><h3>7 Cultural Voices</h3><p>Nigerian, American, British, Caribbean, East African, South African, or Global.</p></div></div>
-    <div class="feat"><div class="feat-icon">⚡</div><div class="feat-body"><h3>Instant AI Generation</h3><p>10+ outputs per prompt in under 5 seconds.</p></div></div>
-    <div class="feat"><div class="feat-icon">🎬</div><div class="feat-body"><h3>Full Video Scripts</h3><p>Hook, body, punchline and CTA — structured like viral TikToks.</p></div></div>
-    <div class="feat"><div class="feat-icon">🐦</div><div class="feat-body"><h3>X / Twitter Tools</h3><p>Viral tweets, thread starters, and full multi-tweet threads.</p></div></div>
-    <div class="feat"><div class="feat-icon">📥</div><div class="feat-body"><h3>TikTok Downloader</h3><p>Download any TikTok video in HD, no watermark. Free users get 3/day.</p></div></div>
-    <div class="feat"><div class="feat-icon">💰</div><div class="feat-body"><h3>Earn ₦500/Referral</h3><p>Share your link. Every Premium upgrade through your link pays you automatically.</p></div></div>
-  </div>
-</div>
-<div class="section" style="padding-top:1rem">
-  <span class="section-tag">Pricing</span>
-  <h2 class="section-title">Simple, creator-friendly pricing</h2>
-  <p class="section-sub">Start free. Upgrade when you're ready to go all-in.</p>
-  <div class="pricing-grid">
-    <div class="plan"><h3>Free</h3><div class="price">₦0 <span>/forever</span></div><p class="pdesc">Perfect for creators just starting out.</p><ul><li>5 AI generations per day</li><li>3 TikTok downloads per day</li><li>All 7 content modes</li><li>All 7 cultural regions</li><li>Referral earnings</li></ul><button class="plan-btn free" onclick="openModal('signup')">Get Started Free</button></div>
-    <div class="plan pro"><div class="plan-badge">✦ Most Popular</div><h3>Premium</h3><div class="price">₦2,000 <span>/month</span></div><p class="pdesc">For serious creators who post daily.</p><ul><li>Unlimited AI generations</li><li>Unlimited TikTok downloads</li><li>All 7 content modes</li><li>All 7 cultural regions</li><li>Full generation history</li><li>Priority response speed</li></ul><button class="plan-btn prm" onclick="openModal('signup')">Upgrade to Premium →</button></div>
-  </div>
-</div>
-<div class="cta-band">
-  <h2>Ready to go viral?</h2>
-  <p>Join creators who use TikGenius every day to stay consistent and grow faster.</p>
-  <div class="hero-btns">
-    <a class="btn-hero primary" href="#" onclick="openModal('signup');return false">✦ Start for Free</a>
-    <a class="btn-hero outline" href="/refer">💰 Earn with Referrals</a>
-  </div>
-</div>
-<footer>
-  <div class="brand">Tik<em>Genius</em></div>
-  <div class="links"><a href="/dashboard">AI Studio</a><a href="/download">Downloader</a><a href="/refer">Earn</a></div>
-  <div class="copy">© 2025 TikGenius</div>
-</footer>
-<div class="modal-overlay" id="authModal">
+<!-- Auth Modal -->
+<div class="overlay" id="authOverlay">
   <div class="modal">
     <h2 id="modalTitle">Create your account</h2>
-    <p id="modalSub">Start generating viral content — 5 free generations per day</p>
+    <p class="modal-sub" id="modalSub">5 free generations per day. No card needed.</p>
     <div class="modal-tabs">
-      <button class="modal-tab active" id="signupTab" onclick="switchTab('signup')">Sign Up</button>
-      <button class="modal-tab" id="loginTab" onclick="switchTab('login')">Log In</button>
+      <button class="modal-tab active" id="tabSignup" onclick="switchTab('signup')">Sign Up</button>
+      <button class="modal-tab" id="tabLogin" onclick="switchTab('login')">Log In</button>
     </div>
-    <div id="signupForm">
-      <div class="form-group"><label>Email</label><input type="email" id="signupEmail" placeholder="you@example.com"></div>
-      <div class="form-group"><label>Password</label><input type="password" id="signupPassword" placeholder="Min 6 characters"></div>
-      <div class="form-group"><label>Your Region</label><select id="signupRegion"><option value="global">🌍 Global</option><option value="nigeria">🇳🇬 Nigerian</option><option value="usa">🇺🇸 American</option><option value="uk">🇬🇧 British</option><option value="caribbean">🇯🇲 Caribbean</option><option value="eastafrica">🇰🇪 East African</option><option value="southafrica">🇿🇦 South African</option></select></div>
-      <div class="form-error" id="signupError"></div>
+    <div id="formSignup">
+      <div class="fg"><label>Email</label><input type="email" id="sEmail" placeholder="you@example.com"></div>
+      <div class="fg"><label>Password</label><input type="password" id="sPass" placeholder="Min 6 characters"></div>
+      <div class="fg"><label>Your Region</label>
+        <select id="sRegion">
+          <option value="global">🌍 Global</option><option value="nigeria">🇳🇬 Nigerian</option>
+          <option value="usa">🇺🇸 American</option><option value="uk">🇬🇧 British</option>
+          <option value="caribbean">🇯🇲 Caribbean</option><option value="eastafrica">🇰🇪 East African</option>
+          <option value="southafrica">🇿🇦 South African</option>
+        </select>
+      </div>
+      <div class="modal-err" id="sErr"></div>
       <button class="modal-btn" onclick="doSignup()">Create Account →</button>
     </div>
-    <div id="loginForm" style="display:none">
-      <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com"></div>
-      <div class="form-group"><label>Password</label><input type="password" id="loginPassword" placeholder="Your password"></div>
-      <div class="form-error" id="loginError"></div>
+    <div id="formLogin" style="display:none">
+      <div class="fg"><label>Email</label><input type="email" id="lEmail" placeholder="you@example.com"></div>
+      <div class="fg"><label>Password</label><input type="password" id="lPass" placeholder="Your password"></div>
+      <div class="modal-err" id="lErr"></div>
       <button class="modal-btn" onclick="doLogin()">Log In →</button>
     </div>
     <button class="modal-cancel" onclick="closeModal()">Cancel</button>
   </div>
 </div>
+
+<!-- Mobile Drawer -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.1rem">Tik<em style="color:var(--accent);font-style:normal">Genius</em></span>
+    <button onclick="closeDrawer()" style="background:transparent;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
+  </div>
+  <div class="usage-box">
+    <div class="usage-label" id="drawerUsageLabel">5 / 5 free generations left</div>
+    <div class="bar-bg"><div class="bar-fill" id="drawerBarFill" style="width:100%"></div></div>
+    <button class="upgrade-btn" id="drawerUpgradeBtn" onclick="doUpgrade()">✦ Upgrade to Premium</button>
+  </div>
+  <a class="side-link dl" href="/download">⬇ TikTok Downloader</a>
+  <a class="side-link earn" href="/refer">💰 Earn ₦500/Referral</a>
+  <div style="font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:8px;padding:0 2px;display:flex;justify-content:space-between;align-items:center">
+    <span>History</span><button class="clear-btn" onclick="clearHistory()">Clear</button>
+  </div>
+  <div class="hist-list" id="drawerHistList"><div class="empty-hist">No history yet</div></div>
+  <button class="logout-btn" onclick="doLogout()">Log out</button>
+</div>
+
 <script>
-// Capture ref code from URL
-var urlRef=(new URLSearchParams(window.location.search)).get('ref')||'';
-function openModal(tab){document.getElementById('authModal').classList.add('active');switchTab(tab||'signup')}
-function closeModal(){document.getElementById('authModal').classList.remove('active')}
-function switchTab(tab){
-  document.getElementById('signupForm').style.display=tab==='signup'?'block':'none';
-  document.getElementById('loginForm').style.display=tab==='login'?'block':'none';
-  document.getElementById('signupTab').classList.toggle('active',tab==='signup');
-  document.getElementById('loginTab').classList.toggle('active',tab==='login');
-  document.getElementById('modalTitle').textContent=tab==='signup'?'Create your account':'Welcome back';
-  document.getElementById('modalSub').textContent=tab==='signup'?'Start generating viral content — 5 free generations per day':'Log in to your TikGenius account';
+var userData = null;
+var currentIdea = '';
+var currentQuestions = [];
+var urlRef = (new URLSearchParams(window.location.search)).get('ref') || '';
+
+// ── INIT ──
+async function init() {
+  try {
+    var res = await fetch('/api/me');
+    if (res.ok) {
+      userData = await res.json();
+      onLoggedIn();
+    } else {
+      onLoggedOut();
+    }
+  } catch(e) { onLoggedOut(); }
 }
-async function doSignup(){
-  var email=document.getElementById('signupEmail').value;
-  var password=document.getElementById('signupPassword').value;
-  var region=document.getElementById('signupRegion').value;
-  var err=document.getElementById('signupError');
-  err.style.display='none';
-  var res=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password,region,ref_code:urlRef})});
-  var data=await res.json();
-  if(data.error){err.textContent=data.error;err.style.display='block';return}
-  window.location.href=data.redirect;
+
+function onLoggedIn() {
+  document.getElementById('heroSection').classList.remove('show');
+  document.getElementById('navUser').textContent = userData.email;
+  document.getElementById('navUser').style.display = 'block';
+  document.getElementById('earnLink').style.display = 'block';
+  document.getElementById('navAction').textContent = 'Premium ✦';
+  document.getElementById('navAction').onclick = doUpgrade;
+  if (userData.plan === 'pro') {
+    document.getElementById('navAction').style.background = 'linear-gradient(135deg,var(--accent),var(--gold))';
+    document.getElementById('navAction').textContent = '✦ Premium';
+    document.getElementById('navAction').onclick = null;
+  }
+  document.getElementById('regionSelect').value = userData.region || 'global';
+  updateUsage(userData.uses_remaining, userData.unlimited);
+  loadHistory();
+  // Show sidebar
+  document.getElementById('sidebar').style.display = 'flex';
 }
-async function doLogin(){
-  var email=document.getElementById('loginEmail').value;
-  var password=document.getElementById('loginPassword').value;
-  var err=document.getElementById('loginError');
-  err.style.display='none';
-  var res=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  var data=await res.json();
-  if(data.error){err.textContent=data.error;err.style.display='block';return}
-  window.location.href=data.redirect;
+
+function onLoggedOut() {
+  document.getElementById('heroSection').classList.add('show');
+  document.getElementById('sidebar').style.display = 'none';
+  document.getElementById('navUser').style.display = 'none';
+  document.getElementById('earnLink').style.display = 'none';
+  document.getElementById('navAction').textContent = 'Start Free →';
+  document.getElementById('navAction').onclick = function(){ openModal('signup'); };
 }
-document.getElementById('authModal').addEventListener('click',function(e){if(e.target===this)closeModal()});
+
+function updateUsage(rem, unlimited) {
+  var label = unlimited ? '✦ Premium — unlimited' : (rem + ' / 5 free generations left');
+  var pct = unlimited ? 100 : (rem / 5 * 100);
+  ['usageLabel','drawerUsageLabel'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.textContent = label;
+  });
+  ['barFill','drawerBarFill'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.style.width = pct + '%';
+  });
+  var showUpgrade = !unlimited && rem <= 0;
+  ['upgradeBtn','drawerUpgradeBtn'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) { el.classList.toggle('show', showUpgrade); el.style.display = showUpgrade ? 'block' : 'none'; }
+  });
+  if (showUpgrade) document.getElementById('premiumLock').classList.add('show');
+}
+
+// ── STUDIO FLOW ──
+async function sendIdea() {
+  if (!userData) { openModal('signup'); return; }
+  var idea = document.getElementById('ideaInput').value.trim();
+  if (!idea || idea.split(' ').length < 3) { showErr('Tell us a bit more — at least 3 words'); return; }
+  hideErr();
+  currentIdea = idea;
+
+  addBubble('user', idea);
+  document.getElementById('ideaInput').value = '';
+  document.getElementById('ideaInputWrap').style.display = 'none';
+  setThinking(true, 'Understanding your idea...');
+
+  try {
+    var res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ stage: 'question', idea: idea, region: document.getElementById('regionSelect').value })
+    });
+    var data = await res.json();
+    setThinking(false);
+    if (data.error) { showErr(data.error); resetInput(); return; }
+    showQuestions(data.questions);
+  } catch(e) {
+    setThinking(false);
+    showErr('Network error — please try again.');
+    resetInput();
+  }
+}
+
+function showQuestions(questionsText) {
+  // Parse numbered questions
+  var lines = questionsText.split('\n').filter(function(l){ return l.trim().match(/^\d+[\.\)]/); });
+  if (!lines.length) lines = questionsText.split('\n').filter(function(l){ return l.trim().length > 5; });
+  currentQuestions = lines.map(function(l){ return l.replace(/^\d+[\.\)]\s*/, '').trim(); });
+
+  addBubble('ai', questionsText);
+
+  var form = document.getElementById('questionsForm');
+  var body = document.getElementById('questionsBody');
+  body.innerHTML = currentQuestions.map(function(q, i) {
+    return '<div class="q-item"><label class="q-label">' + escHtml(q) + '</label>' +
+      '<textarea class="q-input" id="ans' + i + '" rows="2" placeholder="Your answer..."></textarea></div>';
+  }).join('');
+  form.classList.add('show');
+}
+
+async function submitAnswers() {
+  var answers = {};
+  var allFilled = true;
+  currentQuestions.forEach(function(q, i) {
+    var val = (document.getElementById('ans' + i) || {}).value || '';
+    if (!val.trim()) allFilled = false;
+    answers[i + 1] = q + ': ' + val.trim();
+  });
+  if (!allFilled) { showErr('Please answer all 3 questions'); return; }
+  hideErr();
+
+  document.getElementById('questionsForm').classList.remove('show');
+  setThinking(true, 'Creating your content...');
+  document.getElementById('generateBtn').disabled = true;
+
+  try {
+    var res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        stage: 'generate',
+        idea: currentIdea,
+        answers: answers,
+        region: document.getElementById('regionSelect').value
+      })
+    });
+    var data = await res.json();
+    setThinking(false);
+    if (data.error) {
+      showErr(data.error);
+      if (res.status === 429) document.getElementById('premiumLock').classList.add('show');
+      document.getElementById('questionsForm').classList.add('show');
+      document.getElementById('generateBtn').disabled = false;
+      return;
+    }
+    renderOutput(data.result);
+    if (data.uses_remaining !== undefined) updateUsage(data.uses_remaining, false);
+    else if (data.unlimited) updateUsage(null, true);
+    loadHistory();
+  } catch(e) {
+    setThinking(false);
+    showErr('Network error — please try again.');
+    document.getElementById('questionsForm').classList.add('show');
+    document.getElementById('generateBtn').disabled = false;
+  }
+}
+
+function renderOutput(text) {
+  document.getElementById('outputSection').classList.add('show');
+  document.getElementById('outputSection').dataset.raw = text;
+
+  // Split into sections by **HEADING** pattern
+  var sections = [];
+  var parts = text.split(/\n(?=\*\*[A-Z])/);
+  if (parts.length > 1) {
+    parts.forEach(function(p) {
+      var match = p.match(/^\*\*(.+?)\*\*\n?([\s\S]*)/);
+      if (match) sections.push({ title: match[1].trim(), body: match[2].trim() });
+      else if (p.trim()) sections.push({ title: 'Content', body: p.trim() });
+    });
+  } else {
+    sections.push({ title: 'Your Content', body: text.trim() });
+  }
+
+  document.getElementById('resultSections').innerHTML = sections.map(function(s) {
+    var bodyEsc = escHtml(s.body);
+    return '<div class="result-section">' +
+      '<div class="result-section-head"><span>' + escHtml(s.title) + '</span>' +
+      '<button class="sect-copy-btn" onclick="copySect(this,`' + s.body.replace(/`/g,'\`').replace(/
+/g,'\n') + '`)">Copy</button></div>' +
+      '<div class="result-section-body">' + bodyEsc + '</div></div>';
+  }).join('');
+
+  document.getElementById('outputSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+function resetStudio() {
+  currentIdea = '';
+  currentQuestions = [];
+  document.getElementById('chatArea').innerHTML = '';
+  document.getElementById('questionsForm').classList.remove('show');
+  document.getElementById('questionsBody').innerHTML = '';
+  document.getElementById('outputSection').classList.remove('show');
+  document.getElementById('ideaInputWrap').style.display = 'block';
+  document.getElementById('ideaInput').value = '';
+  document.getElementById('ideaInput').focus();
+  hideErr();
+}
+
+function addBubble(type, text) {
+  var area = document.getElementById('chatArea');
+  var div = document.createElement('div');
+  div.className = 'bubble ' + type;
+  if (type === 'ai') div.innerHTML = '<div class="bubble-label">TikGenius</div>' + escHtml(text).replace(/\n/g,'<br>');
+  else div.textContent = text;
+  area.appendChild(div);
+  div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function setThinking(show, text) {
+  var el = document.getElementById('thinking');
+  el.classList.toggle('show', show);
+  if (text) document.getElementById('thinkingText').textContent = text;
+}
+
+function resetInput() {
+  document.getElementById('ideaInputWrap').style.display = 'block';
+}
+
+// ── HISTORY ──
+async function loadHistory() {
+  try {
+    var res = await fetch('/api/history');
+    var data = await res.json();
+    var items = data.items || [];
+    var html = items.length ? items.map(function(i) {
+      return '<div class="hist-item" onclick='showHistItem(' + JSON.stringify(i).replace(/'/g,"&#39;") + ')'>' +
+        '<b>' + escHtml(i.topic || 'Untitled') + '</b>' +
+        '<span>' + new Date(i.created_at).toLocaleDateString() + '</span></div>';
+    }).join('') : '<div class="empty-hist">No history yet</div>';
+    ['histList','drawerHistList'].forEach(function(id) {
+      var el = document.getElementById(id); if(el) el.innerHTML = html;
+    });
+  } catch(e) {}
+}
+
+function showHistItem(i) {
+  resetStudio();
+  addBubble('user', i.topic || '');
+  renderOutput(i.result || '');
+  closeDrawer();
+}
+
+async function clearHistory() {
+  if (!confirm('Clear all history?')) return;
+  await fetch('/api/history/clear', { method: 'POST' });
+  loadHistory();
+  document.getElementById('outputSection').classList.remove('show');
+}
+
+// ── AUTH ──
+function openModal(tab) {
+  document.getElementById('authOverlay').classList.add('active');
+  switchTab(tab || 'signup');
+}
+function closeModal() { document.getElementById('authOverlay').classList.remove('active'); }
+function switchTab(tab) {
+  document.getElementById('formSignup').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('formLogin').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('tabSignup').classList.toggle('active', tab === 'signup');
+  document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+  document.getElementById('modalTitle').textContent = tab === 'signup' ? 'Create your account' : 'Welcome back';
+  document.getElementById('modalSub').textContent = tab === 'signup' ? '5 free generations per day. No card needed.' : 'Log in to your TikGenius account';
+}
+async function doSignup() {
+  var email = document.getElementById('sEmail').value.trim();
+  var pass = document.getElementById('sPass').value;
+  var region = document.getElementById('sRegion').value;
+  var err = document.getElementById('sErr');
+  err.style.display = 'none';
+  var res = await fetch('/api/signup', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ email, password: pass, region, ref_code: urlRef }) });
+  var data = await res.json();
+  if (data.error) { err.textContent = data.error; err.style.display = 'block'; return; }
+  closeModal(); userData = null; await init();
+}
+async function doLogin() {
+  var email = document.getElementById('lEmail').value.trim();
+  var pass = document.getElementById('lPass').value;
+  var err = document.getElementById('lErr');
+  err.style.display = 'none';
+  var res = await fetch('/api/login', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ email, password: pass }) });
+  var data = await res.json();
+  if (data.error) { err.textContent = data.error; err.style.display = 'block'; return; }
+  closeModal(); userData = null; await init();
+}
+async function doLogout() { await fetch('/api/logout', { method: 'POST' }); location.reload(); }
+document.getElementById('authOverlay').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+
+// ── UPGRADE ──
+var upgradeInProgress = false;
+async function doUpgrade() {
+  if (upgradeInProgress) return;
+  if (!userData) { openModal('signup'); return; }
+  upgradeInProgress = true;
+  try {
+    var res = await fetch('/api/upgrade', { method: 'POST', credentials: 'same-origin' });
+    var d = await res.json();
+    if (res.status === 401) { openModal('login'); return; }
+    if (d.url) { window.location.assign(d.url); return; }
+    showErr(d.error || 'Could not open payment. Please try again.');
+  } catch(e) { showErr('Network error.'); }
+  finally { upgradeInProgress = false; }
+}
+
+// ── REGION ──
+async function saveRegion(region) {
+  if (!userData) return;
+  await fetch('/api/set-region', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ region }) });
+}
+
+// ── DRAWER (mobile) ──
+function openDrawer() {
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+
+// ── HELPERS ──
+function showErr(msg) { var e = document.getElementById('errBox'); e.textContent = msg; e.style.display = 'block'; }
+function hideErr() { document.getElementById('errBox').style.display = 'none'; }
+function escHtml(s) { return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function copyAll() {
+  var raw = document.getElementById('outputSection').dataset.raw || '';
+  navigator.clipboard.writeText(raw).then(function(){
+    var btn = document.querySelector('.copy-all-btn');
+    btn.textContent = 'Copied!'; setTimeout(function(){ btn.textContent = 'Copy All'; }, 1600);
+  });
+}
+function copySect(btn, text) {
+  navigator.clipboard.writeText(text.replace(/\\n/g,'\n')).then(function(){
+    btn.textContent = 'Copied!'; setTimeout(function(){ btn.textContent = 'Copy'; }, 1600);
+  });
+}
+
+// ── ENTER KEY ──
+document.getElementById('ideaInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendIdea(); }
+});
+
+// payment success check
+if (window.location.search.includes('payment=success')) {
+  setTimeout(async function() { userData = null; await init(); }, 500);
+}
+
+init();
 </script>
 </body>
 </html>"""
-
 
 REFER_HTML = """<!DOCTYPE html>
 <html lang="en">

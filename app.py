@@ -2370,8 +2370,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     <span class="nav-pill" id="navPlan">Free Plan</span>
   </div>
   <div class="nav-right">
-    <a class="nav-btn ghost" href="/download">⬇ Downloader</a>
-    <button class="nav-btn primary" id="navCta" onclick="openModal('signup')">Start Free →</button>
+    <a class="nav-btn ghost" href="/download" id="navDownloader">⬇ Downloader</a>
+    <button class="nav-btn ghost" id="navLogin" onclick="openModal('login')" style="display:none">Log In</button>
+    <button class="nav-btn primary" id="navCta" onclick="openModal('signup')">Sign Up Free →</button>
     <button class="profile-btn" id="profileBtn" onclick="openProfile()" title="Your Profile">P</button>
   </div>
 </nav>
@@ -2419,6 +2420,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
         <div class="welcome-icon">✦</div>
         <h2>What do you want to <span>create today?</span></h2>
         <p>Describe your content idea below. The AI will ask 3 quick questions, then generate captions, hooks, scripts, hashtags and more — all tuned to your audience.</p>
+        <div id="guestPrompt" style="display:none;background:rgba(0,255,204,.06);border:1px solid rgba(0,255,204,.2);border-radius:12px;padding:14px 18px;text-align:center;margin-top:4px">
+          <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px;line-height:1.5">Create a free account to start generating content</p>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            <button onclick="openModal('signup')" style="padding:9px 20px;background:var(--accent);border:none;border-radius:9px;color:#050a08;font-weight:800;font-size:.85rem;font-family:var(--font);cursor:pointer">Sign Up Free →</button>
+            <button onclick="openModal('login')" style="padding:9px 20px;background:transparent;border:1px solid var(--border);border-radius:9px;color:var(--muted);font-weight:700;font-size:.85rem;font-family:var(--font);cursor:pointer">Log In</button>
+          </div>
+        </div>
         <div class="welcome-pills" id="examplePills">
           <span class="wpill" onclick="fillExample(this)">My fitness transformation journey</span>
           <span class="wpill" onclick="fillExample(this)">How I make money online</span>
@@ -2581,6 +2589,7 @@ async function init() {
 function applyUser() {
   var isPro = user.plan === 'pro';
   // Nav CTA
+  document.getElementById('navLogin').style.display = 'none';
   document.getElementById('navCta').textContent = isPro ? '✦ Premium' : 'Upgrade';
   if (!isPro) document.getElementById('navCta').setAttribute('onclick', 'doUpgrade()');
   else document.getElementById('navCta').removeAttribute('onclick');
@@ -2602,8 +2611,11 @@ function applyUser() {
 }
 
 function showGuest() {
-  document.getElementById('navCta').textContent = 'Start Free →';
+  document.getElementById('navCta').textContent = 'Sign Up Free →';
   document.getElementById('navCta').setAttribute('onclick', "openModal('signup')");
+  document.getElementById('navLogin').style.display = 'inline-flex';
+  var gp = document.getElementById('guestPrompt');
+  if (gp) gp.style.display = 'block';
 }
 
 function updateUsage(rem, unlimited) {
@@ -2734,11 +2746,9 @@ async function submitAnswers() {
 }
 
 function renderOutput(text) {
-  // Build output card
   var card = document.createElement('div');
   card.className = 'output-card show';
 
-  // Split by **HEADING** pattern
   var sections = [];
   var parts = text.split(/\n(?=\*\*[A-Z0-9])/);
   parts.forEach(function(p) {
@@ -2748,22 +2758,35 @@ function renderOutput(text) {
   });
   if (!sections.length) sections.push({ h: 'Your Content', b: text.trim() });
 
-  card.innerHTML = '<div class="output-top"><span>✦ Content Ready</span><button class="copy-all" onclick="copyRaw(this,`' +
-    text.replace(/`/g,'\`').replace(/
-/g,'\n') + '`)">Copy All</button></div>' +
-    '<div class="output-sections">' +
-    sections.map(function(s) {
-      return '<div class="out-section">' +
-        '<div class="out-section-head"><span>' + escHtml(s.h) + '</span>' +
-        '<button class="sect-copy" onclick="copyRaw(this,`' + s.b.replace(/`/g,'\`').replace(/
-/g,'\n') + '`)">Copy</button></div>' +
-        '<div class="out-section-body">' + escHtml(s.b) + '</div></div>';
-    }).join('') + '</div>';
+  // Store full text on card element instead of inline onclick
+  card._rawText = text;
+  sections.forEach(function(s, idx) { card['_sec' + idx] = s.b; });
+
+  var sectionsHtml = sections.map(function(s, idx) {
+    return '<div class="out-section">' +
+      '<div class="out-section-head"><span>' + escHtml(s.h) + '</span>' +
+      '<button class="sect-copy" data-sec="' + idx + '">Copy</button></div>' +
+      '<div class="out-section-body">' + escHtml(s.b) + '</div></div>';
+  }).join('');
+
+  card.innerHTML = '<div class="output-top"><span>✦ Content Ready</span>' +
+    '<button class="copy-all">Copy All</button></div>' +
+    '<div class="output-sections">' + sectionsHtml + '</div>';
+
+  // Attach copy handlers safely
+  card.querySelector('.copy-all').addEventListener('click', function() {
+    copyRaw(this, text);
+  });
+  card.querySelectorAll('.sect-copy').forEach(function(btn) {
+    var idx = parseInt(btn.getAttribute('data-sec'));
+    btn.addEventListener('click', function() {
+      copyRaw(this, sections[idx].b);
+    });
+  });
 
   var msgs = document.getElementById('chatMessages');
   msgs.appendChild(card);
 
-  // New idea button
   var btn = document.createElement('button');
   btn.className = 'new-idea';
   btn.textContent = '↺ New Idea';

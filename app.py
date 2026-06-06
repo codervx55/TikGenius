@@ -64,7 +64,12 @@ db_pool = None
 def init_pool():
     global db_pool
     if db_pool: return
-    db_pool = pool.SimpleConnectionPool(1, 10, DATABASE_URL, cursor_factory=RealDictCursor)
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is not set. Add it in Railway Variables.")
+    db_url = DATABASE_URL
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    db_pool = pool.SimpleConnectionPool(1, 10, db_url, cursor_factory=RealDictCursor)
 
 def get_db():
     if not db_pool: init_pool()

@@ -2673,9 +2673,9 @@ async function startIdea(text) {
 function showQuestions(qText) {
   addMsg('ai', qText);
   // Parse numbered lines
-  var lines = qText.split('\n').filter(function(l){ return /^\d+[.)\s]/.test(l.trim()) && l.trim().length > 5; });
+  var lines = qText.split('\n').filter(function(l){ return /^\\d+[.)\\s]/.test(l.trim()) && l.trim().length > 5; });
   if (!lines.length) lines = qText.split('\n').filter(function(l){ return l.trim().length > 8; }).slice(0,3);
-  questions = lines.map(function(l){ return l.replace(/^\d+[.)\s]+/,'').trim(); });
+  questions = lines.map(function(l){ return l.replace(/^\\d+[.)\\s]+/,'').trim(); });
 
   var tpl = document.getElementById('qCardTpl').content.cloneNode(true);
   var card = tpl.querySelector('.q-card');
@@ -2750,9 +2750,9 @@ function renderOutput(text) {
   card.className = 'output-card show';
 
   var sections = [];
-  var parts = text.split(/\n(?=\*\*[A-Z0-9])/);
+  var parts = text.split(/\n(?=\\*\\*[A-Z0-9])/);
   parts.forEach(function(p) {
-    var m = p.match(/^\*\*(.+?)\*\*\s*\n?([\s\S]*)/);
+    var m = p.match(/^\\*\\*(.+?)\\*\\*\\s*\\n?([\\s\\S]*)/);
     if (m) sections.push({ h: m[1].trim(), b: m[2].trim() });
     else if (p.trim()) sections.push({ h: 'Content', b: p.trim() });
   });
@@ -3558,7 +3558,7 @@ async function clearHistory(){if(!confirm('Clear all your generation history?'))
 function showHistory(i){document.getElementById('topicInput').value=i.topic||'';document.getElementById('outputTitle').textContent=(modeTitles[i.mode]||i.mode)+' · from history';renderOutputItems(i.result||'');document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});document.getElementById('drawer')&&document.getElementById('drawer').classList.remove('show');}
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 async function changeRegion(region){await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region})});}
-function parseResultItems(text){const parts=text.split(/\n(?=\d+[.)\s])/);if(parts.length>1)return parts.map(p=>p.trim()).filter(Boolean);const paras=text.split(/\n\n+/);if(paras.length>1)return paras.map(p=>p.trim()).filter(Boolean);return null;}
+function parseResultItems(text){const parts=text.split(/\n(?=\\d+[.)\\s])/);if(parts.length>1)return parts.map(p=>p.trim()).filter(Boolean);const paras=text.split(/\n\n+/);if(paras.length>1)return paras.map(p=>p.trim()).filter(Boolean);return null;}
 function renderOutputItems(text){
   const body=document.getElementById('outputBody');const items=parseResultItems(text);
   if(items&&items.length>1){body.innerHTML='<div class="result-list">'+items.map((item,idx)=>`<div class="result-item"><div class="result-item-text">${escapeHtml(item)}</div><button class="item-copy-btn" onclick="copyItem(this,'${escapeHtml(item).replace(/'/g,"&#39;").replace(/\n/g,'\\n')}')" title="Copy">Copy</button></div>`).join('')+'</div>';}
@@ -3569,7 +3569,7 @@ function copyItem(btn,text){const raw=text.replace(/&#39;/g,"'").replace(/&amp;/
 function copyOutput(){const raw=document.getElementById('outputBody').dataset.raw||'';navigator.clipboard.writeText(raw).then(()=>{const btn=document.querySelector('.copy-all-btn');btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy All',1600);});}
 async function generate(){
   const topic=document.getElementById('topicInput').value.trim(),btn=document.getElementById('generateBtn');
-  hideError();if(!topic)return showError('Please enter your prompt.');if(topic.split(/\s+/).length<3)return showError('Please add at least 3 words.');
+  hideError();if(!topic)return showError('Please enter your prompt.');if(topic.split(/\\s+/).length<3)return showError('Please add at least 3 words.');
   btn.disabled=true;btn.textContent='Generating...';
   const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:currentMode,platform:currentPlatform,topic})});
   const data=await res.json();btn.disabled=false;btn.textContent='✦ Generate';
@@ -3839,7 +3839,7 @@ function setLoading(show){document.getElementById('loader').classList.toggle('sh
 function resetPreview(){if(document.getElementById('adGate'))document.getElementById('adGate').style.display='';document.getElementById('previewSection').classList.remove('show');document.getElementById('proSkip').classList.remove('show');document.getElementById('dlPanel').classList.remove('show');}
 function showError(msg){var b=document.getElementById('errorBox');b.textContent=msg;b.classList.add('show');}
 function hideError(){document.getElementById('errorBox').classList.remove('show');}
-function sanitizeFilename(s){return s.replace(/[^a-z0-9_\-]/gi,'_').slice(0,60);}
+function sanitizeFilename(s){return s.replace(/[^a-z0-9_\\-]/gi,'_').slice(0,60);}
 document.getElementById('urlInput').addEventListener('keydown',function(e){if(e.key==='Enter')fetchVideo();});
 </script>
 </body>

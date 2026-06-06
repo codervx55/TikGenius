@@ -2803,7 +2803,8 @@ async function loadHistory() {
     var d = await r.json();
     var items = d.items || [];
     var html = items.length ? items.map(function(i){
-      return '<div class="hist-item" onclick='loadHistItem(' + JSON.stringify(i).replace(/'/g,"&#39;") + ')'>' +
+      var safeItem = JSON.stringify(i).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');
+      return '<div class="hist-item" onclick="loadHistItem(' + safeItem + ')">' +
         '<b>' + escHtml((i.topic||'Untitled').slice(0,40)) + '</b>' +
         '<span>' + new Date(i.created_at).toLocaleDateString() + '</span></div>';
     }).join('') : '<div class="hist-empty">Generate something to see history</div>';
@@ -3527,7 +3528,7 @@ function updateUsage(rem,unlimited){
 }
 async function loadHistory(){
   const res=await fetch('/api/history');const data=await res.json();
-  const html=(data.items&&data.items.length)?data.items.map(i=>{const plat=(i.platform==='x')?'X':'TikTok';return `<div class="hist-item" onclick='showHistory(${JSON.stringify(i).replace(/'/g,"&#39;")})'><b>${escapeHtml(i.topic||'Untitled')}</b><span>${plat} · ${i.mode} · ${new Date(i.created_at).toLocaleDateString()}</span></div>`;}).join(''):'<div class="empty-hist">Your content history will appear here.</div>';
+  const html=(data.items&&data.items.length)?data.items.map(i=>{const plat=(i.platform==='x')?'X':'TikTok';const safeI=JSON.stringify(i).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');return `<div class="hist-item" onclick="showHistory(${safeI})"><b>${escapeHtml(i.topic||'Untitled')}</b><span>${plat} · ${i.mode} · ${new Date(i.created_at).toLocaleDateString()}</span></div>`;}).join(''):'<div class="empty-hist">Your content history will appear here.</div>';
   ['historyList','historyMobile','drawerHistory'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html});
 }
 async function clearHistory(){if(!confirm('Clear all your generation history?'))return;const res=await fetch('/api/history/clear',{method:'POST'});if(res.ok){document.getElementById('outputCard').classList.remove('show');loadHistory()}else showError('Could not clear history.');}

@@ -33,13 +33,13 @@ ADMIN_EXPORT_KEY = os.getenv("ADMIN_EXPORT_KEY", SECRET_KEY)
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@tikgenius.app")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", ADMIN_EXPORT_KEY)
 
-# ── Referral config ──────────────────────────────────────
-REFERRAL_COMMISSION_KOBO = int(os.getenv("REFERRAL_COMMISSION_KOBO", "50000"))   # ₦500 default
-REFERRAL_MIN_WITHDRAW_KOBO = 200000   # ₦2,000
+# Referral config
+REFERRAL_COMMISSION_KOBO = int(os.getenv("REFERRAL_COMMISSION_KOBO", "50000"))   # 500 default
+REFERRAL_MIN_WITHDRAW_KOBO = 200000   # 2,000
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
-SESSION_DAYS = int(os.getenv("SESSION_DAYS", "30"))
+SESSION_DAYS = int(os.getenv("SESSION_DAYS", "3650"))  # permanent ~10 years
 app.permanent_session_lifetime = timedelta(days=SESSION_DAYS)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=SESSION_DAYS)
 app.config["SESSION_REFRESH_EACH_REQUEST"] = True
@@ -111,7 +111,6 @@ def init_db():
             cur.execute("ALTER TABLE web_users ADD COLUMN IF NOT EXISTS referral_code TEXT")
             cur.execute("ALTER TABLE web_users ADD COLUMN IF NOT EXISTS referred_by INTEGER")
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_web_users_referral_code ON web_users(referral_code)")
-
             cur.execute("""CREATE TABLE IF NOT EXISTS web_generations (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES web_users(id) ON DELETE CASCADE,
@@ -135,8 +134,6 @@ def init_db():
             )""")
             cur.execute("ALTER TABLE web_payments ADD COLUMN IF NOT EXISTS raw_email TEXT")
             cur.execute("ALTER TABLE web_payments ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'web'")
-
-            # ── Referrals table ──────────────────────────────
             cur.execute("""CREATE TABLE IF NOT EXISTS referrals (
                 id SERIAL PRIMARY KEY,
                 referrer_id INTEGER NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
@@ -147,8 +144,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(referred_id)
             )""")
-
-            # ── Wallets table ────────────────────────────────
             cur.execute("""CREATE TABLE IF NOT EXISTS wallets (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER UNIQUE NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
@@ -157,8 +152,6 @@ def init_db():
                 total_withdrawn_kobo INTEGER DEFAULT 0,
                 updated_at TIMESTAMP DEFAULT NOW()
             )""")
-
-            # ── Withdrawals table ────────────────────────────
             cur.execute("""CREATE TABLE IF NOT EXISTS withdrawals (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
@@ -173,7 +166,6 @@ def init_db():
                 requested_at TIMESTAMP DEFAULT NOW(),
                 completed_at TIMESTAMP
             )""")
-
             cur.execute("""CREATE TABLE IF NOT EXISTS site_page_views (
                 id SERIAL PRIMARY KEY,
                 path TEXT NOT NULL,
@@ -227,7 +219,6 @@ init_db()
 # ========================= REFERRAL HELPERS =========================
 
 def generate_referral_code():
-    """Generate a unique 8-character alphanumeric referral code."""
     chars = string.ascii_uppercase + string.digits
     while True:
         code = ''.join(random.choices(chars, k=8))
@@ -241,7 +232,6 @@ def generate_referral_code():
             release_db(conn)
 
 def ensure_referral_code(user_id):
-    """Make sure a user has a referral code. Returns the code."""
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -257,7 +247,6 @@ def ensure_referral_code(user_id):
         release_db(conn)
 
 def get_or_create_wallet(user_id, conn=None):
-    """Return wallet row, creating it if missing."""
     own_conn = conn is None
     if own_conn:
         conn = get_db()
@@ -281,7 +270,6 @@ def get_or_create_wallet(user_id, conn=None):
             release_db(conn)
 
 def credit_referral_commission(referrer_id, referred_id, amount_kobo):
-    """Credit commission to referrer wallet and mark referral as paid."""
     conn = get_db()
     try:
         get_or_create_wallet(referrer_id, conn)
@@ -300,7 +288,6 @@ def credit_referral_commission(referrer_id, referred_id, amount_kobo):
         release_db(conn)
 
 def resolve_referrer(ref_code):
-    """Return referrer user_id from a ref code, or None."""
     if not ref_code:
         return None
     conn = get_db()
@@ -313,7 +300,6 @@ def resolve_referrer(ref_code):
         release_db(conn)
 
 def get_referral_stats(user_id):
-    """Return referral stats for a user."""
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -329,14 +315,12 @@ def get_referral_stats(user_id):
     finally:
         release_db(conn)
 
-# ========================= PAYSTACK TRANSFER (WITHDRAWAL) =========================
+# ========================= PAYSTACK TRANSFER =========================
 
 def paystack_get_banks():
-    """Fetch list of Nigerian banks from Paystack."""
     headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}"}
     try:
-        res = http_session.get("https://api.paystack.co/bank?currency=NGN&perPage=100",
-                               headers=headers, timeout=15)
+        res = http_session.get("https://api.paystack.co/bank?currency=NGN&perPage=100", headers=headers, timeout=15)
         data = res.json()
         if data.get("status"):
             return data["data"]
@@ -345,7 +329,6 @@ def paystack_get_banks():
     return []
 
 def paystack_resolve_account(account_number, bank_code):
-    """Verify account number with bank."""
     headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}"}
     try:
         res = http_session.get(
@@ -359,18 +342,10 @@ def paystack_resolve_account(account_number, bank_code):
         return None, str(e)
 
 def paystack_create_recipient(account_name, account_number, bank_code):
-    """Create a Paystack transfer recipient."""
     headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "type": "nuban",
-        "name": account_name,
-        "account_number": account_number,
-        "bank_code": bank_code,
-        "currency": "NGN"
-    }
+    payload = {"type": "nuban", "name": account_name, "account_number": account_number, "bank_code": bank_code, "currency": "NGN"}
     try:
-        res = http_session.post("https://api.paystack.co/transferrecipient",
-                                json=payload, headers=headers, timeout=15)
+        res = http_session.post("https://api.paystack.co/transferrecipient", json=payload, headers=headers, timeout=15)
         data = res.json()
         if data.get("status"):
             return data["data"]["recipient_code"], None
@@ -379,13 +354,11 @@ def paystack_create_recipient(account_name, account_number, bank_code):
         return None, str(e)
 
 def paystack_get_balance():
-    """Get current Paystack balance in kobo."""
     headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}"}
     try:
         res = http_session.get("https://api.paystack.co/balance", headers=headers, timeout=15)
         data = res.json()
         if data.get("status") and data.get("data"):
-            # Returns list of currency balances
             for b in data["data"]:
                 if b.get("currency") == "NGN":
                     return int(b.get("balance", 0)), None
@@ -394,7 +367,6 @@ def paystack_get_balance():
         return 0, str(e)
 
 def paystack_get_total_pending_wallets():
-    """Total kobo sitting in all user wallets — this is what we owe referrers."""
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -404,18 +376,10 @@ def paystack_get_total_pending_wallets():
         release_db(conn)
 
 def paystack_initiate_transfer(amount_kobo, recipient_code, reference, reason="TikGenius referral earnings"):
-    """Initiate a Paystack transfer."""
     headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "source": "balance",
-        "amount": amount_kobo,
-        "recipient": recipient_code,
-        "reason": reason,
-        "reference": reference
-    }
+    payload = {"source": "balance", "amount": amount_kobo, "recipient": recipient_code, "reason": reason, "reference": reference}
     try:
-        res = http_session.post("https://api.paystack.co/transfer",
-                                json=payload, headers=headers, timeout=20)
+        res = http_session.post("https://api.paystack.co/transfer", json=payload, headers=headers, timeout=20)
         data = res.json()
         if data.get("status"):
             return data["data"], None
@@ -441,7 +405,6 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user_id" not in session:
-            # API requests get JSON, page requests get redirect
             if request.path.startswith('/api/'):
                 return jsonify({"error": "Please log in"}), 401
             return redirect("/?login=1")
@@ -497,8 +460,6 @@ def activate_web_pro(user_id):
         with conn.cursor() as cur:
             cur.execute("UPDATE web_users SET plan='pro', expires=%s WHERE id=%s", (expires, user_id))
         conn.commit()
-
-        # ── Credit referrer if applicable ─────────────────
         try:
             with conn.cursor() as cur:
                 cur.execute("""SELECT r.referrer_id FROM referrals r
@@ -508,7 +469,6 @@ def activate_web_pro(user_id):
                 credit_referral_commission(ref_row["referrer_id"], user_id, REFERRAL_COMMISSION_KOBO)
         except Exception as e:
             print(f"Referral commission error: {e}")
-
         return expires.strftime("%Y-%m-%d")
     finally:
         release_db(conn)
@@ -603,13 +563,13 @@ REGION_VOICES = {
 }
 
 REGION_NAMES = {
-    "nigeria": "🇳🇬 Nigerian",
-    "usa": "🇺🇸 American",
-    "uk": "🇬🇧 British",
-    "caribbean": "🇯🇲 Caribbean",
-    "eastafrica": "🇰🇪 East African",
-    "southafrica": "🇿🇦 South African",
-    "global": "🌍 Global"
+    "nigeria": "Nigerian",
+    "usa": "American",
+    "uk": "British",
+    "caribbean": "Caribbean",
+    "eastafrica": "East African",
+    "southafrica": "South African",
+    "global": "Global"
 }
 
 # ========================= AI PROMPTS =========================
@@ -643,7 +603,7 @@ A hook stops the scroll in under 2 seconds. Study these viral hooks and WHY they
 "Nobody is coming to save you. Build yourself." — Direct, activates the ego
 "The version of me from 2 years ago would not recognise me." — Curiosity + transformation
 "I used to be so easy to lose. Not anymore." — Short, personal, empowering
-"Tell me why I worked this hard just to still be stressed 😭" — Funny + relatable frustration
+"Tell me why I worked this hard just to still be stressed" — Funny + relatable frustration
 "POV: you finally got everything you asked for. You're still not satisfied." — Honest truth nobody says
 
 Write 10 ORIGINAL hooks for: {topic}
@@ -660,7 +620,7 @@ Study these viral captions and their structure:
 "I used to shrink myself for people who weren't even paying attention. Never again."
 STRUCTURE: Past behaviour + painful truth + declaration
 
-"God will give you the life you prayed for. Just not in the timeline you imagined. 😭"
+"God will give you the life you prayed for. Just not in the timeline you imagined."
 STRUCTURE: Promise + twist on expectations
 
 "Nobody prepared me for how lonely success would feel before it arrived."
@@ -711,10 +671,10 @@ Set 5: #tag #tag #tag #tag #tag #tag #tag""",
 "bio": """Write 8 TikTok bios for a creator in this niche: {topic}
 
 Study these bios that actually work:
-"building the life I used to dream about 🤫 | tips + real talk"
-"I left the 9-5. Now I film my life. 📹 | come along"
-"healing out loud so you don't have to do it alone 🖤"
-"I document real life, not the highlight reel 📱"
+"building the life I used to dream about | tips + real talk"
+"I left the 9-5. Now I film my life. | come along"
+"healing out loud so you don't have to do it alone"
+"I document real life, not the highlight reel"
 
 Write 8 ORIGINAL bios for {topic} niche:
 - Under 80 characters each
@@ -963,7 +923,6 @@ def index():
 
 @app.route("/dashboard")
 def dashboard():
-    # Redirect legacy dashboard links to /
     return redirect("/")
 
 @app.route("/refer")
@@ -1002,19 +961,17 @@ def signup():
                 (name, email, generate_password_hash(password), region, new_ref_code, referred_by))
             user_id = cur.fetchone()["id"]
 
-            # Record referral relationship
             if referrer_id and referrer_id != user_id:
                 cur.execute("""INSERT INTO referrals (referrer_id, referred_id, status)
                     VALUES (%s, %s, 'pending') ON CONFLICT (referred_id) DO NOTHING""",
                     (referrer_id, user_id))
 
-            # Create wallet
             cur.execute("""INSERT INTO wallets (user_id) VALUES (%s) ON CONFLICT DO NOTHING""", (user_id,))
 
         conn.commit()
         session.pop("pending_ref", None)
         keep_user_signed_in(user_id, email)
-        return jsonify({"success": True, "redirect": "/dashboard"})
+        return jsonify({"success": True, "redirect": "/"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
@@ -1028,7 +985,6 @@ def login():
     ip = visitor_hash()
     conn = get_db()
     try:
-        # Brute-force check: max 10 failed attempts per IP in 15 minutes
         with conn.cursor() as cur:
             cur.execute("""SELECT COUNT(*) AS cnt FROM login_attempts
                 WHERE ip_hash=%s AND attempted_at > NOW() - INTERVAL '15 minutes'""", (ip,))
@@ -1045,11 +1001,10 @@ def login():
             return jsonify({"error": "Invalid email or password"}), 401
         with conn.cursor() as cur:
             cur.execute("UPDATE web_users SET last_login_at=NOW() WHERE id=%s", (user["id"],))
-            # Ensure wallet exists
             cur.execute("INSERT INTO wallets (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user["id"],))
         conn.commit()
         keep_user_signed_in(user["id"], user["email"])
-        return jsonify({"success": True, "redirect": "/dashboard"})
+        return jsonify({"success": True, "redirect": "/"})
     finally:
         release_db(conn)
 
@@ -1107,9 +1062,8 @@ def clear_history():
 @app.route("/api/chat", methods=["POST"])
 @login_required
 def chat():
-    """Conversational AI: either asks 3 clarifying questions or generates final content."""
     data = request.json or {}
-    stage = data.get("stage", "question")   # "question" or "generate"
+    stage = data.get("stage", "question")
     idea = (data.get("idea") or "").strip()[:600]
     answers = data.get("answers") or {}
     region = data.get("region", "global")
@@ -1120,7 +1074,6 @@ def chat():
     region_voice = REGION_VOICES.get(region, REGION_VOICES["global"])
 
     if stage == "question":
-        # Ask 3 smart questions based on their idea
         system = f"""You are TikGenius — a viral content strategist. A creator just shared their content idea.
 Your job: ask exactly 3 short, smart questions to understand what they need so you can create the perfect content.
 
@@ -1149,7 +1102,6 @@ Rules:
             return jsonify({"error": "Could not connect to AI. Please try again."}), 500
 
     elif stage == "generate":
-        # Build full prompt from idea + answers, then generate content
         user_id = session["user_id"]
         if not check_and_increment_web_usage(user_id):
             return jsonify({"error": "You have used all 5 free generations today. Upgrade to Premium for unlimited access."}), 429
@@ -1197,7 +1149,6 @@ Label each section clearly. Make every output specific to their idea — not gen
         except Exception as e:
             return jsonify({"error": "Could not generate content. Please try again."}), 500
 
-        # Save to history
         full_topic = idea + (" | " + answers_text if answers_text else "")
         conn = get_db()
         try:
@@ -1277,9 +1228,9 @@ def upgrade():
 def upgrade_redirect():
     user = get_web_user(session["user_id"])
     if not user or not PAYSTACK_SECRET_KEY:
-        return redirect("/dashboard")
+        return redirect("/")
     link = create_payment_link(user["email"], session["user_id"], "web")
-    return redirect(link or "/dashboard")
+    return redirect(link or "/")
 
 @app.route("/api/set-region", methods=["POST"])
 @login_required
@@ -1319,7 +1270,6 @@ def change_password():
 
 @app.route("/api/referral/leaderboard")
 def referral_leaderboard():
-    """Public leaderboard — top 10 referrers by paid conversions."""
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -1333,7 +1283,6 @@ def referral_leaderboard():
                 HAVING COUNT(*) FILTER (WHERE r.status='paid') > 0
                 ORDER BY paid_count DESC LIMIT 10""")
             rows = cur.fetchall()
-        # Mask emails for privacy
         leaderboard = []
         for i, r in enumerate(rows):
             email = r["email"] or ""
@@ -1352,7 +1301,6 @@ def referral_leaderboard():
 
 @app.route("/health")
 def health():
-    """Railway health check endpoint."""
     try:
         conn = get_db()
         with conn.cursor() as cur:
@@ -1372,7 +1320,6 @@ def referral_stats():
     base_url = request.host_url.rstrip("/")
     stats, wallet = get_referral_stats(user_id)
 
-    # Recent referrals
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -1435,7 +1382,6 @@ def withdraw():
     if not account_number or not bank_code or not account_name:
         return jsonify({"error": "Account number, bank, and account name are required"}), 400
 
-    # Check balance
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -1446,9 +1392,8 @@ def withdraw():
         release_db(conn)
 
     if balance < REFERRAL_MIN_WITHDRAW_KOBO:
-        return jsonify({"error": f"Minimum withdrawal is ₦{REFERRAL_MIN_WITHDRAW_KOBO//100:,}. Your balance is ₦{balance//100:,}."}), 400
+        return jsonify({"error": f"Minimum withdrawal is N{REFERRAL_MIN_WITHDRAW_KOBO//100:,}. Your balance is N{balance//100:,}."}), 400
 
-    # Check for pending withdrawal
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -1458,37 +1403,29 @@ def withdraw():
     finally:
         release_db(conn)
 
-    # ── Paystack balance safety check ─────────────────────────────────
-    # Make sure Paystack balance can cover this payout + all other
-    # pending wallet obligations, with a ₦500 admin buffer reserved.
-    ADMIN_RESERVE_KOBO = int(os.getenv("ADMIN_RESERVE_KOBO", "50000"))  # ₦500 default
+    ADMIN_RESERVE_KOBO = int(os.getenv("ADMIN_RESERVE_KOBO", "50000"))
     paystack_balance, bal_err = paystack_get_balance()
     if bal_err:
-        # If we can't check balance, log and continue — don't block user
         print(f"Paystack balance check failed: {bal_err}")
     else:
-        total_owed = paystack_get_total_pending_wallets()  # all users' wallet balances
-        # After paying this user, will enough remain to cover everyone else + reserve?
+        total_owed = paystack_get_total_pending_wallets()
         remaining_after = paystack_balance - balance
-        still_owed_others = total_owed - balance  # what others are still owed
+        still_owed_others = total_owed - balance
         if remaining_after < (still_owed_others + ADMIN_RESERVE_KOBO):
             print(f"Balance guard: paystack={paystack_balance} balance={balance} total_owed={total_owed} reserve={ADMIN_RESERVE_KOBO}")
             return jsonify({
                 "error": "Withdrawal temporarily unavailable — please try again in a few hours. Your balance is safe and has not been touched."
             }), 503
 
-    # Create Paystack recipient
     recipient_code, err = paystack_create_recipient(account_name, account_number, bank_code)
     if err:
         return jsonify({"error": f"Could not create transfer recipient: {err}"}), 400
 
-    # Initiate transfer
     transfer_ref = f"TIKW-{user_id}-{int(datetime.utcnow().timestamp())}"
     transfer_data, err = paystack_initiate_transfer(balance, recipient_code, transfer_ref)
     if err:
         return jsonify({"error": f"Transfer failed: {err}"}), 400
 
-    # Deduct balance and record withdrawal
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -1510,7 +1447,7 @@ def withdraw():
 
     return jsonify({
         "success": True,
-        "message": f"₦{balance//100:,} withdrawal initiated. It will arrive in your account within minutes.",
+        "message": f"N{balance//100:,} withdrawal initiated. It will arrive in your account within minutes.",
         "amount_ngn": balance / 100,
         "reference": transfer_ref
     })
@@ -1530,7 +1467,7 @@ def withdrawal_history():
     finally:
         release_db(conn)
 
-# ========================= PAYSTACK TRANSFER WEBHOOK =========================
+# ========================= PAYSTACK WEBHOOK =========================
 @app.route("/paystack-webhook", methods=["POST"])
 @app.route("/paystack/webhook", methods=["POST"])
 def paystack_webhook():
@@ -1564,8 +1501,7 @@ def paystack_webhook():
                 if telegram_id:
                     record_payment(reference, amount, data.get("currency", "NGN"), data.get("status", "success"), "telegram", None, int(telegram_id), paid_email)
                     expires = activate_pro(telegram_id)
-                    send_telegram_message(telegram_id,
-                        f"Payment confirmed. Welcome to Pro.\n\nAccess active till {expires}\n\nEverything unlocked.")
+                    send_telegram_message(telegram_id, f"Payment confirmed. Welcome to Pro.\n\nAccess active till {expires}\n\nEverything unlocked.")
 
     elif event_type == "transfer.success":
         ref = event.get("data", {}).get("reference", "")
@@ -1587,7 +1523,6 @@ def paystack_webhook():
             conn = get_db()
             try:
                 with conn.cursor() as cur:
-                    # Refund balance
                     cur.execute("""UPDATE wallets w SET balance_kobo = balance_kobo + wd.amount_kobo
                         FROM withdrawals wd WHERE wd.transfer_reference=%s AND wd.user_id=w.user_id""", (ref,))
                     cur.execute("""UPDATE withdrawals SET status='failed', failure_reason=%s
@@ -1759,7 +1694,7 @@ def paystack_callback():
     reference = request.args.get("reference") or request.args.get("trxref")
     ok, message = verify_paystack_reference(reference)
     if ok:
-        return redirect("/dashboard?payment=success")
+        return redirect("/?payment=success")
     return f"Payment verification failed: {message}", 400
 
 @app.route("/api/payment-status")
@@ -1783,14 +1718,12 @@ def admin_login_required(fn):
     return wrapper
 
 def money_ngn(kobo):
-    return f"₦{(int(kobo or 0) / 100):,.0f}"
+    return f"N{(int(kobo or 0) / 100):,.0f}"
 
 ADMIN_LOGIN_HTML = """<!doctype html>
 <html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>TikGenius Admin Login</title>
-<link href='https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap' rel='stylesheet'>
-<style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:'Inter',system-ui,sans-serif;background:radial-gradient(circle at 20% 0,#18345a 0,#08111e 34%,#05070c 100%);color:#f8fbff;display:grid;place-items:center;padding:18px}.login{width:min(440px,100%);background:rgba(10,18,32,.82);border:1px solid rgba(125,167,255,.22);box-shadow:0 30px 90px rgba(0,0,0,.42);border-radius:28px;padding:26px;backdrop-filter:blur(16px)}.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:24px;letter-spacing:-.04em}.mark{width:38px;height:38px;border-radius:14px;background:linear-gradient(135deg,#22d3ee,#10b981,#f59e0b);display:grid;place-items:center;color:#061018;font-weight:900}.muted{color:#98a9c4;line-height:1.6;margin:8px 0 22px}label{font-size:13px;color:#b8c7dd;font-weight:700;display:block;margin:14px 0 7px}input{width:100%;padding:15px 16px;border-radius:16px;border:1px solid #263852;background:#070d16;color:#fff;font:600 16px Inter;outline:none}input:focus{border-color:#38bdf8;box-shadow:0 0 0 4px rgba(56,189,248,.10)}button{width:100%;margin-top:18px;border:0;border-radius:16px;padding:15px;background:linear-gradient(135deg,#22d3ee,#10b981,#f6b21a);font-weight:900;color:#061018;font-size:16px}.err{display:%ERRDISPLAY%;margin-top:14px;color:#fecdd3;background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.3);padding:12px;border-radius:14px;font-weight:700}.foot{font-size:12px;color:#77859a;margin-top:16px;text-align:center}
-</style></head><body><form class='login' method='post'><div class='brand'><div class='mark'>TG</div><div>TikGenius Admin</div></div><p class='muted'>Private dashboard.</p><label>Admin email</label><input name='email' type='email' required><label>Password</label><input name='password' type='password' required><button>Unlock Dashboard</button><div class='err'>%ERROR%</div></form></body></html>"""
+<style>*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:'Inter',system-ui,sans-serif;background:#060a12;color:#f8fbff;display:grid;place-items:center;padding:18px}.login{width:min(440px,100%);background:rgba(10,18,32,.82);border:1px solid rgba(125,167,255,.22);border-radius:28px;padding:26px}.brand{font-weight:900;font-size:24px;margin-bottom:12px}label{font-size:13px;color:#b8c7dd;font-weight:700;display:block;margin:14px 0 7px}input{width:100%;padding:15px 16px;border-radius:16px;border:1px solid #263852;background:#070d16;color:#fff;font:600 16px sans-serif;outline:none}button{width:100%;margin-top:18px;border:0;border-radius:16px;padding:15px;background:linear-gradient(135deg,#22d3ee,#10b981,#f6b21a);font-weight:900;color:#061018;font-size:16px;cursor:pointer}.err{display:%ERRDISPLAY%;margin-top:14px;color:#fecdd3;background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.3);padding:12px;border-radius:14px;font-weight:700}</style></head>
+<body><form class='login' method='post'><div class='brand'>TikGenius Admin</div><label>Admin email</label><input name='email' type='email' required><label>Password</label><input name='password' type='password' required><button>Unlock Dashboard</button><div class='err'>%ERROR%</div></form></body></html>"""
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
@@ -1858,7 +1791,6 @@ def admin_panel():
                 COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') AS downloads_24h
                 FROM web_downloads""")
             dl_stats = cur.fetchone()
-            # Referral stats
             cur.execute("SELECT COUNT(*) AS total FROM referrals")
             total_refs = cur.fetchone()["total"]
             cur.execute("SELECT COUNT(*) AS paid FROM referrals WHERE status='paid'")
@@ -1876,108 +1808,60 @@ def admin_panel():
     conversion = round((premium_users / total_users * 100), 1) if total_users else 0
 
     payment_rows = "".join(
-        f"<tr><td>{escape(str(p['paid_at'] or ''))}</td><td>{escape(p['email'] or '')}</td><td>{money_ngn(p['amount_kobo'])}</td><td>{escape(p['source'] or '')}</td><td class='ref'>{escape(p['reference'] or '')}</td></tr>"
+        f"<tr><td>{escape(str(p['paid_at'] or ''))}</td><td>{escape(p['email'] or '')}</td><td>{money_ngn(p['amount_kobo'])}</td><td>{escape(p['source'] or '')}</td><td>{escape(p['reference'] or '')}</td></tr>"
         for p in payments
-    ) or "<tr><td colspan='5' class='muted'>No payments yet.</td></tr>"
+    ) or "<tr><td colspan='5'>No payments yet.</td></tr>"
 
     user_rows = "".join(
-        f"<tr><td>{u['id']}</td><td>{escape(u['name'] or '')}</td><td>{escape(u['email'])}</td><td><span class='pill {('pro' if u['plan']=='pro' and u['expires'] else 'free')}'>{escape(u['plan'] or 'free')}</span></td><td>{escape(str(u['expires'] or ''))}</td><td>{escape(u['region'] or '')}</td><td>{u['usage_count'] or 0}</td><td>{escape(str(u['created_at'] or ''))}</td><td>{escape(str(u['last_login_at'] or ''))}</td></tr>"
+        f"<tr><td>{u['id']}</td><td>{escape(u['name'] or '')}</td><td>{escape(u['email'])}</td><td>{escape(u['plan'] or 'free')}</td><td>{escape(str(u['expires'] or ''))}</td><td>{escape(u['region'] or '')}</td><td>{u['usage_count'] or 0}</td><td>{escape(str(u['created_at'] or ''))}</td><td>{escape(str(u['last_login_at'] or ''))}</td></tr>"
         for u in users
-    ) or "<tr><td colspan='9' class='muted'>No users yet.</td></tr>"
+    ) or "<tr><td colspan='9'>No users yet.</td></tr>"
 
     withdrawal_rows = "".join(
-        f"<tr><td>{escape(str(w['requested_at'] or ''))}</td><td>{escape(w['email'] or '')}</td><td>{escape(w['account_name'] or '')}</td><td>{escape(w['account_number'] or '')}</td><td>{money_ngn(w['amount_kobo'])}</td><td><span class='pill {w['status']}'>{escape(w['status'] or '')}</span></td></tr>"
+        f"<tr><td>{escape(str(w['requested_at'] or ''))}</td><td>{escape(w['email'] or '')}</td><td>{escape(w['account_name'] or '')}</td><td>{escape(w['account_number'] or '')}</td><td>{money_ngn(w['amount_kobo'])}</td><td>{escape(w['status'] or '')}</td></tr>"
         for w in withdrawals
-    ) or "<tr><td colspan='6' class='muted'>No withdrawals yet.</td></tr>"
+    ) or "<tr><td colspan='6'>No withdrawals yet.</td></tr>"
 
     top_page_rows = "".join(f"<tr><td>{escape(r['path'] or '')}</td><td>{r['views']}</td><td>{r['visitors']}</td></tr>" for r in top_pages)
     top_click_rows = "".join(f"<tr><td>{escape(r['label'] or '')}</td><td>{escape(r['element'] or '')}</td><td>{r['clicks']}</td></tr>" for r in top_clicks)
 
-    return f"""<!doctype html>
-<html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>TikGenius Admin</title>
-<link href='https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap' rel='stylesheet'>
-<style>
-:root{{--bg:#060a12;--panel:#0d1525;--line:#243550;--text:#f3f7ff;--muted:#93a4bd;--cyan:#38bdf8;--green:#10b981;--gold:#f6b21a;--red:#fb7185}}
-*{{box-sizing:border-box}}body{{margin:0;font-family:'Inter',system-ui,sans-serif;background:radial-gradient(circle at top left,#172b52 0,#081120 34%,#05070c 100%);color:var(--text);min-height:100vh}}.wrap{{max-width:1280px;margin:auto;padding:18px}}.hero{{background:linear-gradient(135deg,rgba(56,189,248,.14),rgba(16,185,129,.10));border:1px solid rgba(125,167,255,.22);border-radius:26px;padding:18px;margin-bottom:14px}}.top{{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}}.brand{{display:flex;gap:12px;align-items:center}}.mark{{width:42px;height:42px;border-radius:15px;background:linear-gradient(135deg,var(--cyan),var(--green),var(--gold));display:grid;place-items:center;color:#061018;font-weight:900}}h1{{font-size:clamp(1.35rem,5vw,2.15rem);letter-spacing:-.055em;margin:0}}.muted{{color:var(--muted);font-size:.92rem}}.logout{{font-size:.84rem;color:#dbeafe;text-decoration:none;border:1px solid rgba(148,163,184,.25);padding:9px 12px;border-radius:999px;background:rgba(8,13,23,.56)}}.hero-stats{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}}.mini{{padding:12px;border-radius:18px;background:rgba(5,10,18,.55);border:1px solid rgba(148,163,184,.17)}}.mini b{{display:block;font-size:1.08rem}}.mini span{{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:800}}.grid{{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:14px 0}}.card{{background:linear-gradient(180deg,rgba(17,28,49,.92),rgba(10,17,30,.96));border:1px solid rgba(90,119,164,.45);border-radius:22px;padding:17px}}.label{{color:#a5b4fc;font-size:.74rem;text-transform:uppercase;letter-spacing:.11em;font-weight:900}}.num{{font-size:clamp(1.7rem,7vw,2.35rem);font-weight:900;letter-spacing:-.05em;margin-top:8px}}.section{{margin-top:14px}}h2{{margin:0 0 12px;font-size:1.05rem}}.tablebox{{overflow:auto;border-radius:18px;border:1px solid rgba(90,119,164,.38)}}table{{width:100%;border-collapse:collapse;min-width:700px;background:#0b1322}}th,td{{padding:12px 13px;border-bottom:1px solid #1e293b;text-align:left;font-size:.86rem;white-space:nowrap}}th{{color:#bfdbfe;background:#101b30;font-size:.72rem;text-transform:uppercase;letter-spacing:.075em}}.ref{{max-width:180px;overflow:hidden;text-overflow:ellipsis}}.pill{{padding:5px 9px;border-radius:999px;font-weight:900;font-size:.72rem}}.pill.pro,.pill.success{{background:rgba(16,185,129,.16);color:#6ee7b7;border:1px solid rgba(16,185,129,.32)}}.pill.free,.pill.pending{{background:rgba(99,102,241,.16);color:#c4b5fd;border:1px solid rgba(99,102,241,.32)}}.pill.failed{{background:rgba(251,113,133,.16);color:#fda4af;border:1px solid rgba(251,113,133,.32)}}.search{{width:100%;padding:13px 14px;border-radius:14px;border:1px solid #334155;background:#07101d;color:white;margin:4px 0 14px;outline:none}}.download-zone{{margin:18px 0 30px;padding:16px;border-radius:22px;border:1px dashed rgba(148,163,184,.35);background:rgba(8,13,23,.45)}}.download-row{{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}}a.smallbtn{{background:#17243a;color:#dbeafe;text-decoration:none;padding:8px 10px;border-radius:10px;font-weight:800;font-size:.78rem;display:inline-flex;gap:6px;align-items:center;border:1px solid rgba(148,163,184,.24)}}
-</style></head>
+    return f"""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><title>TikGenius Admin</title>
+<style>*{{box-sizing:border-box}}body{{margin:0;font-family:'Inter',system-ui,sans-serif;background:#060a12;color:#f3f7ff;min-height:100vh}}.wrap{{max-width:1280px;margin:auto;padding:18px}}h1{{font-size:1.5rem;margin:0 0 18px}}h2{{font-size:1rem;margin:0 0 10px}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:18px}}.card{{background:#0d1525;border:1px solid #243550;border-radius:16px;padding:14px}}.num{{font-size:1.8rem;font-weight:900}}.lbl{{font-size:.72rem;color:#93a4bd;text-transform:uppercase;letter-spacing:.08em}}.section{{margin-bottom:18px;background:#0d1525;border:1px solid #243550;border-radius:16px;padding:16px}}table{{width:100%;border-collapse:collapse;font-size:.82rem}}th,td{{padding:9px 10px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}}th{{color:#bfdbfe;background:#101b30;font-size:.7rem;text-transform:uppercase}}.search{{width:100%;padding:10px;border-radius:10px;border:1px solid #334155;background:#07101d;color:white;margin-bottom:10px;outline:none}}a.logout{{color:#94a3b8;text-decoration:none;font-size:.82rem}}.actions{{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}}input.inp{{background:#07101d;border:1px solid #334155;color:white;padding:8px 10px;border-radius:8px;font-size:.82rem;outline:none}}button.btn{{border:none;border-radius:8px;padding:8px 12px;font-size:.82rem;font-weight:700;cursor:pointer}}.btn-green{{background:#10b981;color:#fff}}.btn-red{{background:#f43f5e;color:#fff}}</style></head>
 <body><div class='wrap'>
-<section class='hero'><div class='top'><div class='brand'><div class='mark'>TG</div><div><h1>TikGenius Admin</h1><div class='muted'>Revenue, users, referrals, withdrawals.</div></div></div><a class='logout' href='/admin/logout'>Log out</a></div>
-<div class='hero-stats'><div class='mini'><span>Revenue</span><b>{money_ngn(pay_stats['revenue'])}</b></div><div class='mini'><span>Conversion</span><b>{conversion}%</b></div><div class='mini'><span>Today signups</span><b>{today_signups}</b></div></div></section>
+<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:16px'><h1>TikGenius Admin</h1><a class='logout' href='/admin/logout'>Log out</a></div>
 <div class='grid'>
-  <div class='card'><div class='label'>Total Revenue</div><div class='num'>{money_ngn(pay_stats['revenue'])}</div><div class='muted'>{pay_stats['count']} payments</div></div>
-  <div class='card'><div class='label'>Premium Users</div><div class='num'>{premium_users}</div></div>
-  <div class='card'><div class='label'>Free Users</div><div class='num'>{free_users}</div></div>
-  <div class='card'><div class='label'>Total Signups</div><div class='num'>{total_users}</div><div class='muted'>{today_signups} today</div></div>
-  <div class='card'><div class='label'>Generations</div><div class='num'>{total_generations}</div></div>
-  <div class='card'><div class='label'>Total Referrals</div><div class='num'>{total_refs}</div><div class='muted'>{paid_refs} converted</div></div>
-  <div class='card'><div class='label'>Pending Payouts</div><div class='num'>{money_ngn(pending_payout)}</div><div class='muted'>In user wallets</div></div>
-  <div class='card'><div class='label'>Page Views</div><div class='num'>{traffic_stats['views'] or 0}</div><div class='muted'>{traffic_stats['views_24h'] or 0} today</div></div>
-  <div class='card'><div class='label'>Downloads</div><div class='num'>{dl_stats['total_downloads'] or 0}</div><div class='muted'>{dl_stats['downloads_24h'] or 0} today</div></div>
+<div class='card'><div class='lbl'>Revenue</div><div class='num'>{money_ngn(pay_stats['revenue'])}</div></div>
+<div class='card'><div class='lbl'>Premium Users</div><div class='num'>{premium_users}</div></div>
+<div class='card'><div class='lbl'>Free Users</div><div class='num'>{free_users}</div></div>
+<div class='card'><div class='lbl'>Total Signups</div><div class='num'>{total_users}</div></div>
+<div class='card'><div class='lbl'>Today Signups</div><div class='num'>{today_signups}</div></div>
+<div class='card'><div class='lbl'>Generations</div><div class='num'>{total_generations}</div></div>
+<div class='card'><div class='lbl'>Total Referrals</div><div class='num'>{total_refs}</div></div>
+<div class='card'><div class='lbl'>Paid Referrals</div><div class='num'>{paid_refs}</div></div>
+<div class='card'><div class='lbl'>Pending Payouts</div><div class='num'>{money_ngn(pending_payout)}</div></div>
+<div class='card'><div class='lbl'>Page Views</div><div class='num'>{traffic_stats['views'] or 0}</div></div>
+<div class='card'><div class='lbl'>Downloads</div><div class='num'>{dl_stats['total_downloads'] or 0}</div></div>
+<div class='card'><div class='lbl'>Conversion</div><div class='num'>{conversion}%</div></div>
 </div>
-<div class='section card'><h2>Recent Payments</h2><div class='tablebox'><table><thead><tr><th>Date</th><th>Email</th><th>Amount</th><th>Source</th><th>Reference</th></tr></thead><tbody>{payment_rows}</tbody></table></div></div>
-<div class='section card'><h2>Withdrawals</h2><div class='tablebox'><table><thead><tr><th>Date</th><th>Email</th><th>Account Name</th><th>Account No.</th><th>Amount</th><th>Status</th></tr></thead><tbody>{withdrawal_rows}</tbody></table></div></div>
-<div class='section card'><h2>Page Analytics</h2><div class='tablebox'><table><thead><tr><th>Page</th><th>Views</th><th>Visitors</th></tr></thead><tbody>{top_page_rows}</tbody></table></div></div>
-<div class='section card'><h2>Click Tracking</h2><div class='tablebox'><table><thead><tr><th>Label</th><th>Element</th><th>Clicks</th></tr></thead><tbody>{top_click_rows}</tbody></table></div></div>
-<div class='section card'><h2>All Users</h2><input class='search' id='search' placeholder='Search email, name, plan...' onkeyup='filterRows()'><div class='tablebox'><table id='users'><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Plan</th><th>Expires</th><th>Region</th><th>Uses</th><th>Signup</th><th>Last Login</th></tr></thead><tbody>{user_rows}</tbody></table></div></div>
-<div class='download-zone'><div class='label'>Exports</div><div class='download-row'><a class='smallbtn' href='/admin/emails.csv'>⬇ Emails CSV</a><a class='smallbtn' href='/admin/payments.csv'>⬇ Payments CSV</a></div></div>
-<div class='section card' style='margin-bottom:14px;border-color:rgba(16,185,129,.3)'>
-<h2>💳 Paystack Balance vs Referral Obligations</h2>
-<div id='balWidget' style='display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px'>
-  <div class='mini'><span>Paystack Balance</span><b id='bwTotal'>Loading...</b></div>
-  <div class='mini'><span>Owed to Referrers</span><b id='bwOwed' style='color:#fb7185'>—</b></div>
-  <div class='mini'><span>Reserved (Admin)</span><b id='bwReserve'>₦500</b></div>
-  <div class='mini'><span>Safe to Spend</span><b id='bwSafe' style='color:#6ee7b7'>—</b></div>
+<div class='section'><h2>Admin Actions</h2>
+<div class='actions'>
+<input class='inp' id='grantEmail' placeholder='user@email.com' style='width:220px'>
+<input class='inp' id='grantDays' placeholder='Days (30)' style='width:90px'>
+<button class='btn btn-green' onclick='grantPremium()'>Grant Premium</button>
+<button class='btn btn-red' onclick='revokePremium()'>Revoke Premium</button>
 </div>
-<div id='bwWarn' style='display:none;background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.3);border-radius:10px;padding:10px 14px;font-size:.85rem;color:#fecdd3;margin-bottom:8px'></div>
-<button onclick='loadBalance()' style='background:#17243a;color:#94a3b8;border:1px solid #334155;border-radius:8px;padding:6px 12px;font-size:.75rem;cursor:pointer'>↻ Refresh</button>
+<div id='grantMsg' style='font-size:.82rem;color:#6ee7b7'></div>
 </div>
-<div class='section card' style='margin-bottom:20px'><h2>⚡ Admin Actions</h2>
-<div style='display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end'>
-  <div><div style='font-size:.72rem;color:#94a3b8;margin-bottom:5px;font-weight:700'>GRANT PREMIUM</div>
-    <div style='display:flex;gap:6px'><input id='grantEmail' class='search' placeholder='user@email.com' style='margin:0;width:220px;padding:9px 12px'>
-    <input id='grantDays' class='search' placeholder='Days (30)' style='margin:0;width:90px;padding:9px 12px'>
-    <button onclick='grantPremium()' style='background:#10b981;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer;white-space:nowrap'>Grant</button>
-    <button onclick='revokePremium()' style='background:#f43f5e;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer;white-space:nowrap'>Revoke</button></div>
-  <div id='grantMsg' style='font-size:.8rem;margin-top:6px;color:#6ee7b7'></div></div>
-</div></div>
-</div><script>
-function filterRows(){{let q=document.getElementById('search').value.toLowerCase();document.querySelectorAll('#users tbody tr').forEach(r=>{{r.style.display=r.innerText.toLowerCase().includes(q)?'':'none'}})}}
-async function loadBalance(){{
-  try{{
-    const r=await fetch('/api/admin/balance');const d=await r.json();
-    document.getElementById('bwTotal').textContent='₦'+d.paystack_balance_ngn.toLocaleString();
-    document.getElementById('bwOwed').textContent='₦'+d.total_owed_referrers_ngn.toLocaleString();
-    document.getElementById('bwReserve').textContent='₦'+d.admin_reserve_ngn.toLocaleString();
-    document.getElementById('bwSafe').textContent='₦'+d.safe_to_withdraw_ngn.toLocaleString();
-    const warn=document.getElementById('bwWarn');
-    if(d.paystack_balance_ngn < d.total_owed_referrers_ngn){{
-      warn.style.display='block';
-      warn.textContent='⚠️ Warning: Your Paystack balance is lower than what you owe referrers. Top up your Paystack account to avoid failed withdrawals.';
-    }} else {{ warn.style.display='none'; }}
-    if(d.error){{ warn.style.display='block'; warn.textContent='Could not fetch Paystack balance: '+d.error; }}
-  }}catch(e){{console.error(e)}}
-}}
-loadBalance();
-async function grantPremium(){{
-  const email=document.getElementById('grantEmail').value.trim();
-  const days=parseInt(document.getElementById('grantDays').value)||30;
-  const msg=document.getElementById('grantMsg');
-  if(!email){{msg.style.color='#fb7185';msg.textContent='Enter an email first.';return;}}
-  const res=await fetch('/api/admin/grant-premium',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{email,days}})}});
-  const d=await res.json();
-  if(d.error){{msg.style.color='#fb7185';msg.textContent=d.error;}}
-  else{{msg.style.color='#6ee7b7';msg.textContent='✓ Premium granted to '+d.email+' until '+d.expires;setTimeout(()=>location.reload(),1500);}}
-}}
-async function revokePremium(){{
-  const email=document.getElementById('grantEmail').value.trim();
-  const msg=document.getElementById('grantMsg');
-  if(!email){{msg.style.color='#fb7185';msg.textContent='Enter an email first.';return;}}
-  if(!confirm('Revoke premium from '+email+'?'))return;
-  const res=await fetch('/api/admin/revoke-premium',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{email}})}});
-  const d=await res.json();
-  if(d.error){{msg.style.color='#fb7185';msg.textContent=d.error;}}
-  else{{msg.style.color='#fb7185';msg.textContent='✓ Premium revoked from '+d.email;setTimeout(()=>location.reload(),1500);}}
-}}
+<div class='section'><h2>Recent Payments</h2><div style='overflow:auto'><table><thead><tr><th>Date</th><th>Email</th><th>Amount</th><th>Source</th><th>Reference</th></tr></thead><tbody>{payment_rows}</tbody></table></div></div>
+<div class='section'><h2>Withdrawals</h2><div style='overflow:auto'><table><thead><tr><th>Date</th><th>Email</th><th>Account Name</th><th>Account No.</th><th>Amount</th><th>Status</th></tr></thead><tbody>{withdrawal_rows}</tbody></table></div></div>
+<div class='section'><h2>Top Pages</h2><div style='overflow:auto'><table><thead><tr><th>Page</th><th>Views</th><th>Visitors</th></tr></thead><tbody>{top_page_rows}</tbody></table></div></div>
+<div class='section'><h2>All Users</h2><input class='search' id='search' placeholder='Search...' onkeyup='filterRows()'><div style='overflow:auto'><table id='users'><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Plan</th><th>Expires</th><th>Region</th><th>Uses</th><th>Signup</th><th>Last Login</th></tr></thead><tbody>{user_rows}</tbody></table></div></div>
+<div class='section'><h2>Exports</h2><a href='/admin/emails.csv' style='color:#38bdf8;font-size:.85rem;margin-right:14px'>Download Emails CSV</a><a href='/admin/payments.csv' style='color:#38bdf8;font-size:.85rem'>Download Payments CSV</a></div>
+</div>
+<script>
+function filterRows(){{var q=document.getElementById('search').value.toLowerCase();document.querySelectorAll('#users tbody tr').forEach(r=>{{r.style.display=r.innerText.toLowerCase().includes(q)?'':'none'}})}}
+async function grantPremium(){{var email=document.getElementById('grantEmail').value.trim();var days=parseInt(document.getElementById('grantDays').value)||30;var msg=document.getElementById('grantMsg');if(!email){{msg.textContent='Enter an email first.';return;}}var res=await fetch('/api/admin/grant-premium',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{email,days}})}});var d=await res.json();if(d.error){{msg.style.color='#fb7185';msg.textContent=d.error;}}else{{msg.style.color='#6ee7b7';msg.textContent='Premium granted to '+d.email+' until '+d.expires;setTimeout(()=>location.reload(),1500);}}}}
+async function revokePremium(){{var email=document.getElementById('grantEmail').value.trim();var msg=document.getElementById('grantMsg');if(!email){{msg.textContent='Enter an email first.';return;}}if(!confirm('Revoke premium from '+email+'?'))return;var res=await fetch('/api/admin/revoke-premium',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{email}})}});var d=await res.json();if(d.error){{msg.style.color='#fb7185';msg.textContent=d.error;}}else{{msg.style.color='#fb7185';msg.textContent='Premium revoked from '+d.email;setTimeout(()=>location.reload(),1500);}}}}
 </script></body></html>"""
 
 @app.route("/admin/emails.csv")
@@ -2031,7 +1915,6 @@ def admin_audience_count():
 
 @app.route("/api/admin/balance")
 def admin_balance():
-    """Show Paystack balance vs what's owed to referrers."""
     if not admin_allowed():
         return jsonify({"error": "Unauthorized"}), 401
     paystack_bal, err = paystack_get_balance()
@@ -2046,10 +1929,8 @@ def admin_balance():
         "error": err
     })
 
-
 @app.route("/api/admin/grant-premium", methods=["POST"])
 def admin_grant_premium():
-    """Manually grant premium to a user by email."""
     if not admin_allowed():
         return jsonify({"error": "Unauthorized"}), 401
     data = request.json or {}
@@ -2074,7 +1955,6 @@ def admin_grant_premium():
 
 @app.route("/api/admin/revoke-premium", methods=["POST"])
 def admin_revoke_premium():
-    """Revoke premium from a user by email."""
     if not admin_allowed():
         return jsonify({"error": "Unauthorized"}), 401
     data = request.json or {}
@@ -2092,7 +1972,6 @@ def admin_revoke_premium():
 
 @app.route("/api/admin/user-stats")
 def admin_user_stats():
-    """Quick stats for a single user by email."""
     if not admin_allowed():
         return jsonify({"error": "Unauthorized"}), 401
     email = (request.args.get("email") or "").strip().lower()
@@ -2140,7 +2019,7 @@ STUDIO_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>TikGenius — AI Content Studio</title>
+<title>TikGenius - AI Content Studio</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -2152,8 +2031,6 @@ STUDIO_HTML = """<!DOCTYPE html>
 }
 html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
-
-/* NAV */
 .nav{height:52px;min-height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(10,10,15,.95);border-bottom:1px solid var(--border);position:relative;z-index:100;flex-shrink:0}
 .logo{font-family:var(--font-h);font-weight:800;font-size:1.15rem;letter-spacing:-.03em;display:flex;align-items:center;gap:8px;color:var(--text);text-decoration:none}
 .logo em{color:var(--accent);font-style:normal}
@@ -2166,12 +2043,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .nav-btn.primary:hover{box-shadow:0 0 18px rgba(0,255,204,.35)}
 .nav-btn.ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
 .nav-btn.ghost:hover{border-color:var(--accent);color:var(--accent)}
-.hamburger{display:none;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:6px 10px;cursor:pointer;font-size:.9rem;line-height:1}
-
-/* BODY LAYOUT */
+.nav-btn.earn{background:linear-gradient(135deg,#ffb800,#ff8c00);color:#050a08;border:none}
+.nav-btn.earn:hover{box-shadow:0 0 18px rgba(255,184,0,.4)}
 .body{display:flex;flex:1;overflow:hidden}
-
-/* SIDEBAR */
 .sidebar{width:240px;min-width:240px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
 .sidebar-inner{padding:14px;display:flex;flex-direction:column;gap:8px;flex:1}
 .plan-box{background:linear-gradient(135deg,#0d1f2d,#0a1520);border:1px solid rgba(0,255,204,.15);border-radius:var(--radius);padding:14px}
@@ -2199,15 +2073,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .sidebar-footer{padding:12px 14px;border-top:1px solid var(--border)}
 .logout-btn{width:100%;padding:8px;background:transparent;border:1px solid var(--border);border-radius:9px;color:var(--muted);font-family:var(--font);font-size:.78rem;cursor:pointer;transition:all .2s}
 .logout-btn:hover{color:var(--danger);border-color:rgba(255,77,109,.3)}
-
-/* CHAT MAIN */
 .chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
 .chat-messages{flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
 .chat-messages::-webkit-scrollbar{width:4px}
-.chat-messages::-webkit-scrollbar-track{background:transparent}
 .chat-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
-
-/* WELCOME STATE */
 .welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:32px 20px;text-align:center;gap:16px}
 .welcome-icon{width:56px;height:56px;background:linear-gradient(135deg,rgba(0,255,204,.15),rgba(0,170,255,.1));border:1px solid rgba(0,255,204,.25);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:1.6rem}
 .welcome h2{font-family:var(--font-h);font-weight:800;font-size:clamp(1.4rem,4vw,1.9rem);letter-spacing:-.04em}
@@ -2216,8 +2085,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .welcome-pills{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;max-width:480px}
 .wpill{background:var(--card);border:1px solid var(--border);border-radius:100px;padding:5px 12px;font-size:.75rem;color:var(--muted);cursor:pointer;transition:all .18s}
 .wpill:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,255,204,.05)}
-
-/* MESSAGES */
 .msg{display:flex;gap:10px;max-width:800px;width:100%;animation:fadeUp .25s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .msg.user{align-self:flex-end;flex-direction:row-reverse}
@@ -2231,8 +2098,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .msg-bubble{padding:12px 15px;border-radius:14px;font-size:.9rem;line-height:1.65}
 .msg.ai .msg-bubble{background:var(--card);border:1px solid var(--border);color:var(--text);border-top-left-radius:4px}
 .msg.user .msg-bubble{background:rgba(0,255,204,.09);border:1px solid rgba(0,255,204,.18);color:var(--text);border-top-right-radius:4px}
-
-/* QUESTIONS */
 .q-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:none}
 .q-card.show{display:block}
 .q-card-title{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
@@ -2244,8 +2109,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .gen-btn{width:100%;margin-top:14px;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:11px;color:#050a08;font-weight:800;font-size:.95rem;font-family:var(--font);cursor:pointer;transition:all .2s}
 .gen-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,255,204,.3)}
 .gen-btn:disabled{opacity:.5;transform:none;box-shadow:none}
-
-/* OUTPUT */
 .output-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:none}
 .output-card.show{display:block}
 .output-top{display:flex;justify-content:space-between;align-items:center;padding:12px 15px;border-bottom:1px solid var(--border);background:#0d0d14}
@@ -2262,8 +2125,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .sect-copy:hover{border-color:var(--accent);color:var(--accent)}
 .new-idea{width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:var(--font);font-size:.85rem;font-weight:600;cursor:pointer;margin-top:10px;transition:all .2s}
 .new-idea:hover{border-color:var(--accent);color:var(--accent)}
-
-/* THINKING */
 .thinking-msg{display:none;align-items:center;gap:10px;padding:12px 15px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);color:var(--muted);font-size:.85rem;max-width:800px}
 .thinking-msg.show{display:flex}
 .dots{display:flex;gap:4px}
@@ -2271,19 +2132,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .dots span:nth-child(2){animation-delay:.15s}
 .dots span:nth-child(3){animation-delay:.3s}
 @keyframes bounce{0%,80%,100%{transform:scale(.5);opacity:.3}40%{transform:scale(1);opacity:1}}
-
-/* ERROR */
 .err-msg{display:none;padding:10px 14px;background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.2);border-radius:10px;font-size:.83rem;color:#ff8099;max-width:800px}
 .err-msg.show{display:block}
-
-/* UPGRADE BANNER */
 .upgrade-banner{display:none;padding:14px 16px;background:linear-gradient(135deg,rgba(0,255,204,.07),rgba(255,184,0,.05));border:1px solid rgba(255,184,0,.25);border-radius:var(--radius);max-width:800px}
 .upgrade-banner.show{display:block}
 .upgrade-banner h4{font-family:var(--font-h);font-weight:800;font-size:.9rem;margin-bottom:4px}
 .upgrade-banner p{color:var(--muted);font-size:.8rem;margin-bottom:10px;line-height:1.5}
 .upgrade-banner button{padding:9px 18px;background:linear-gradient(135deg,var(--accent),var(--gold));border:none;border-radius:9px;color:#050a08;font-weight:800;font-size:.85rem;font-family:var(--font);cursor:pointer}
-
-/* INPUT BAR */
 .input-bar{padding:12px 16px;border-top:1px solid var(--border);background:rgba(10,10,15,.98);flex-shrink:0}
 .input-inner{max-width:800px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
 .input-row{display:flex;gap:8px;align-items:flex-end}
@@ -2297,13 +2152,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .input-hint{font-size:.72rem;color:var(--muted)}
 .region-sel{background:transparent;border:none;color:var(--muted);font-size:.72rem;font-family:var(--font);cursor:pointer;outline:none;padding:2px 4px}
 .region-sel option{background:var(--card)}
-
-/* PROFILE PANEL */
 .profile-btn{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#050a08;font-weight:800;font-size:.8rem;cursor:pointer;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-family:var(--font)}
 .profile-btn:hover{box-shadow:0 0 14px rgba(0,255,204,.4);transform:scale(1.05)}
 .profile-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;backdrop-filter:blur(4px)}
 .profile-backdrop.open{display:block}
-.profile-panel{position:fixed;right:0;top:0;bottom:0;width:88%;max-width:320px;background:var(--sidebar);border-left:1px solid var(--border);z-index:210;overflow-y:auto;padding:0;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .28s ease}
+.profile-panel{position:fixed;right:0;top:0;bottom:0;width:88%;max-width:340px;background:var(--sidebar);border-left:1px solid var(--border);z-index:210;overflow-y:auto;padding:0;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .28s ease}
 .profile-panel.open{transform:translateX(0)}
 .profile-head{padding:20px 18px 16px;background:linear-gradient(135deg,#0d1f2d,#0a1520);border-bottom:1px solid var(--border)}
 .profile-avatar{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.2rem;color:#050a08;margin-bottom:12px}
@@ -2321,18 +2174,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .stat-row .stat-val{font-size:.9rem;font-weight:700;color:var(--text)}
 .stat-row .stat-val.green{color:var(--accent)}
 .stat-row .stat-val.gold{color:var(--gold)}
+.earn-highlight{background:linear-gradient(135deg,rgba(255,184,0,.12),rgba(255,140,0,.08));border:1px solid rgba(255,184,0,.3);border-radius:12px;padding:14px;margin-bottom:4px}
+.earn-highlight .earn-amount{font-family:var(--font-h);font-size:2rem;font-weight:800;color:var(--gold);line-height:1}
+.earn-highlight .earn-label{font-size:.72rem;color:var(--muted);margin-top:4px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
 .ref-link-box{display:flex;gap:6px;margin-top:8px}
 .ref-link-input{flex:1;background:#0d0d14;border:1px solid var(--border);color:var(--accent);padding:8px 10px;border-radius:8px;font-size:.72rem;font-family:var(--font);outline:none;min-width:0}
 .ref-copy-btn{background:var(--accent);border:none;border-radius:8px;color:#050a08;font-weight:800;font-size:.72rem;padding:8px 10px;cursor:pointer;white-space:nowrap;font-family:var(--font);transition:all .2s}
 .ref-copy-btn:hover{box-shadow:0 0 12px rgba(0,255,204,.3)}
-.profile-action-btn{width:100%;padding:11px;border-radius:10px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:var(--font);transition:all .2s;text-decoration:none;display:block;text-align:center}
+.profile-action-btn{width:100%;padding:11px;border-radius:10px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:var(--font);transition:all .2s;text-decoration:none;display:block;text-align:center;margin-bottom:4px}
 .profile-action-btn.earn{background:linear-gradient(135deg,rgba(255,184,0,.15),rgba(255,184,0,.08));border:1px solid rgba(255,184,0,.3);color:var(--gold)}
 .profile-action-btn.upgrade{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#050a08}
 .profile-action-btn.danger{background:transparent;border:1px solid rgba(255,77,109,.25);color:var(--danger)}
 .profile-action-btn:hover{transform:translateY(-1px)}
 .profile-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.07);border:none;color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:.9rem;font-family:var(--font)}
-
-/* AUTH MODAL */
 .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(8px);padding:16px}
 .modal-backdrop.open{display:flex}
 .modal{background:#13131a;border:1px solid rgba(0,255,204,.15);border-radius:20px;padding:22px;width:100%;max-width:380px}
@@ -2349,7 +2203,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .modal-btn{width:100%;padding:.75rem;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:9px;color:#050a08;font-size:.875rem;font-weight:800;cursor:pointer;font-family:var(--font);margin-bottom:.55rem;transition:all .2s}
 .modal-btn:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(0,255,204,.25)}
 .modal-cancel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.76rem;font-family:var(--font);width:100%;padding:.3rem}
-
 @media(max-width:768px){
   html,body{overflow:auto}
   .body{flex-direction:column;overflow:visible}
@@ -2365,7 +2218,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 </head>
 <body>
 
-<!-- NAV -->
 <nav class="nav">
   <a class="logo" href="/">
     <svg width="24" height="24" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="lg1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffcc"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient><linearGradient id="lg2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffcc"/></linearGradient></defs><rect x="52" y="58" width="52" height="7" rx="2" fill="url(#lg1)"/><rect x="74" y="65" width="8" height="70" rx="2" fill="url(#lg1)"/><path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#lg2)" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#lg2)"/></svg>
@@ -2375,20 +2227,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     <span class="nav-pill" id="navPlan">Free Plan</span>
   </div>
   <div class="nav-right">
-    <a class="nav-btn ghost" href="/download" id="navDownloader">⬇ Downloader</a>
+    <a class="nav-btn ghost" href="/download">Downloader</a>
     <button class="nav-btn ghost" id="navLogin" onclick="openModal('login')" style="display:none">Log In</button>
-    <button class="nav-btn primary" id="navCta" onclick="openModal('signup')">Sign Up Free →</button>
+    <button class="nav-btn primary" id="navSignup" onclick="openModal('signup')" style="display:none">Sign Up Free</button>
+    <button class="nav-btn earn" id="navEarn" onclick="handleEarnClick()">Start Earning</button>
     <button class="profile-btn" id="profileBtn" onclick="openProfile()" title="Your Profile">P</button>
   </div>
 </nav>
 
-<!-- BODY -->
 <div class="body">
-
-  <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-inner">
-      <!-- Plan box -->
       <div class="plan-box" id="planBox" style="display:none">
         <div class="plan-name" id="planName">Free Plan</div>
         <div class="plan-email" id="planEmail"></div>
@@ -2396,12 +2245,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
         <div class="usage-text" id="usageText">5 / 5 left today</div>
       </div>
       <div class="upgrade-box" id="upgradeBox">
-        <p>You've used all your free generations. Upgrade for unlimited.</p>
-        <button onclick="doUpgrade()">✦ Upgrade — ₦2,000/mo</button>
+        <p>You have used all your free generations. Upgrade for unlimited.</p>
+        <button onclick="doUpgrade()">Upgrade - N2,000/mo</button>
       </div>
       <div class="s-divider"></div>
-      <a class="s-item accent" href="/download">⬇ TikTok Downloader</a>
-      <button class="s-item gold" id="earnLink" style="display:none" onclick="openProfile()">💰 Earn ₦500/Referral</button>
+      <a class="s-item accent" href="/download">TikTok Downloader</a>
+      <button class="s-item gold" id="earnLink" style="display:none" onclick="openProfile()">Earn N500/Referral</button>
       <div class="s-divider"></div>
       <div class="s-label" style="display:flex;justify-content:space-between;align-items:center;padding-right:4px">
         <span>History</span>
@@ -2416,23 +2265,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     </div>
   </aside>
 
-  <!-- CHAT MAIN -->
   <div class="chat-main">
     <div class="chat-messages" id="chatMessages">
-
-      <!-- WELCOME (shown when no messages) -->
       <div class="welcome" id="welcomeState">
-        <div class="welcome-icon">✦</div>
+        <div class="welcome-icon">*</div>
         <h2>What do you want to <span>create today?</span></h2>
-        <p>Describe your content idea below. The AI will ask 3 quick questions, then generate captions, hooks, scripts, hashtags and more — all tuned to your audience.</p>
+        <p>Describe your content idea below. The AI will ask 3 quick questions, then generate captions, hooks, scripts, hashtags and more.</p>
         <div id="guestPrompt" style="display:none;background:rgba(0,255,204,.06);border:1px solid rgba(0,255,204,.2);border-radius:12px;padding:14px 18px;text-align:center;margin-top:4px">
           <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px;line-height:1.5">Create a free account to start generating content</p>
           <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-            <button onclick="openModal('signup')" style="padding:9px 20px;background:var(--accent);border:none;border-radius:9px;color:#050a08;font-weight:800;font-size:.85rem;font-family:var(--font);cursor:pointer">Sign Up Free →</button>
+            <button onclick="openModal('signup')" style="padding:9px 20px;background:var(--accent);border:none;border-radius:9px;color:#050a08;font-weight:800;font-size:.85rem;font-family:var(--font);cursor:pointer">Sign Up Free</button>
             <button onclick="openModal('login')" style="padding:9px 20px;background:transparent;border:1px solid var(--border);border-radius:9px;color:var(--muted);font-weight:700;font-size:.85rem;font-family:var(--font);cursor:pointer">Log In</button>
           </div>
         </div>
-        <div class="welcome-pills" id="examplePills">
+        <div class="welcome-pills">
           <span class="wpill" onclick="fillExample(this)">My fitness transformation journey</span>
           <span class="wpill" onclick="fillExample(this)">How I make money online</span>
           <span class="wpill" onclick="fillExample(this)">Nigerian food recipes</span>
@@ -2441,10 +2287,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
           <span class="wpill" onclick="fillExample(this)">Fashion and style tips</span>
         </div>
       </div>
+    </div>
 
-    </div><!-- end chat-messages -->
-
-    <!-- Thinking -->
     <div style="padding:0 16px 8px;max-width:832px;margin:0 auto;width:100%">
       <div class="thinking-msg" id="thinkingMsg">
         <div class="dots"><span></span><span></span><span></span></div>
@@ -2454,15 +2298,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
       <div class="upgrade-banner" id="upgradeBanner">
         <h4>Free generations used up</h4>
         <p>Upgrade to Premium for unlimited content, every day.</p>
-        <button onclick="doUpgrade()">✦ Upgrade to Premium — ₦2,000/mo</button>
+        <button onclick="doUpgrade()">Upgrade to Premium - N2,000/mo</button>
       </div>
     </div>
+  </div>
+</div>
 
-  </div><!-- end chat-main -->
-
-</div><!-- end body -->
-
-<!-- INPUT BAR -->
 <div class="input-bar">
   <div class="input-inner">
     <div class="input-row">
@@ -2476,31 +2317,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     <div class="input-meta">
       <span class="input-hint" id="inputHint">Type your idea and press Enter</span>
       <select class="region-sel" id="regionSel" onchange="saveRegion(this.value)">
-        <option value="global">🌍 Global</option>
-        <option value="nigeria">🇳🇬 Nigeria</option>
-        <option value="usa">🇺🇸 USA</option>
-        <option value="uk">🇬🇧 UK</option>
-        <option value="caribbean">🇯🇲 Caribbean</option>
-        <option value="eastafrica">🇰🇪 East Africa</option>
-        <option value="southafrica">🇿🇦 South Africa</option>
+        <option value="global">Global</option>
+        <option value="nigeria">Nigeria</option>
+        <option value="usa">USA</option>
+        <option value="uk">UK</option>
+        <option value="caribbean">Caribbean</option>
+        <option value="eastafrica">East Africa</option>
+        <option value="southafrica">South Africa</option>
       </select>
     </div>
   </div>
 </div>
 
-<!-- QUESTIONS CARD (injected into chat) -->
 <template id="qCardTpl">
   <div class="q-card" id="qCard">
     <div class="q-card-title">Answer these 3 questions</div>
     <div id="qBody"></div>
-    <button class="gen-btn" onclick="submitAnswers()">✦ Generate My Content</button>
+    <button class="gen-btn" onclick="submitAnswers()">Generate My Content</button>
   </div>
 </template>
 
-<!-- PROFILE PANEL -->
 <div class="profile-backdrop" id="profileBackdrop" onclick="closeProfile()"></div>
 <div class="profile-panel" id="profilePanel">
-  <button class="profile-close" onclick="closeProfile()">✕</button>
+  <button class="profile-close" onclick="closeProfile()">X</button>
   <div class="profile-head">
     <div class="profile-avatar" id="profAvatar">?</div>
     <div class="profile-name" id="profName">Your Account</div>
@@ -2508,42 +2347,42 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     <div class="profile-plan" id="profPlan">Free Plan</div>
   </div>
   <div class="profile-body">
-    <!-- Usage -->
-    <div class="profile-section">
-      <div class="profile-section-head">Daily Usage</div>
-      <div class="profile-section-body">
-        <div class="stat-row"><span class="stat-label">Generations today</span><span class="stat-val" id="profUsage">—</span></div>
-        <div class="stat-row"><span class="stat-label">Plan</span><span class="stat-val green" id="profPlanTxt">Free (5/day)</span></div>
-      </div>
+    <div class="earn-highlight">
+      <div class="earn-amount" id="profBalance">N0</div>
+      <div class="earn-label">Wallet Balance</div>
     </div>
-    <!-- Referral earnings -->
     <div class="profile-section">
-      <div class="profile-section-head">💰 Referral Earnings</div>
+      <div class="profile-section-head">Referral Earnings</div>
       <div class="profile-section-body">
-        <div class="stat-row"><span class="stat-label">Wallet balance</span><span class="stat-val gold" id="profBalance">Loading...</span></div>
-        <div class="stat-row"><span class="stat-label">Total earned</span><span class="stat-val" id="profTotalEarned">—</span></div>
-        <div class="stat-row"><span class="stat-label">Total withdrawn</span><span class="stat-val" id="profWithdrawn">—</span></div>
-        <div class="stat-row"><span class="stat-label">Paid referrals</span><span class="stat-val green" id="profPaidRefs">—</span></div>
-        <div class="stat-row"><span class="stat-label">Pending referrals</span><span class="stat-val" id="profPendingRefs">—</span></div>
-        <div style="margin-top:10px;font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:600">YOUR REFERRAL LINK</div>
+        <div class="stat-row"><span class="stat-label">Total earned</span><span class="stat-val gold" id="profTotalEarned">N0</span></div>
+        <div class="stat-row"><span class="stat-label">Total withdrawn</span><span class="stat-val" id="profWithdrawn">N0</span></div>
+        <div class="stat-row"><span class="stat-label">Paid referrals</span><span class="stat-val green" id="profPaidRefs">0 people</span></div>
+        <div class="stat-row"><span class="stat-label">Pending referrals</span><span class="stat-val" id="profPendingRefs">0 pending</span></div>
+        <div style="margin-top:12px;font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:.06em;text-transform:uppercase">Your Referral Link</div>
         <div class="ref-link-box">
           <input class="ref-link-input" id="profRefLink" readonly value="Loading...">
           <button class="ref-copy-btn" onclick="copyRefLink()">Copy</button>
         </div>
+        <p style="font-size:.72rem;color:var(--muted);margin-top:8px;line-height:1.5">Share this link. When someone upgrades to Premium through your link, N500 is added to your wallet instantly.</p>
       </div>
     </div>
-    <!-- Actions -->
-    <a class="profile-action-btn earn" href="/refer">💳 Withdraw Earnings →</a>
-    <button class="profile-action-btn upgrade" id="profUpgradeBtn" onclick="doUpgrade()" style="display:none">✦ Upgrade to Premium — ₦2,000/mo</button>
+    <div class="profile-section">
+      <div class="profile-section-head">Daily Usage</div>
+      <div class="profile-section-body">
+        <div class="stat-row"><span class="stat-label">Generations today</span><span class="stat-val" id="profUsage">-</span></div>
+        <div class="stat-row"><span class="stat-label">Plan</span><span class="stat-val green" id="profPlanTxt">Free (5/day)</span></div>
+      </div>
+    </div>
+    <a class="profile-action-btn earn" href="/refer">Withdraw Earnings</a>
+    <button class="profile-action-btn upgrade" id="profUpgradeBtn" onclick="doUpgrade()" style="display:none">Upgrade to Premium - N2,000/mo</button>
     <button class="profile-action-btn danger" onclick="doLogout()">Log out</button>
   </div>
 </div>
 
-<!-- AUTH MODAL -->
 <div class="modal-backdrop" id="authBackdrop">
   <div class="modal">
     <h2 id="modalH">Create your account</h2>
-    <p class="modal-sub" id="modalSub">5 free AI generations per day — no card needed.</p>
+    <p class="modal-sub" id="modalSub">5 free AI generations per day, no card needed.</p>
     <div class="modal-tabs">
       <button class="modal-tab on" id="tabA" onclick="switchTab('signup')">Sign Up</button>
       <button class="modal-tab" id="tabB" onclick="switchTab('login')">Log In</button>
@@ -2553,20 +2392,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
       <div class="fg"><label>Password</label><input type="password" id="sPass" placeholder="Min 6 characters" autocomplete="new-password"></div>
       <div class="fg"><label>Your Region</label>
         <select id="sRegion">
-          <option value="global">🌍 Global</option><option value="nigeria">🇳🇬 Nigerian</option>
-          <option value="usa">🇺🇸 American</option><option value="uk">🇬🇧 British</option>
-          <option value="caribbean">🇯🇲 Caribbean</option><option value="eastafrica">🇰🇪 East African</option>
-          <option value="southafrica">🇿🇦 South African</option>
+          <option value="global">Global</option>
+          <option value="nigeria">Nigerian</option>
+          <option value="usa">American</option>
+          <option value="uk">British</option>
+          <option value="caribbean">Caribbean</option>
+          <option value="eastafrica">East African</option>
+          <option value="southafrica">South African</option>
         </select>
       </div>
       <div class="modal-err" id="sErr"></div>
-      <button class="modal-btn" onclick="doSignup()">Create Account →</button>
+      <button class="modal-btn" onclick="doSignup()">Create Account</button>
     </div>
     <div id="fmLogin" style="display:none">
       <div class="fg"><label>Email</label><input type="email" id="lEmail" placeholder="you@example.com" autocomplete="email"></div>
       <div class="fg"><label>Password</label><input type="password" id="lPass" placeholder="Your password" autocomplete="current-password"></div>
       <div class="modal-err" id="lErr"></div>
-      <button class="modal-btn" onclick="doLogin()">Log In →</button>
+      <button class="modal-btn" onclick="doLogin()">Log In</button>
     </div>
     <button class="modal-cancel" onclick="closeModal()">Cancel</button>
   </div>
@@ -2576,10 +2418,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 var user = null;
 var idea = '';
 var questions = [];
-var stage = 'idle'; // idle | asked | done
+var stage = 'idle';
 var urlRef = new URLSearchParams(location.search).get('ref') || '';
 
-// ─── INIT ───────────────────────────────────────────────
 async function init() {
   try {
     var r = await fetch('/api/me');
@@ -2593,58 +2434,53 @@ async function init() {
 
 function applyUser() {
   var isPro = user.plan === 'pro';
-  // Nav CTA
   document.getElementById('navLogin').style.display = 'none';
-  document.getElementById('navCta').textContent = isPro ? '✦ Premium' : 'Upgrade';
-  if (!isPro) document.getElementById('navCta').setAttribute('onclick', 'doUpgrade()');
-  else document.getElementById('navCta').removeAttribute('onclick');
+  document.getElementById('navSignup').style.display = 'none';
   document.getElementById('navCenter').style.display = 'flex';
-  document.getElementById('navPlan').textContent = isPro ? '✦ Premium' : 'Free Plan';
-  // Profile button — show initials
+  document.getElementById('navPlan').textContent = isPro ? 'Premium' : 'Free Plan';
   var pb = document.getElementById('profileBtn');
   pb.style.display = 'flex';
   pb.textContent = (user.email || 'U')[0].toUpperCase();
-  // Sidebar
   document.getElementById('planBox').style.display = 'block';
-  document.getElementById('planName').textContent = isPro ? '✦ Premium' : 'Free Plan';
+  document.getElementById('planName').textContent = isPro ? 'Premium' : 'Free Plan';
   document.getElementById('planEmail').textContent = user.email;
   document.getElementById('logoutBtn').style.display = 'block';
   document.getElementById('earnLink').style.display = 'flex';
-  var enl = document.getElementById('earnNavLink'); if(enl) enl.style.display = 'block';
   document.getElementById('regionSel').value = user.region || 'global';
   updateUsage(user.uses_remaining, user.unlimited);
 }
 
 function showGuest() {
-  document.getElementById('navCta').textContent = 'Sign Up Free →';
-  document.getElementById('navCta').setAttribute('onclick', "openModal('signup')");
   document.getElementById('navLogin').style.display = 'inline-flex';
+  document.getElementById('navSignup').style.display = 'inline-flex';
   var gp = document.getElementById('guestPrompt');
   if (gp) gp.style.display = 'block';
 }
 
+function handleEarnClick() {
+  if (!user) { openModal('signup'); return; }
+  openProfile();
+}
+
 function updateUsage(rem, unlimited) {
   var pct = unlimited ? 100 : ((rem||0)/5*100);
-  var txt = unlimited ? 'Unlimited ✦' : ((rem||0) + ' / 5 left today');
+  var txt = unlimited ? 'Unlimited' : ((rem||0) + ' / 5 left today');
   var ub = document.getElementById('usageBar'); if(ub) ub.style.width=pct+'%';
   var ut = document.getElementById('usageText'); if(ut) ut.textContent=txt;
   var show = !unlimited && (rem||0)<=0;
   var ub2 = document.getElementById('upgradeBox'); if(ub2) ub2.classList.toggle('show', show);
-  // Profile panel usage
   var pu = document.getElementById('profUsage');
   if(pu) pu.textContent = unlimited ? 'Unlimited' : ((5-(rem||0)) + ' / 5 used');
   var pp = document.getElementById('profPlanTxt');
-  if(pp) pp.textContent = unlimited ? 'Premium — Unlimited' : 'Free (5/day)';
+  if(pp) pp.textContent = unlimited ? 'Premium - Unlimited' : 'Free (5/day)';
   var pup = document.getElementById('profUpgradeBtn');
   if(pup) pup.style.display = (!unlimited) ? 'block' : 'none';
 }
 
-// ─── CHAT FLOW ───────────────────────────────────────────
 function handleSend() {
   var text = (document.getElementById('chatInput').value || '').trim();
   if (!text) return;
   if (!user) {
-    // Store idea so it auto-fills after signup
     sessionStorage.setItem('pendingIdea', text);
     openModal('signup');
     return;
@@ -2654,17 +2490,15 @@ function handleSend() {
 }
 
 async function startIdea(text) {
-  if (text.split(' ').length < 3) { showErr('Add a bit more detail — at least 3 words'); return; }
+  if (text.split(' ').length < 3) { showErr('Add a bit more detail at least 3 words'); return; }
   idea = text;
   stage = 'asking';
   hideErr(); hideBanner();
   document.getElementById('chatInput').value = '';
   autoResize(document.getElementById('chatInput'));
   document.getElementById('welcomeState').style.display = 'none';
-
   addMsg('user', text);
   setThinking(true, 'Understanding your idea...');
-
   try {
     var r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ stage:'question', idea:idea, region: document.getElementById('regionSel').value }) });
@@ -2672,15 +2506,14 @@ async function startIdea(text) {
     setThinking(false);
     if (d.error) { showErr(d.error); stage='idle'; return; }
     showQuestions(d.questions);
-  } catch(e) { setThinking(false); showErr('Network error — try again.'); stage='idle'; }
+  } catch(e) { setThinking(false); showErr('Network error, try again.'); stage='idle'; }
 }
 
 function showQuestions(qText) {
   addMsg('ai', qText);
-  // Parse numbered lines
-  var lines = qText.split('\n').filter(function(l){ return /^\\d+[.)\\s]/.test(l.trim()) && l.trim().length > 5; });
+  var lines = qText.split('\n').filter(function(l){ return /^\d+[.)\s]/.test(l.trim()) && l.trim().length > 5; });
   if (!lines.length) lines = qText.split('\n').filter(function(l){ return l.trim().length > 8; }).slice(0,3);
-  questions = lines.map(function(l){ return l.replace(/^\\d+[.)\\s]+/,'').trim(); });
+  questions = lines.map(function(l){ return l.replace(/^\d+[.)\s]+/,'').trim(); });
 
   var tpl = document.getElementById('qCardTpl').content.cloneNode(true);
   var card = tpl.querySelector('.q-card');
@@ -2694,13 +2527,11 @@ function showQuestions(qText) {
 
   var msgs = document.getElementById('chatMessages');
   msgs.appendChild(tpl);
-  // Re-grab after append
   var appended = msgs.lastElementChild;
   appended.classList.add('show');
   appended.id = 'activeQCard';
   appended.scrollIntoView({ behavior:'smooth', block:'nearest' });
   stage = 'asked';
-
   document.getElementById('inputHint').textContent = 'Answer the questions above, then click Generate';
   document.getElementById('submitBtn').disabled = true;
 }
@@ -2716,14 +2547,11 @@ async function submitAnswers() {
   });
   if (!ok) { showErr('Please answer all 3 questions first'); return; }
   hideErr();
-
   var qCard = document.getElementById('activeQCard');
   if (qCard) qCard.style.opacity = '.5';
   var genBtn = qCard ? qCard.querySelector('.gen-btn') : null;
   if (genBtn) genBtn.disabled = true;
-
   setThinking(true, 'Creating your full content pack...');
-
   try {
     var r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ stage:'generate', idea:idea, answers:answers, region: document.getElementById('regionSel').value }) });
@@ -2741,11 +2569,11 @@ async function submitAnswers() {
     else if (d.unlimited) updateUsage(null, true);
     loadHistory();
     stage = 'done';
-    document.getElementById('inputHint').textContent = 'Content ready ↑ — click New Idea to start again';
+    document.getElementById('inputHint').textContent = 'Content ready, click New Idea to start again';
     document.getElementById('submitBtn').disabled = false;
   } catch(e) {
     setThinking(false);
-    showErr('Network error — try again.');
+    showErr('Network error, try again.');
     if (qCard) { qCard.style.opacity='1'; if(genBtn) genBtn.disabled=false; }
   }
 }
@@ -2753,19 +2581,14 @@ async function submitAnswers() {
 function renderOutput(text) {
   var card = document.createElement('div');
   card.className = 'output-card show';
-
   var sections = [];
-  var parts = text.split(/\n(?=\\*\\*[A-Z0-9])/);
+  var parts = text.split(/\n(?=\*\*[A-Z0-9])/);
   parts.forEach(function(p) {
-    var m = p.match(/^\\*\\*(.+?)\\*\\*\\s*\\n?([\\s\\S]*)/);
+    var m = p.match(/^\*\*(.+?)\*\*\s*\n?([\s\S]*)/);
     if (m) sections.push({ h: m[1].trim(), b: m[2].trim() });
     else if (p.trim()) sections.push({ h: 'Content', b: p.trim() });
   });
   if (!sections.length) sections.push({ h: 'Your Content', b: text.trim() });
-
-  // Store full text on card element instead of inline onclick
-  card._rawText = text;
-  sections.forEach(function(s, idx) { card['_sec' + idx] = s.b; });
 
   var sectionsHtml = sections.map(function(s, idx) {
     return '<div class="out-section">' +
@@ -2774,30 +2597,23 @@ function renderOutput(text) {
       '<div class="out-section-body">' + escHtml(s.b) + '</div></div>';
   }).join('');
 
-  card.innerHTML = '<div class="output-top"><span>✦ Content Ready</span>' +
+  card.innerHTML = '<div class="output-top"><span>Content Ready</span>' +
     '<button class="copy-all">Copy All</button></div>' +
     '<div class="output-sections">' + sectionsHtml + '</div>';
 
-  // Attach copy handlers safely
-  card.querySelector('.copy-all').addEventListener('click', function() {
-    copyRaw(this, text);
-  });
+  card.querySelector('.copy-all').addEventListener('click', function() { copyRaw(this, text); });
   card.querySelectorAll('.sect-copy').forEach(function(btn) {
     var idx = parseInt(btn.getAttribute('data-sec'));
-    btn.addEventListener('click', function() {
-      copyRaw(this, sections[idx].b);
-    });
+    btn.addEventListener('click', function() { copyRaw(this, sections[idx].b); });
   });
 
   var msgs = document.getElementById('chatMessages');
   msgs.appendChild(card);
-
   var btn = document.createElement('button');
   btn.className = 'new-idea';
-  btn.textContent = '↺ New Idea';
+  btn.textContent = 'New Idea';
   btn.onclick = resetChat;
   msgs.appendChild(btn);
-
   card.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
@@ -2805,9 +2621,8 @@ function resetChat() {
   idea = ''; questions = []; stage = 'idle';
   var msgs = document.getElementById('chatMessages');
   msgs.innerHTML = '';
-  // Re-inject welcome state
   msgs.innerHTML = '<div class="welcome" id="welcomeState">' +
-    '<div class="welcome-icon">✦</div>' +
+    '<div class="welcome-icon">*</div>' +
     '<h2>What do you want to <span>create today?</span></h2>' +
     '<p>Describe your content idea below. The AI will ask 3 quick questions, then generate captions, hooks, scripts, hashtags and more.</p>' +
     '<div class="welcome-pills">' +
@@ -2824,19 +2639,26 @@ function resetChat() {
   hideErr(); hideBanner();
 }
 
-// ─── HISTORY ─────────────────────────────────────────────
 async function loadHistory() {
   try {
     var r = await fetch('/api/history');
     var d = await r.json();
     var items = d.items || [];
-    var html = items.length ? items.map(function(i){
-      var safeItem = JSON.stringify(i).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');
-      return '<div class="hist-item" onclick="loadHistItem(' + safeItem + ')">' +
-        '<b>' + escHtml((i.topic||'Untitled').slice(0,40)) + '</b>' +
-        '<span>' + new Date(i.created_at).toLocaleDateString() + '</span></div>';
-    }).join('') : '<div class="hist-empty">Generate something to see history</div>';
-    var hs=document.getElementById('histScroll'); if(hs) hs.innerHTML=html;
+    var hs = document.getElementById('histScroll');
+    if (!hs) return;
+    if (!items.length) {
+      hs.innerHTML = '<div class="hist-empty">Generate something to see history</div>';
+      return;
+    }
+    hs.innerHTML = '';
+    items.forEach(function(item) {
+      var div = document.createElement('div');
+      div.className = 'hist-item';
+      div.innerHTML = '<b>' + escHtml((item.topic||'Untitled').slice(0,40)) + '</b>' +
+        '<span>' + new Date(item.created_at).toLocaleDateString() + '</span>';
+      div.addEventListener('click', function() { loadHistItem(item); });
+      hs.appendChild(div);
+    });
   } catch(e) {}
 }
 
@@ -2854,14 +2676,13 @@ async function clearHistory() {
   loadHistory();
 }
 
-// ─── MISC UI ─────────────────────────────────────────────
 function addMsg(type, text) {
   var msgs = document.getElementById('chatMessages');
   var w = document.getElementById('welcomeState');
   if (w) w.style.display = 'none';
   var div = document.createElement('div');
   div.className = 'msg ' + type;
-  var av = type==='ai' ? 'TG' : '👤';
+  var av = type==='ai' ? 'TG' : 'You';
   var name = type==='ai' ? 'TikGenius' : 'You';
   div.innerHTML = '<div class="msg-avatar">' + av + '</div>' +
     '<div class="msg-body"><div class="msg-name">' + name + '</div>' +
@@ -2901,15 +2722,13 @@ function escHtml(s) {
 }
 
 function copyRaw(btn, text) {
-  var raw = text.replace(/\\n/g, '\n');
-  navigator.clipboard.writeText(raw).then(function(){
+  navigator.clipboard.writeText(text).then(function(){
     var orig = btn.textContent;
     btn.textContent = 'Copied!';
     setTimeout(function(){ btn.textContent = orig; }, 1600);
   });
 }
 
-// ─── AUTH ─────────────────────────────────────────────────
 function openModal(tab) { document.getElementById('authBackdrop').classList.add('open'); switchTab(tab||'signup'); }
 function closeModal() { document.getElementById('authBackdrop').classList.remove('open'); }
 function switchTab(tab) {
@@ -2918,35 +2737,38 @@ function switchTab(tab) {
   document.getElementById('tabA').classList.toggle('on', tab==='signup');
   document.getElementById('tabB').classList.toggle('on', tab==='login');
   document.getElementById('modalH').textContent = tab==='signup' ? 'Create your account' : 'Welcome back';
-  document.getElementById('modalSub').textContent = tab==='signup' ? '5 free AI generations per day — no card needed.' : 'Log in to your TikGenius account';
+  document.getElementById('modalSub').textContent = tab==='signup' ? '5 free AI generations per day, no card needed.' : 'Log in to your TikGenius account';
 }
+
 async function doSignup() {
   var email=document.getElementById('sEmail').value.trim();
   var pass=document.getElementById('sPass').value;
   var region=document.getElementById('sRegion').value;
   var err=document.getElementById('sErr'); err.style.display='none';
-  var r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass,region,ref_code:urlRef})});
+  var r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,region:region,ref_code:urlRef})});
   var d=await r.json();
   if(d.error){err.textContent=d.error;err.style.display='block';return;}
   closeModal(); user=null; await init();
   var pending = sessionStorage.getItem('pendingIdea');
   if (pending) { sessionStorage.removeItem('pendingIdea'); document.getElementById('chatInput').value = pending; setTimeout(function(){ handleSend(); }, 300); }
 }
+
 async function doLogin() {
   var email=document.getElementById('lEmail').value.trim();
   var pass=document.getElementById('lPass').value;
   var err=document.getElementById('lErr'); err.style.display='none';
-  var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+  var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});
   var d=await r.json();
   if(d.error){err.textContent=d.error;err.style.display='block';return;}
   closeModal(); user=null; await init();
   var pending = sessionStorage.getItem('pendingIdea');
   if (pending) { sessionStorage.removeItem('pendingIdea'); document.getElementById('chatInput').value = pending; setTimeout(function(){ handleSend(); }, 300); }
 }
+
 async function doLogout() { await fetch('/api/logout',{method:'POST'}); location.reload(); }
+
 document.getElementById('authBackdrop').addEventListener('click',function(e){if(e.target===this)closeModal();});
 
-// ─── UPGRADE ──────────────────────────────────────────────
 var upgInProgress = false;
 async function doUpgrade() {
   if (!user) { openModal('signup'); return; }
@@ -2961,32 +2783,28 @@ async function doUpgrade() {
   finally { upgInProgress = false; }
 }
 
-// ─── REGION ───────────────────────────────────────────────
 async function saveRegion(v) {
   if (!user) return;
   await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region:v})});
 }
 
-// ─── PROFILE PANEL ────────────────────────────────────────
 async function openProfile() {
   document.getElementById('profilePanel').classList.add('open');
   document.getElementById('profileBackdrop').classList.add('open');
   if (!user) return;
   var isPro = user.plan === 'pro';
-  // Set static fields
   document.getElementById('profAvatar').textContent = (user.email||'U')[0].toUpperCase();
   document.getElementById('profName').textContent = user.email.split('@')[0];
   document.getElementById('profEmail').textContent = user.email;
   var planEl = document.getElementById('profPlan');
-  planEl.textContent = isPro ? '✦ Premium' : 'Free Plan';
+  planEl.textContent = isPro ? 'Premium' : 'Free Plan';
   planEl.className = 'profile-plan' + (isPro ? ' pro' : '');
-  // Load referral stats
   try {
     var r = await fetch('/api/referral/stats');
     var d = await r.json();
-    document.getElementById('profBalance').textContent = '₦' + (d.balance_ngn||0).toLocaleString();
-    document.getElementById('profTotalEarned').textContent = '₦' + (d.total_earned_ngn||0).toLocaleString();
-    document.getElementById('profWithdrawn').textContent = '₦' + (d.total_withdrawn_ngn||0).toLocaleString();
+    document.getElementById('profBalance').textContent = 'N' + (d.balance_ngn||0).toLocaleString();
+    document.getElementById('profTotalEarned').textContent = 'N' + (d.total_earned_ngn||0).toLocaleString();
+    document.getElementById('profWithdrawn').textContent = 'N' + (d.total_withdrawn_ngn||0).toLocaleString();
     document.getElementById('profPaidRefs').textContent = (d.paid_referrals||0) + ' people';
     document.getElementById('profPendingRefs').textContent = (d.pending_referrals||0) + ' pending';
     document.getElementById('profRefLink').value = d.referral_link || '';
@@ -2994,10 +2812,12 @@ async function openProfile() {
     document.getElementById('profBalance').textContent = 'Error loading';
   }
 }
+
 function closeProfile() {
   document.getElementById('profilePanel').classList.remove('open');
   document.getElementById('profileBackdrop').classList.remove('open');
 }
+
 function copyRefLink() {
   var link = document.getElementById('profRefLink').value;
   navigator.clipboard.writeText(link).then(function(){
@@ -3018,12 +2838,12 @@ REFER_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>TikGenius — Earn with Referrals</title>
+<title>TikGenius - Earn with Referrals</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#03050a;--card:#0b1928;--border:#14253a;--text:#f0f8ff;--muted:#607a90;--accent:#00ffc8;--accent2:#0af;--gold:#ffb800;--green:#22c55e;--danger:#fb7185}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:radial-gradient(ellipse at 60% -10%,rgba(255,184,0,.08),transparent 40%),var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
 nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.4rem;position:sticky;top:0;z-index:100;background:rgba(3,5,10,.9);backdrop-filter:blur(18px);border-bottom:1px solid rgba(0,255,200,.07)}
 .logo{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--text);font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:-.03em}
 .logo em{color:var(--accent);font-style:normal}
@@ -3033,32 +2853,25 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
 .btn-nav{background:var(--accent);color:#030e0a;border:none;padding:.45rem 1.1rem;border-radius:8px;font-size:.875rem;font-weight:700;cursor:pointer;text-decoration:none;font-family:'Inter',sans-serif;transition:all .2s}
 .wrap{max-width:780px;margin:0 auto;padding:2rem 1.25rem 5rem}
 .page-hero{text-align:center;padding:3rem 0 2rem}
-.page-badge{display:inline-flex;align-items:center;gap:.45rem;background:rgba(255,184,0,.1);border:1px solid rgba(255,184,0,.3);color:var(--gold);padding:.35rem 1rem;border-radius:100px;font-size:.78rem;font-weight:700;margin-bottom:1.5rem;letter-spacing:.05em;text-transform:uppercase}
 .page-hero h1{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:clamp(2rem,7vw,3.2rem);letter-spacing:-.045em;margin-bottom:.8rem}
 .page-hero h1 em{color:var(--gold);font-style:normal}
 .page-hero p{color:var(--muted);font-size:1rem;line-height:1.7;max-width:520px;margin:0 auto}
-
-/* STATS ROW */
 .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
 .stat-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px;text-align:center}
 .stat-card .val{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.8rem;letter-spacing:-.04em;margin-bottom:4px}
 .stat-card .lbl{font-size:.72rem;color:var(--muted);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .stat-card.highlight{border-color:rgba(255,184,0,.35);background:linear-gradient(135deg,rgba(255,184,0,.08),rgba(0,255,200,.05))}
 .stat-card.highlight .val{color:var(--gold)}
-
-/* LINK CARD */
 .link-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:14px}
 .link-card h3{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1rem;margin-bottom:.5rem}
 .link-card p{color:var(--muted);font-size:.82rem;line-height:1.5;margin-bottom:1rem}
 .link-box{display:flex;gap:8px}
-.link-input{flex:1;background:#050e18;border:1px solid var(--border);color:var(--accent);padding:11px 14px;border-radius:11px;font-size:.82rem;font-family:'Inter',sans-serif;outline:none;min-width:0;cursor:text}
+.link-input{flex:1;background:#050e18;border:1px solid var(--border);color:var(--accent);padding:11px 14px;border-radius:11px;font-size:.82rem;font-family:'Inter',sans-serif;outline:none;min-width:0}
 .copy-link-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:11px;color:#030e0a;font-weight:800;padding:11px 18px;font-size:.85rem;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;transition:all .2s}
 .copy-link-btn:hover{transform:translateY(-1px);box-shadow:0 5px 20px rgba(0,255,200,.3)}
 .share-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .share-btn{background:#07111c;border:1px solid var(--border);color:var(--text);padding:9px 14px;border-radius:10px;font-size:.8rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;transition:all .2s}
 .share-btn:hover{border-color:rgba(0,255,200,.3);color:var(--accent)}
-
-/* HOW IT WORKS */
 .how-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:14px}
 .how-card h3{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1rem;margin-bottom:1rem}
 .how-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
@@ -3066,8 +2879,6 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
 .how-step .num{font-family:'Space Grotesk',sans-serif;font-size:1.8rem;font-weight:800;color:rgba(255,184,0,.3);line-height:1;margin-bottom:8px}
 .how-step b{display:block;font-size:.85rem;margin-bottom:4px}
 .how-step p{color:var(--muted);font-size:.75rem;line-height:1.5}
-
-/* WITHDRAW CARD */
 .withdraw-card{background:var(--card);border:1px solid rgba(255,184,0,.25);border-radius:20px;padding:20px;margin-bottom:14px}
 .withdraw-card h3{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1rem;margin-bottom:.4rem;color:var(--gold)}
 .withdraw-card .sub{color:var(--muted);font-size:.82rem;margin-bottom:1.2rem;line-height:1.5}
@@ -3085,8 +2896,6 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
 .withdraw-btn:disabled{opacity:.5;transform:none;box-shadow:none}
 .locked-msg{background:rgba(255,184,0,.06);border:1px solid rgba(255,184,0,.2);border-radius:12px;padding:14px;font-size:.85rem;color:var(--muted);line-height:1.6;text-align:center}
 .locked-msg strong{color:var(--gold);display:block;margin-bottom:4px}
-
-/* HISTORY */
 .history-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:14px}
 .history-card h3{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1rem;margin-bottom:1rem}
 .ref-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:11px;background:#050e18;margin-bottom:7px;font-size:.82rem}
@@ -3095,38 +2904,33 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
 .badge.paid{background:rgba(34,197,94,.12);color:#86efac;border:1px solid rgba(34,197,94,.25)}
 .badge.pending{background:rgba(255,184,0,.12);color:#fde68a;border:1px solid rgba(255,184,0,.25)}
 .empty-state{color:var(--muted);font-size:.85rem;text-align:center;padding:20px;line-height:1.6}
-
-/* ERRORS & NOTICES */
 .err-box{display:none;color:#fecdd3;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:10px 14px;border-radius:10px;font-size:.83rem;margin-bottom:10px}
 .err-box.show{display:block}
 .ok-box{display:none;color:#86efac;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);padding:10px 14px;border-radius:10px;font-size:.83rem;margin-bottom:10px}
 .ok-box.show{display:block}
 .loader{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
-
 @media(max-width:600px){.stats-row{grid-template-columns:1fr 1fr}.how-steps{grid-template-columns:1fr}.share-btns{flex-direction:column}}
 </style>
 </head>
 <body>
 <nav>
-  <a class="logo" href="/"><svg width="22" height="22" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="rG1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffc8"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient><linearGradient id="rG2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffc8"/></linearGradient></defs><rect x="52" y="58" width="52" height="7" rx="2" fill="url(#rG1)"/><rect x="74" y="65" width="8" height="70" rx="2" fill="url(#rG1)"/><path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#rG2)" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#rG2)"/></svg>Tik<em>Genius</em></a>
+  <a class="logo" href="/">Tik<em>Genius</em></a>
   <div class="nav-right">
-    <a class="nav-link" href="/dashboard">AI Studio</a>
-    <a class="btn-nav" href="/dashboard">Dashboard</a>
+    <a class="nav-link" href="/">AI Studio</a>
+    <a class="btn-nav" href="/">Dashboard</a>
   </div>
 </nav>
 
 <div class="wrap">
   <div class="page-hero">
-    <div class="page-badge">💰 Referral Program</div>
     <h1>Refer friends.<br><em>Earn real money.</em></h1>
-    <p>Share your unique link. Every time someone upgrades to Premium through your link, ₦500 lands in your wallet — automatically paid to your bank account.</p>
+    <p>Share your unique link. Every time someone upgrades to Premium through your link, N500 lands in your wallet automatically paid to your bank account.</p>
   </div>
 
-  <!-- STATS -->
   <div class="stats-row">
     <div class="stat-card highlight">
-      <div class="val" id="balanceVal">₦0</div>
+      <div class="val" id="balanceVal">N0</div>
       <div class="lbl">Wallet Balance</div>
     </div>
     <div class="stat-card">
@@ -3134,41 +2938,38 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
       <div class="lbl">Paid Referrals</div>
     </div>
     <div class="stat-card">
-      <div class="val" id="totalEarnedVal">₦0</div>
+      <div class="val" id="totalEarnedVal">N0</div>
       <div class="lbl">Total Earned</div>
     </div>
   </div>
 
-  <!-- REFERRAL LINK -->
   <div class="link-card">
     <h3>Your referral link</h3>
-    <p>Share this link anywhere — TikTok bio, WhatsApp, X, Instagram. When someone signs up and goes Premium, you earn.</p>
+    <p>Share this link anywhere. When someone signs up and goes Premium, you earn N500 instantly.</p>
     <div class="link-box">
       <input class="link-input" id="refLinkInput" readonly value="Loading...">
       <button class="copy-link-btn" onclick="copyRefLink()">Copy Link</button>
     </div>
     <div class="share-btns">
-      <button class="share-btn" onclick="shareWhatsApp()">📱 WhatsApp</button>
-      <button class="share-btn" onclick="shareX()">🐦 Post on X</button>
-      <button class="share-btn" onclick="shareTikTok()">🎵 TikTok Bio</button>
-      <button class="share-btn" onclick="shareNative()">↗ Share</button>
+      <button class="share-btn" onclick="shareWhatsApp()">WhatsApp</button>
+      <button class="share-btn" onclick="shareX()">Post on X</button>
+      <button class="share-btn" onclick="shareTikTok()">TikTok Bio</button>
+      <button class="share-btn" onclick="shareNative()">Share</button>
     </div>
   </div>
 
-  <!-- HOW IT WORKS -->
   <div class="how-card">
     <h3>How it works</h3>
     <div class="how-steps">
-      <div class="how-step"><div class="num">01</div><b>Share your link</b><p>Post it on TikTok, WhatsApp, X — anywhere your audience is</p></div>
-      <div class="how-step"><div class="num">02</div><b>They upgrade</b><p>When they sign up and pay for Premium, it's automatically tracked</p></div>
-      <div class="how-step"><div class="num">03</div><b>You get paid</b><p>₦500 added to your wallet instantly. Withdraw to your bank anytime</p></div>
+      <div class="how-step"><div class="num">01</div><b>Share your link</b><p>Post it on TikTok, WhatsApp, X anywhere your audience is</p></div>
+      <div class="how-step"><div class="num">02</div><b>They upgrade</b><p>When they sign up and pay for Premium, it is automatically tracked</p></div>
+      <div class="how-step"><div class="num">03</div><b>You get paid</b><p>N500 added to your wallet instantly. Withdraw to your bank anytime</p></div>
     </div>
   </div>
 
-  <!-- WITHDRAW -->
   <div class="withdraw-card">
-    <h3>💳 Withdraw to bank</h3>
-    <div class="sub" id="withdrawSub">Minimum withdrawal: ₦2,000 (4 referrals). Paid instantly via Paystack.</div>
+    <h3>Withdraw to bank</h3>
+    <div class="sub" id="withdrawSub">Minimum withdrawal: N2,000 (4 referrals). Paid instantly via Paystack.</div>
     <div class="err-box" id="wErr"></div>
     <div class="ok-box" id="wOk"></div>
     <div id="withdrawForm">
@@ -3184,21 +2985,19 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
         </div>
         <div class="account-name-display" id="accountNameDisplay"></div>
       </div>
-      <button class="withdraw-btn" id="withdrawBtn" onclick="doWithdraw()" disabled>Withdraw ₦0 to Bank</button>
+      <button class="withdraw-btn" id="withdrawBtn" onclick="doWithdraw()" disabled>Withdraw N0 to Bank</button>
     </div>
     <div class="locked-msg" id="lockedMsg" style="display:none">
       <strong>Keep referring to unlock withdrawal</strong>
-      You need ₦2,000 in your wallet to withdraw. You currently have <span id="currentBal">₦0</span>. Keep sharing your link!
+      You need N2,000 in your wallet to withdraw. You currently have <span id="currentBal">N0</span>. Keep sharing your link!
     </div>
   </div>
 
-  <!-- RECENT REFERRALS -->
   <div class="history-card">
     <h3>Recent referrals</h3>
     <div id="refList"><div class="empty-state">No referrals yet. Share your link to start earning!</div></div>
   </div>
 
-  <!-- WITHDRAWAL HISTORY -->
   <div class="history-card">
     <h3>Withdrawal history</h3>
     <div id="wdList"><div class="empty-state">No withdrawals yet.</div></div>
@@ -3213,9 +3012,9 @@ async function loadStats(){
     var res=await fetch('/api/referral/stats');
     if(res.status===401){window.location.href='/';return;}
     stats=await res.json();
-    document.getElementById('balanceVal').textContent='₦'+stats.balance_ngn.toLocaleString();
+    document.getElementById('balanceVal').textContent='N'+stats.balance_ngn.toLocaleString();
     document.getElementById('paidVal').textContent=stats.paid_referrals;
-    document.getElementById('totalEarnedVal').textContent='₦'+stats.total_earned_ngn.toLocaleString();
+    document.getElementById('totalEarnedVal').textContent='N'+stats.total_earned_ngn.toLocaleString();
     document.getElementById('refLinkInput').value=stats.referral_link||'';
     updateWithdrawUI();
     renderReferrals(stats.recent||[]);
@@ -3229,7 +3028,7 @@ async function loadBanks(){
     banks=data.banks||[];
     var sel=document.getElementById('bankSelect');
     sel.innerHTML='<option value="">Select your bank</option>';
-    banks.forEach(b=>{sel.innerHTML+=`<option value="${b.code}">${b.name}</option>`});
+    banks.forEach(function(b){sel.innerHTML+='<option value="'+b.code+'">'+b.name+'</option>';});
   }catch(e){console.error(e)}
 }
 
@@ -3240,10 +3039,9 @@ async function loadWithdrawalHistory(){
     var items=data.items||[];
     var el=document.getElementById('wdList');
     if(!items.length){el.innerHTML='<div class="empty-state">No withdrawals yet.</div>';return;}
-    el.innerHTML=items.map(w=>`<div class="ref-item">
-      <span class="email">₦${(w.amount_kobo/100).toLocaleString()} → ${escHtml(w.account_name||'')} (${escHtml(w.account_number||'')})</span>
-      <span class="badge ${w.status}">${w.status}</span>
-    </div>`).join('');
+    el.innerHTML=items.map(function(w){
+      return '<div class="ref-item"><span class="email">N'+(w.amount_kobo/100).toLocaleString()+' to '+escHtml(w.account_name||'')+' ('+escHtml(w.account_number||'')+')</span><span class="badge '+w.status+'">'+w.status+'</span></div>';
+    }).join('');
   }catch(e){}
 }
 
@@ -3251,10 +3049,10 @@ function updateWithdrawUI(){
   var canWithdraw=stats.can_withdraw;
   var form=document.getElementById('withdrawForm');
   var locked=document.getElementById('lockedMsg');
-  document.getElementById('currentBal').textContent='₦'+(stats.balance_ngn||0).toLocaleString();
+  document.getElementById('currentBal').textContent='N'+(stats.balance_ngn||0).toLocaleString();
   if(canWithdraw){
     form.style.display='block';locked.style.display='none';
-    document.getElementById('withdrawBtn').textContent='Withdraw ₦'+(stats.balance_ngn||0).toLocaleString()+' to Bank';
+    document.getElementById('withdrawBtn').textContent='Withdraw N'+(stats.balance_ngn||0).toLocaleString()+' to Bank';
   } else {
     form.style.display='none';locked.style.display='block';
   }
@@ -3263,17 +3061,15 @@ function updateWithdrawUI(){
 function renderReferrals(refs){
   var el=document.getElementById('refList');
   if(!refs.length){el.innerHTML='<div class="empty-state">No referrals yet. Share your link to start earning!</div>';return;}
-  el.innerHTML=refs.map(r=>`<div class="ref-item">
-    <span class="email">${escHtml(maskEmail(r.email||''))}</span>
-    <span class="badge ${r.status}">${r.status==='paid'?'✓ Earned ₦'+(r.commission_kobo/100).toLocaleString():'Pending'}</span>
-  </div>`).join('');
+  el.innerHTML=refs.map(function(r){
+    return '<div class="ref-item"><span class="email">'+escHtml(maskEmail(r.email||''))+'</span><span class="badge '+r.status+'">'+(r.status==='paid'?'Earned N'+(r.commission_kobo/100).toLocaleString():'Pending')+'</span></div>';
+  }).join('');
 }
 
 function maskEmail(email){
   var parts=email.split('@');
   if(parts.length<2)return email;
-  var name=parts[0];
-  return name.slice(0,2)+'***@'+parts[1];
+  return parts[0].slice(0,2)+'***@'+parts[1];
 }
 
 function onBankChange(){clearAccountName();}
@@ -3299,10 +3095,10 @@ async function verifyAccount(){
     verifiedName=data.account_name;
     verifiedAccountNumber=accountNumber;
     verifiedBankCode=bankCode;
-    display.textContent='✓ '+data.account_name;
+    display.textContent='Verified: '+data.account_name;
     if(stats.can_withdraw){
       document.getElementById('withdrawBtn').disabled=false;
-      document.getElementById('withdrawBtn').textContent='Withdraw ₦'+(stats.balance_ngn||0).toLocaleString()+' → '+data.account_name;
+      document.getElementById('withdrawBtn').textContent='Withdraw N'+(stats.balance_ngn||0).toLocaleString()+' to '+data.account_name;
     }
   }catch(e){showWErr('Could not verify account. Please try again.');}
   finally{btn.textContent='Verify';btn.disabled=false;}
@@ -3325,9 +3121,9 @@ async function doWithdraw(){
 
 function copyRefLink(){
   var link=document.getElementById('refLinkInput').value;
-  navigator.clipboard.writeText(link).then(()=>{
+  navigator.clipboard.writeText(link).then(function(){
     var btn=document.querySelector('.copy-link-btn');
-    btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy Link',2000);
+    btn.textContent='Copied!';setTimeout(function(){btn.textContent='Copy Link';},2000);
   });
 }
 
@@ -3339,18 +3135,18 @@ function shareWhatsApp(){
 
 function shareX(){
   var link=document.getElementById('refLinkInput').value;
-  var msg=encodeURIComponent('I use TikGenius to generate viral TikTok content with AI. Try it free 👇 '+link);
+  var msg=encodeURIComponent('I use TikGenius to generate viral TikTok content with AI. Try it free: '+link);
   window.open('https://twitter.com/intent/tweet?text='+msg,'_blank');
 }
 
 function shareTikTok(){
   var link=document.getElementById('refLinkInput').value;
-  navigator.clipboard.writeText(link).then(()=>{alert('Link copied! Add it to your TikTok bio.');});
+  navigator.clipboard.writeText(link).then(function(){alert('Link copied! Add it to your TikTok bio.');});
 }
 
 function shareNative(){
   var link=document.getElementById('refLinkInput').value;
-  if(navigator.share){navigator.share({title:'TikGenius',text:'Generate viral TikTok content with AI',url:link}).catch(()=>{});}
+  if(navigator.share){navigator.share({title:'TikGenius',text:'Generate viral TikTok content with AI',url:link}).catch(function(){});}
   else{copyRefLink();}
 }
 
@@ -3358,264 +3154,24 @@ function showWErr(msg){var e=document.getElementById('wErr');e.textContent=msg;e
 function hideWErr(){document.getElementById('wErr').classList.remove('show');}
 function showWOk(msg){var e=document.getElementById('wOk');e.textContent=msg;e.classList.add('show');}
 function hideWOk(){document.getElementById('wOk').classList.remove('show');}
-function escHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function escHtml(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 
 loadStats();loadBanks();loadWithdrawalHistory();
 </script>
 </body>
 </html>"""
 
-
-# Keep original DASHBOARD_HTML and DOWNLOAD_HTML exactly as provided
-DASHBOARD_HTML = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>TikGenius Studio</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-:root{
-  --bg:#03050a;--panel:#07111c;--panel2:#0b1928;--line:#14253a;
-  --text:#f0f8ff;--muted:#607a90;
-  --accent:#00ffc8;--accent2:#0af;--gold:#ffb800;--danger:#fb7185;
-}
-*{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at 80% 0%,rgba(0,170,255,.08),transparent 45%),var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
-h1,h2,h3{font-family:'Space Grotesk',sans-serif;letter-spacing:-.04em}
-.app{display:grid;grid-template-columns:300px 1fr;min-height:100vh}
-.side{background:rgba(7,17,28,.96);border-right:1px solid var(--line);padding:16px;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;gap:0}
-.logo{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.3rem;letter-spacing:-.04em;margin-bottom:12px;display:flex;align-items:center;gap:.4rem;color:var(--text)}
-.logo em{color:var(--accent);font-style:normal}
-.user-chip{padding:9px 12px;background:rgba(11,25,40,.8);border:1px solid var(--line);border-radius:12px;font-size:.8rem;color:var(--muted);margin-bottom:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.usage-box{padding:14px;background:linear-gradient(135deg,#071828,#0b1928);border:1px solid var(--line);border-radius:16px;margin-bottom:12px}
-.usage-box strong{display:block;font-size:.875rem;font-weight:600;margin-bottom:8px}
-.bar-bg{height:5px;background:#0f2030;border-radius:99px;overflow:hidden;margin-bottom:8px}
-.bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width .4s}
-.upgrade-btn{display:none;width:100%;padding:10px;background:linear-gradient(135deg,var(--accent),var(--gold));border:none;border-radius:10px;color:#030e0a;font-weight:800;font-size:.875rem;font-family:'Inter',sans-serif;cursor:pointer;transition:opacity .2s}
-.upgrade-btn.show{display:block}
-.upgrade-btn:hover{opacity:.88}
-.side-label{font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:16px 4px 8px;padding:0}
-.modes{display:grid;gap:5px}
-.mode{border:1px solid transparent;background:transparent;color:var(--muted);text-align:left;padding:10px 12px;border-radius:11px;font-size:.875rem;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;display:flex;align-items:center;gap:.5rem}
-.mode:hover{background:#0b1928;color:var(--text);border-color:var(--line)}
-.mode.active{background:#0f2234;color:var(--accent);border-color:rgba(0,255,200,.25)}
-.dl-link{display:block;text-decoration:none;margin-top:6px;padding:10px 12px;border-radius:11px;background:rgba(0,255,200,.07);border:1px solid rgba(0,255,200,.15);color:var(--accent);font-size:.875rem;font-weight:700;text-align:center;transition:background .2s}
-.dl-link:hover{background:rgba(0,255,200,.13)}
-.earn-link{display:block;text-decoration:none;margin-top:6px;padding:10px 12px;border-radius:11px;background:rgba(255,184,0,.07);border:1px solid rgba(255,184,0,.2);color:var(--gold);font-size:.875rem;font-weight:700;text-align:center;transition:background .2s}
-.earn-link:hover{background:rgba(255,184,0,.13)}
-.hist-head{display:flex;align-items:center;justify-content:space-between;margin:16px 4px 8px}
-.hist-head .side-label{margin:0;padding:0}
-.clear-btn{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:5px 8px;font-size:.7rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s}
-.clear-btn:hover{color:var(--accent);border-color:rgba(0,255,200,.3)}
-.history{display:grid;gap:6px;flex:1;overflow-y:auto}
-.hist-item{padding:9px 10px;background:#07111c;border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:border-color .15s}
-.hist-item:hover{border-color:rgba(0,255,200,.25)}
-.hist-item b{display:block;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
-.hist-item span{font-size:.72rem;color:var(--muted);margin-top:2px;display:block}
-.empty-hist{color:var(--muted);font-size:.8rem;line-height:1.5;padding:9px 10px;background:#07111c;border:1px dashed var(--line);border-radius:10px}
-.logout-btn{margin-top:12px;width:100%;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:10px;padding:9px;font-family:'Inter',sans-serif;font-size:.8rem;cursor:pointer;transition:all .2s}
-.logout-btn:hover{color:var(--danger);border-color:rgba(251,113,133,.3)}
-.main{padding:24px;max-width:960px;width:100%;margin:0 auto}
-.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px}
-.mobile-logo{display:none;font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.2rem}
-.mobile-logo em{color:var(--accent);font-style:normal}
-.drawer-btn{display:none;background:#0b1928;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:.85rem;cursor:pointer;font-family:'Inter',sans-serif}
-.region-select{background:#07111c;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:.875rem;font-family:'Inter',sans-serif;outline:none;cursor:pointer}
-.mobile-history{display:none;margin-bottom:16px}
-.mob-hist-scroll{display:flex;overflow-x:auto;gap:8px;padding-bottom:3px}
-.mob-hist-scroll .hist-item{min-width:180px;flex-shrink:0}
-.guide{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
-.tip{background:#071018;border:1px solid var(--line);border-radius:14px;padding:12px}
-.tip b{font-size:.82rem;font-weight:700;color:var(--text);display:block;margin-bottom:4px}
-.tip p{color:var(--muted);font-size:.77rem;line-height:1.45;margin:0}
-.studio-card{background:rgba(7,17,28,.9);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 24px 64px rgba(0,0,0,.3)}
-.prompt-input{width:100%;min-height:145px;background:#050e18;color:var(--text);border:1px solid var(--line);border-radius:16px;padding:15px;font:500 15px/1.6 'Inter',sans-serif;resize:vertical;outline:none;transition:border-color .2s}
-.prompt-input:focus{border-color:rgba(0,255,200,.4);box-shadow:0 0 0 3px rgba(0,255,200,.06)}
-.prompt-input::placeholder{color:var(--muted)}
-.actions-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
-.hint{font-size:.77rem;color:var(--muted)}
-.gen-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#030e0a;font-weight:800;padding:13px 22px;font-size:.95rem;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;white-space:nowrap}
-.gen-btn:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(0,255,200,.3)}
-.gen-btn:disabled{opacity:.5;transform:none;box-shadow:none}
-.err-box{display:none;margin-top:12px;color:#fecdd3;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:11px 14px;border-radius:12px;font-size:.875rem}
-.premium-lock{display:none;margin-top:14px;padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(0,255,200,.08),rgba(255,184,0,.06));border:1px solid rgba(255,184,0,.25)}
-.premium-lock.show{display:block}
-.premium-lock h3{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1rem;margin:0 0 5px}
-.premium-lock p{margin:0 0 12px;color:var(--muted);font-size:.85rem;line-height:1.5}
-.output-section{display:none;margin-top:20px}
-.output-section.show{display:block}
-.output-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.output-title{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.05rem}
-.copy-all-btn{background:#0b1928;color:var(--accent);border:1px solid rgba(0,255,200,.25);border-radius:9px;padding:7px 13px;font-size:.8rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
-.copy-all-btn:hover{background:rgba(0,255,200,.1)}
-.result-list{display:grid;gap:10px}
-.result-item{background:#050e18;border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative;transition:border-color .2s}
-.result-item:hover{border-color:rgba(0,255,200,.2)}
-.result-item-text{white-space:pre-wrap;line-height:1.7;color:#d0e8ff;font-size:.9rem;padding-right:80px}
-.item-copy-btn{position:absolute;top:10px;right:10px;background:#0b1928;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:.72rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;white-space:nowrap}
-.item-copy-btn:hover{color:var(--accent);border-color:rgba(0,255,200,.3);background:rgba(0,255,200,.06)}
-.item-copy-btn.copied{color:var(--accent);border-color:var(--accent)}
-.result-raw{white-space:pre-wrap;line-height:1.75;color:#d0e8ff;background:#050e18;border:1px solid var(--line);border-radius:16px;padding:16px;font-size:.9rem}
-.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;backdrop-filter:blur(4px)}
-.drawer-overlay.show{display:block}
-.drawer-panel{position:absolute;left:0;top:0;bottom:0;width:88%;max-width:300px;background:#07111c;border-right:1px solid var(--line);padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:0}
-@media(max-width:820px){
-  .app{display:block}.side{display:none}.main{padding:14px}.mobile-logo{display:block}.drawer-btn{display:block}
-  .top-bar{position:sticky;top:0;z-index:10;background:rgba(3,5,10,.95);padding:12px 0;border-bottom:1px solid var(--line);backdrop-filter:blur(14px)}
-  .guide{grid-template-columns:1fr}.studio-card{padding:14px;border-radius:18px}.prompt-input{min-height:120px}
-  .actions-row{flex-direction:column;align-items:stretch}.gen-btn{width:100%}.mobile-history{display:block}
-}
-</style>
-</head>
-<body>
-<div class="app">
-<aside class="side" id="desktopSide">
-  <div class="logo"><svg width="22" height="22" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="dG1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffc8"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient><linearGradient id="dG2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffc8"/></linearGradient></defs><rect x="52" y="58" width="52" height="7" rx="2" fill="url(#dG1)"/><rect x="74" y="65" width="8" height="70" rx="2" fill="url(#dG1)"/><path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#dG2)" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#dG2)"/></svg>Tik<em>Genius</em></div>
-  <div class="user-chip" id="userEmail">Loading...</div>
-  <div class="usage-box">
-    <strong id="usesLabel">5/5 free generations left</strong>
-    <div class="bar-bg"><div class="bar-fill" id="barFill" style="width:100%"></div></div>
-    <button type="button" class="upgrade-btn" id="upgradeBtn" data-upgrade onclick="doUpgrade(event)">✦ Upgrade to Premium</button>
-  </div>
-  <div class="side-label">Create Content</div>
-  <div class="modes" id="modes"></div>
-  <a class="dl-link" href="/download">⬇ TikTok Downloader</a>
-  <a class="earn-link" href="/refer">💰 Earn ₦500/Referral</a>
-  <div class="hist-head"><div class="side-label">Recent History</div><button class="clear-btn" onclick="clearHistory()">Clear</button></div>
-  <div class="history" id="historyList"><div class="empty-hist">Your content history will appear here.</div></div>
-  <button class="logout-btn" onclick="doLogout()">Log out</button>
-</aside>
-<div class="drawer-overlay" id="drawer" onclick="closeDrawer(event)"><div class="drawer-panel" id="drawerPanel"></div></div>
-<main class="main">
-  <div class="top-bar">
-    <div class="mobile-logo">Tik<em>Genius</em></div>
-    <button class="drawer-btn" onclick="openDrawer()">☰ Menu</button>
-    <a href="/download" style="text-decoration:none"><button class="mode" style="padding:8px 12px;border-radius:10px;font-size:.8rem;white-space:nowrap">⬇ Downloader</button></a>
-    <select class="region-select" id="regionSelect" onchange="changeRegion(this.value)">
-      <option value="global">🌍 Global</option><option value="nigeria">🇳🇬 Nigerian</option><option value="usa">🇺🇸 American</option><option value="uk">🇬🇧 British</option><option value="caribbean">🇯🇲 Caribbean</option><option value="eastafrica">🇰🇪 East African</option><option value="southafrica">🇿🇦 South African</option>
-    </select>
-  </div>
-  <div class="mobile-history">
-    <div class="hist-head"><div class="side-label">Recent History</div><button class="clear-btn" onclick="clearHistory()">Clear</button></div>
-    <div class="mob-hist-scroll" id="historyMobile"><div class="empty-hist">No history yet.</div></div>
-  </div>
-  <div class="guide">
-    <div class="tip"><b>1. Choose a mode</b><p>Pick captions, hooks, scripts, hashtags, POVs, or X content from the sidebar.</p></div>
-    <div class="tip"><b>2. Be specific</b><p>Include your niche, target audience, emotion, and goal for the best results.</p></div>
-    <div class="tip"><b>3. Copy &amp; post</b><p>Each result has its own copy button — grab the best one and post it today.</p></div>
-  </div>
-  <section class="studio-card">
-    <textarea class="prompt-input" id="topicInput" placeholder="Example: Give me 5 TikTok captions for a skincare video targeting young women who want clear skin.&#10;&#10;Or: Write an X thread about building discipline as a young creator."></textarea>
-    <div class="actions-row">
-      <div class="hint">Minimum 3 words · Works for TikTok and X</div>
-      <button class="gen-btn" id="generateBtn" onclick="generate()">✦ Generate</button>
-    </div>
-    <div class="err-box" id="errorMsg"></div>
-    <div class="premium-lock" id="premiumLock">
-      <h3>You used your 5 free generations</h3>
-      <p>Upgrade to Premium for unlimited content every day.</p>
-      <button type="button" class="upgrade-btn show" data-upgrade onclick="doUpgrade(event)">✦ Upgrade to Premium</button>
-    </div>
-  </section>
-  <section class="output-section" id="outputCard">
-    <div class="output-header">
-      <div class="output-title" id="outputTitle">Ready to post</div>
-      <button class="copy-all-btn" onclick="copyOutput()">Copy All</button>
-    </div>
-    <div id="outputBody"></div>
-  </section>
-</main>
-</div>
-<script>
-let currentMode='captions',currentPlatform='tiktok',userData={};
-const modes=[['captions','📝 TikTok Captions','tiktok'],['hooks','🪝 Viral Hooks','tiktok'],['pov','🎭 POV Ideas','tiktok'],['script','🎬 Video Script','tiktok'],['hashtags','# Hashtags','tiktok'],['captions','🐦 X Posts','x'],['hooks','🧵 X Hooks','x'],['threads','📖 X Thread','x']];
-const modeTitles={captions:'Captions',hooks:'Hooks',pov:'POV Ideas',script:'Video Script',hashtags:'Hashtags',threads:'X Thread'};
-function renderModes(targetId='modes'){
-  const el=document.getElementById(targetId);if(!el)return;
-  let tiktok=modes.filter(m=>m[2]==='tiktok'),x=modes.filter(m=>m[2]==='x');
-  let html='<div style="font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:5px">TikTok</div>';
-  tiktok.forEach((m,i)=>{html+=`<button class="mode ${i==0?'active':''}" onclick="setMode('${m[0]}','${m[2]}',this)">${m[1]}</button>`});
-  html+='<div style="font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:10px 0 5px">X / Twitter</div>';
-  x.forEach(m=>{html+=`<button class="mode" onclick="setMode('${m[0]}','${m[2]}',this)">${m[1]}</button>`});
-  el.innerHTML=html;
-}
-function setMode(m,p,btn){currentMode=m;currentPlatform=p;document.querySelectorAll('.mode').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');document.getElementById('outputCard').classList.remove('show');}
-async function loadUser(){
-  const res=await fetch('/api/me');if(res.status===401){location.href='/';return}
-  userData=await res.json();
-  document.querySelectorAll('#userEmail').forEach(e=>e.textContent=userData.email);
-  document.getElementById('regionSelect').value=userData.region||'global';
-  updateUsage(userData.uses_remaining,userData.unlimited);loadHistory();
-}
-function updateUsage(rem,unlimited){
-  const label=document.getElementById('usesLabel'),fill=document.getElementById('barFill'),up=document.getElementById('upgradeBtn');
-  if(unlimited){label.textContent='✦ Premium: unlimited generations';fill.style.width='100%';up.classList.remove('show');return}
-  label.textContent=rem+'/5 free generations left';fill.style.width=(rem/5*100)+'%';
-  if(rem<=0){up.classList.add('show');document.getElementById('premiumLock').classList.add('show')}else{up.classList.remove('show')}
-}
-async function loadHistory(){
-  const res=await fetch('/api/history');const data=await res.json();
-  const html=(data.items&&data.items.length)?data.items.map(i=>{const plat=(i.platform==='x')?'X':'TikTok';const safeI=JSON.stringify(i).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');return `<div class="hist-item" onclick="showHistory(${safeI})"><b>${escapeHtml(i.topic||'Untitled')}</b><span>${plat} · ${i.mode} · ${new Date(i.created_at).toLocaleDateString()}</span></div>`;}).join(''):'<div class="empty-hist">Your content history will appear here.</div>';
-  ['historyList','historyMobile','drawerHistory'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html});
-}
-async function clearHistory(){if(!confirm('Clear all your generation history?'))return;const res=await fetch('/api/history/clear',{method:'POST'});if(res.ok){document.getElementById('outputCard').classList.remove('show');loadHistory()}else showError('Could not clear history.');}
-function showHistory(i){document.getElementById('topicInput').value=i.topic||'';document.getElementById('outputTitle').textContent=(modeTitles[i.mode]||i.mode)+' · from history';renderOutputItems(i.result||'');document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});document.getElementById('drawer')&&document.getElementById('drawer').classList.remove('show');}
-function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-async function changeRegion(region){await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region})});}
-function parseResultItems(text){const parts=text.split(/\n(?=\\d+[.)\\s])/);if(parts.length>1)return parts.map(p=>p.trim()).filter(Boolean);const paras=text.split(/\n\n+/);if(paras.length>1)return paras.map(p=>p.trim()).filter(Boolean);return null;}
-function renderOutputItems(text){
-  const body=document.getElementById('outputBody');const items=parseResultItems(text);
-  if(items&&items.length>1){body.innerHTML='<div class="result-list">'+items.map((item,idx)=>`<div class="result-item"><div class="result-item-text">${escapeHtml(item)}</div><button class="item-copy-btn" onclick="copyItem(this,'${escapeHtml(item).replace(/'/g,"&#39;").replace(/\n/g,'\\n')}')" title="Copy">Copy</button></div>`).join('')+'</div>';}
-  else{body.innerHTML=`<div style="position:relative"><div class="result-raw">${escapeHtml(text)}</div></div>`;}
-  body.dataset.raw=text;
-}
-function copyItem(btn,text){const raw=text.replace(/&#39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/\\n/g,'\n');navigator.clipboard.writeText(raw).then(()=>{btn.textContent='Copied!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied')},1600);});}
-function copyOutput(){const raw=document.getElementById('outputBody').dataset.raw||'';navigator.clipboard.writeText(raw).then(()=>{const btn=document.querySelector('.copy-all-btn');btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy All',1600);});}
-async function generate(){
-  const topic=document.getElementById('topicInput').value.trim(),btn=document.getElementById('generateBtn');
-  hideError();if(!topic)return showError('Please enter your prompt.');if(topic.split(/\\s+/).length<3)return showError('Please add at least 3 words.');
-  btn.disabled=true;btn.textContent='Generating...';
-  const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:currentMode,platform:currentPlatform,topic})});
-  const data=await res.json();btn.disabled=false;btn.textContent='✦ Generate';
-  if(data.error){showError(data.error);if(res.status===429)document.getElementById('premiumLock').classList.add('show');return}
-  document.getElementById('outputTitle').textContent=(modeTitles[currentMode]||currentMode)+' — ready to post';
-  renderOutputItems(data.result);document.getElementById('outputCard').classList.add('show');document.getElementById('outputCard').scrollIntoView({behavior:'smooth'});
-  if(data.uses_remaining!==undefined)updateUsage(data.uses_remaining,false);loadHistory();
-}
-function showError(m){const e=document.getElementById('errorMsg');e.textContent=m;e.style.display='block'}
-function hideError(){document.getElementById('errorMsg').style.display='none'}
-let upgradeInProgress=false;
-async function doUpgrade(event){
-  if(event&&event.preventDefault)event.preventDefault();if(upgradeInProgress)return false;upgradeInProgress=true;hideError();
-  const buttons=Array.from(document.querySelectorAll('[data-upgrade],.upgrade-btn'));
-  buttons.forEach(b=>{b.disabled=true;b.dataset.oldText=b.textContent;b.textContent='Opening payment...'});
-  try{const res=await fetch('/api/upgrade',{method:'POST',credentials:'same-origin',cache:'no-store'});let d={};try{d=await res.json()}catch(e){}
-  if(res.status===401){location.href='/';return false}if(d.url){window.location.assign(d.url);return false}showError(d.error||'Could not open payment. Please try again.');}
-  catch(e){showError('Network error. Please try again.')}
-  finally{upgradeInProgress=false;buttons.forEach(b=>{b.disabled=false;b.textContent=b.dataset.oldText||'✦ Upgrade to Premium'})}return false;
-}
-document.addEventListener('click',function(e){const btn=e.target.closest('[data-upgrade]');if(btn)doUpgrade(e)},false);
-async function doLogout(){await fetch('/api/logout',{method:'POST'});location.href='/'}
-function openDrawer(){const p=document.getElementById('drawerPanel');p.innerHTML=document.getElementById('desktopSide').innerHTML;const h=p.querySelector('#historyList');if(h)h.id='drawerHistory';const m=p.querySelector('#modes');if(m)m.id='drawerModes';document.getElementById('drawer').classList.add('show');renderModes('drawerModes');loadHistory();}
-function closeDrawer(e){if(e.target.id==='drawer')document.getElementById('drawer').classList.remove('show')}
-renderModes();loadUser();
-</script>
-</body>
-</html>"""
-
-
 DOWNLOAD_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>TikGenius — Download TikTok Videos (No Watermark)</title>
+<title>TikGenius - Download TikTok Videos No Watermark</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#03050a;--surface:#07111c;--card:#0b1928;--border:#14253a;--text:#f0f8ff;--muted:#607a90;--accent:#00ffc8;--accent2:#0af;--gold:#ffb800;--green:#22c55e;--danger:#fb7185}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:radial-gradient(ellipse at 70% -10%,rgba(0,170,255,.1),transparent 38%),radial-gradient(ellipse at 10% 85%,rgba(0,255,200,.07),transparent 35%),var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
 nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.4rem;position:sticky;top:0;z-index:100;background:rgba(3,5,10,.85);backdrop-filter:blur(18px);border-bottom:1px solid rgba(0,255,200,.07)}
 .logo{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--text);font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:-.03em}
 .logo em{color:var(--accent);font-style:normal}
@@ -3623,9 +3179,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
 .nav-link{text-decoration:none;color:var(--muted);font-size:.875rem;font-weight:600;transition:color .2s;padding:.4rem .6rem;border-radius:7px}
 .nav-link:hover,.nav-link.active{color:var(--accent)}
 .btn-nav{background:var(--accent);color:#030e0a;border:none;padding:.45rem 1.1rem;border-radius:8px;font-size:.875rem;font-weight:700;cursor:pointer;text-decoration:none;font-family:'Inter',sans-serif;transition:all .2s}
-.btn-nav:hover{transform:translateY(-1px);box-shadow:0 0 20px rgba(0,255,200,.3)}
 .hero{text-align:center;padding:5rem 1.5rem 2.5rem;max-width:680px;margin:0 auto}
-.hero-badge{display:inline-flex;align-items:center;gap:.45rem;background:rgba(0,255,200,.08);border:1px solid rgba(0,255,200,.2);color:var(--accent);padding:.35rem 1rem;border-radius:100px;font-size:.75rem;font-weight:700;margin-bottom:1.8rem;letter-spacing:.05em;text-transform:uppercase}
 .hero h1{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:clamp(2rem,7vw,3.6rem);line-height:1.0;letter-spacing:-.045em;margin-bottom:1rem}
 .hero h1 em{color:var(--accent);font-style:normal}
 .hero p{color:var(--muted);font-size:1rem;line-height:1.7;max-width:500px;margin:0 auto}
@@ -3714,26 +3268,25 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
 </head>
 <body>
 <nav>
-  <a class="logo" href="/"><svg width="26" height="26" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="dlG1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffc8"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient><linearGradient id="dlG2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffc8"/></linearGradient></defs><rect x="52" y="58" width="52" height="7" rx="2" fill="url(#dlG1)"/><rect x="74" y="65" width="8" height="70" rx="2" fill="url(#dlG1)"/><path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#dlG2)" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#dlG2)"/></svg>Tik<em>Genius</em></a>
+  <a class="logo" href="/">Tik<em>Genius</em></a>
   <div class="nav-right">
-    <a class="nav-link" href="/dashboard">✦ AI Studio</a>
-    <a class="nav-link active" href="/download">⬇ Downloader</a>
-    <a class="btn-nav" href="/dashboard">Open Studio</a>
+    <a class="nav-link" href="/">AI Studio</a>
+    <a class="nav-link active" href="/download">Downloader</a>
+    <a class="btn-nav" href="/">Open Studio</a>
   </div>
 </nav>
 <div class="hero">
-  <div class="hero-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.19 8.19 0 004.79 1.54V6.78a4.85 4.85 0 01-1.02-.09z"/></svg>TikTok Video Downloader</div>
   <h1>Download TikToks<br><em>No watermark.</em></h1>
-  <p>Paste any TikTok link and save the video in HD — clean, no watermark. Free users get 3 downloads/day. Premium unlocks unlimited.</p>
+  <p>Paste any TikTok link and save the video in HD, clean, no watermark. Free users get 3 downloads per day. Premium unlocks unlimited.</p>
 </div>
 <div class="main-wrap">
   <div class="dl-card" id="downloaderCard">
-    <div class="how-tip"><strong>How to get the link:</strong> Open TikTok → tap Share → Copy Link → paste below.</div>
+    <div class="how-tip"><strong>How to get the link:</strong> Open TikTok, tap Share, Copy Link, paste below.</div>
     <div class="input-row">
       <input type="url" class="url-input" id="urlInput" placeholder="https://www.tiktok.com/@user/video/..." autocomplete="off" autocorrect="off" spellcheck="false">
       <button class="fetch-btn" id="fetchBtn" onclick="fetchVideo()">Fetch Video</button>
     </div>
-    <div class="input-hint">Works with tiktok.com, vm.tiktok.com and /t/ short links.</div>
+    <div class="input-hint">Works with tiktok.com, vm.tiktok.com and short links.</div>
     <div class="err-box" id="errorBox"></div>
     <div class="loader" id="loader"><div class="spin"></div><div>Fetching video info...</div></div>
     <div class="preview" id="previewSection">
@@ -3743,39 +3296,39 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
           <div class="vid-info"><div class="vid-title" id="vidTitle"></div><div class="vid-author" id="vidAuthor"></div><div class="vid-meta" id="vidMeta"></div></div>
         </div>
         <div class="ad-gate" id="adGate">
-          <div class="ad-gate-title">🎬 One quick step to unlock your download</div>
-          <div class="ad-gate-sub">3 free TikTok downloads per day — or go Premium for instant, unlimited downloads.</div>
+          <div class="ad-gate-title">One quick step to unlock your download</div>
+          <div class="ad-gate-sub">3 free TikTok downloads per day, or go Premium for instant, unlimited downloads.</div>
           <div class="choices">
-            <button class="choice-btn choice-free" onclick="useFreeDownload()">⬇ Use Free Download<span class="choice-label">3 free per day</span></button>
-            <button class="choice-btn choice-pro" onclick="upgradeToPro()">⚡ Go Premium<span class="choice-label">₦2,000/month · Instant always</span></button>
+            <button class="choice-btn choice-free" onclick="useFreeDownload()">Use Free Download<span class="choice-label">3 free per day</span></button>
+            <button class="choice-btn choice-pro" onclick="upgradeToPro()">Go Premium<span class="choice-label">N2,000/month, Instant always</span></button>
           </div>
         </div>
-        <div class="pro-skip" id="proSkip"><span style="font-size:1.2rem">✅</span><div><div class="pro-skip-text">Premium — instant download</div><div class="pro-skip-sub">Unlimited downloads included</div></div></div>
+        <div class="pro-skip" id="proSkip"><span style="font-size:1.2rem">OK</span><div><div class="pro-skip-text">Premium, instant download</div><div class="pro-skip-sub">Unlimited downloads included</div></div></div>
         <div class="dl-panel" id="dlPanel">
           <div class="dl-panel-title">Choose your format</div>
           <div class="dl-buttons">
-            <a class="dl-btn dl-primary" id="dlNoWatermark" href="#" download onclick="confirmDownload(event,'nowm')"><span>⬇ No Watermark — HD</span><span class="dl-btn-meta">Clean · MP4</span></a>
-            <a class="dl-btn dl-secondary" id="dlWatermark" href="#" download onclick="confirmDownload(event,'wm')"><span>⬇ Original with Watermark</span><span class="dl-btn-meta">MP4</span></a>
-            <a class="dl-btn dl-audio" id="dlAudio" href="#" download onclick="confirmDownload(event,'audio')"><span>⬇ Audio Only</span><span class="dl-btn-meta">MP3</span></a>
+            <a class="dl-btn dl-primary" id="dlNoWatermark" href="#" download onclick="confirmDownload(event,'nowm')"><span>No Watermark HD</span><span class="dl-btn-meta">Clean MP4</span></a>
+            <a class="dl-btn dl-secondary" id="dlWatermark" href="#" download onclick="confirmDownload(event,'wm')"><span>Original with Watermark</span><span class="dl-btn-meta">MP4</span></a>
+            <a class="dl-btn dl-audio" id="dlAudio" href="#" download onclick="confirmDownload(event,'audio')"><span>Audio Only</span><span class="dl-btn-meta">MP3</span></a>
           </div>
         </div>
       </div>
     </div>
   </div>
   <div class="features">
-    <div class="feat"><div class="feat-icon">🚫</div><h3>No Watermark</h3><p>Clean HD video — no TikTok logo burned in.</p></div>
-    <div class="feat"><div class="feat-icon">⚡</div><h3>Instant for Premium</h3><p>Premium users skip every gate and download instantly.</p></div>
-    <div class="feat"><div class="feat-icon">🎵</div><h3>Audio Extraction</h3><p>Save the background music as a standalone MP3.</p></div>
+    <div class="feat"><div class="feat-icon">X</div><h3>No Watermark</h3><p>Clean HD video, no TikTok logo burned in.</p></div>
+    <div class="feat"><div class="feat-icon">!</div><h3>Instant for Premium</h3><p>Premium users skip every gate and download instantly.</p></div>
+    <div class="feat"><div class="feat-icon">~</div><h3>Audio Extraction</h3><p>Save the background music as a standalone MP3.</p></div>
   </div>
   <div class="also-try">
-    <div class="also-try-text"><strong>✦ Also try the TikGenius AI Studio</strong><span>Write viral captions, hooks, POVs, scripts, and X threads</span></div>
-    <a class="also-try-btn" href="/dashboard">Open AI Studio →</a>
+    <div class="also-try-text"><strong>Also try the TikGenius AI Studio</strong><span>Write viral captions, hooks, POVs, scripts, and X threads</span></div>
+    <a class="also-try-btn" href="/">Open AI Studio</a>
   </div>
 </div>
 <div class="modal-overlay" id="authModal">
   <div class="modal">
     <h2 id="modalTitle">Create your account</h2>
-    <p id="modalSub">Sign up to start downloading — 3 free downloads per day</p>
+    <p id="modalSub">Sign up to start downloading, 3 free downloads per day</p>
     <div class="modal-tabs">
       <button class="modal-tab active" id="tabSignup" onclick="switchAuthTab('signup')">Sign Up</button>
       <button class="modal-tab" id="tabLogin" onclick="switchAuthTab('login')">Log In</button>
@@ -3784,67 +3337,124 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
       <div class="fg"><label>Email</label><input type="email" id="sEmail" placeholder="you@example.com"></div>
       <div class="fg"><label>Password</label><input type="password" id="sPass" placeholder="Min 6 characters"></div>
       <div class="ferr" id="sErr"></div>
-      <button class="modal-btn" onclick="doSignup()">Create Account & Continue</button>
+      <button class="modal-btn" onclick="doSignup()">Create Account and Continue</button>
     </div>
     <div id="fLogin" style="display:none">
       <div class="fg"><label>Email</label><input type="email" id="lEmail" placeholder="you@example.com"></div>
       <div class="fg"><label>Password</label><input type="password" id="lPass" placeholder="Your password"></div>
       <div class="ferr" id="lErr"></div>
-      <button class="modal-btn" onclick="doLogin()">Log In & Continue</button>
+      <button class="modal-btn" onclick="doLogin()">Log In and Continue</button>
     </div>
     <button class="modal-cancel" onclick="closeAuthModal()">Cancel</button>
   </div>
 </div>
 <script>
 var videoData=null,userLoggedIn=false,userIsPro=false;
-window.addEventListener('DOMContentLoaded',async function(){try{var res=await fetch('/api/me');if(res.ok){var d=await res.json();userLoggedIn=true;userIsPro=(d.plan==='pro');}}catch(e){}});
+window.addEventListener('DOMContentLoaded',async function(){
+  try{var res=await fetch('/api/me');if(res.ok){var d=await res.json();userLoggedIn=true;userIsPro=(d.plan==='pro');}}catch(e){}
+});
 async function fetchVideo(){
   var url=document.getElementById('urlInput').value.trim();hideError();resetPreview();
   if(!url){showError('Please paste a TikTok link first.');return;}
   if(!userLoggedIn){openAuthModal('signup','download');return;}
   setLoading(true);
-  try{var res=await fetch('/api/download/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});var data=await res.json();setLoading(false);
-  if(!res.ok||data.error){showError(data.error||'Could not fetch this video.');return;}videoData=data;renderPreview(data);}
-  catch(e){setLoading(false);showError('Network error — please try again.');}
+  try{
+    var res=await fetch('/api/download/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url})});
+    var data=await res.json();setLoading(false);
+    if(!res.ok||data.error){showError(data.error||'Could not fetch this video.');return;}
+    videoData=data;renderPreview(data);
+  }catch(e){setLoading(false);showError('Network error, please try again.');}
 }
 function renderPreview(d){
-  document.getElementById('vidCover').src=d.cover||'';document.getElementById('vidTitle').textContent=d.title||'TikTok Video';document.getElementById('vidAuthor').textContent=d.author?'@'+d.author:'';
-  var meta=document.getElementById('vidMeta');meta.innerHTML='';if(d.duration){meta.innerHTML+='<span class="meta-tag">'+Math.round(d.duration)+'s</span>';}meta.innerHTML+='<span class="meta-tag">No Watermark</span><span class="meta-tag">HD</span>';
+  document.getElementById('vidCover').src=d.cover||'';
+  document.getElementById('vidTitle').textContent=d.title||'TikTok Video';
+  document.getElementById('vidAuthor').textContent=d.author?'@'+d.author:'';
+  var meta=document.getElementById('vidMeta');meta.innerHTML='';
+  if(d.duration){meta.innerHTML+='<span class="meta-tag">'+Math.round(d.duration)+'s</span>';}
+  meta.innerHTML+='<span class="meta-tag">No Watermark</span><span class="meta-tag">HD</span>';
   document.getElementById('previewSection').classList.add('show');
-  if(d.is_pro){document.getElementById('proSkip').classList.add('show');revealDownloads(d);}else{document.getElementById('adGate').style.display='block';}
+  if(d.is_pro){document.getElementById('proSkip').classList.add('show');revealDownloads(d);}
+  else{document.getElementById('adGate').style.display='block';}
 }
 async function useFreeDownload(){
   hideError();if(!videoData){showError('Please fetch a TikTok video first.');return;}
-  try{var res=await fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});var d=await res.json();
-  if(!res.ok||d.error){showError(d.error||'Could not unlock download.');return;}document.getElementById('adGate').style.display='none';revealDownloads(videoData);}
-  catch(e){showError('Network error — please try again.');}
+  try{
+    var res=await fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});
+    var d=await res.json();
+    if(!res.ok||d.error){showError(d.error||'Could not unlock download.');return;}
+    document.getElementById('adGate').style.display='none';revealDownloads(videoData);
+  }catch(e){showError('Network error, please try again.');}
 }
 async function upgradeToPro(){
-  try{var res=await fetch('/api/upgrade',{method:'POST',credentials:'same-origin'});var d=await res.json();
-  if(res.status===401){openAuthModal('login','upgrade');return;}if(d.url){window.location.assign(d.url);return;}showError(d.error||'Could not open payment.');}
-  catch(e){showError('Network error.');}
+  try{
+    var res=await fetch('/api/upgrade',{method:'POST',credentials:'same-origin'});var d=await res.json();
+    if(res.status===401){openAuthModal('login','upgrade');return;}
+    if(d.url){window.location.assign(d.url);return;}
+    showError(d.error||'Could not open payment.');
+  }catch(e){showError('Network error.');}
 }
 function proxyDownloadUrl(fileUrl,filename){return '/api/download/file?url='+encodeURIComponent(fileUrl)+'&filename='+encodeURIComponent(filename);}
 function revealDownloads(d){
-  var panel=document.getElementById('dlPanel');panel.classList.add('show');var base=sanitizeFilename((d&&d.title)||'tiktok');
-  var dlNW=document.getElementById('dlNoWatermark');if(d&&d.play_url){dlNW.href=proxyDownloadUrl(d.play_url,base+'_nowm.mp4');dlNW.setAttribute('download',base+'_nowm.mp4');}else{dlNW.style.display='none';}
-  var dlWM=document.getElementById('dlWatermark');if(d&&d.wmplay_url){dlWM.href=proxyDownloadUrl(d.wmplay_url,base+'_wm.mp4');dlWM.setAttribute('download',base+'_wm.mp4');}else{dlWM.style.display='none';}
-  var dlAU=document.getElementById('dlAudio');if(d&&d.music_url){dlAU.href=proxyDownloadUrl(d.music_url,base+'_audio.mp3');dlAU.setAttribute('download',base+'_audio.mp3');}else{dlAU.style.display='none';}
+  var panel=document.getElementById('dlPanel');panel.classList.add('show');
+  var base=sanitizeFilename((d&&d.title)||'tiktok');
+  var dlNW=document.getElementById('dlNoWatermark');
+  if(d&&d.play_url){dlNW.href=proxyDownloadUrl(d.play_url,base+'_nowm.mp4');dlNW.setAttribute('download',base+'_nowm.mp4');}
+  else{dlNW.style.display='none';}
+  var dlWM=document.getElementById('dlWatermark');
+  if(d&&d.wmplay_url){dlWM.href=proxyDownloadUrl(d.wmplay_url,base+'_wm.mp4');dlWM.setAttribute('download',base+'_wm.mp4');}
+  else{dlWM.style.display='none';}
+  var dlAU=document.getElementById('dlAudio');
+  if(d&&d.music_url){dlAU.href=proxyDownloadUrl(d.music_url,base+'_audio.mp3');dlAU.setAttribute('download',base+'_audio.mp3');}
+  else{dlAU.style.display='none';}
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function confirmDownload(e,type){if(!userIsPro)return;try{fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});}catch(err){}}
 var _postAuthAction=null;
 function openAuthModal(tab,action){_postAuthAction=action;document.getElementById('authModal').classList.add('active');switchAuthTab(tab||'signup');}
 function closeAuthModal(){document.getElementById('authModal').classList.remove('active');}
-function switchAuthTab(tab){document.getElementById('fSignup').style.display=tab==='signup'?'block':'none';document.getElementById('fLogin').style.display=tab==='login'?'block':'none';document.getElementById('tabSignup').classList.toggle('active',tab==='signup');document.getElementById('tabLogin').classList.toggle('active',tab==='login');document.getElementById('modalTitle').textContent=tab==='signup'?'Create your account':'Welcome back';document.getElementById('modalSub').textContent=tab==='signup'?'Sign up to start downloading — 3 free downloads per day':'Log in to your TikGenius account';}
-async function doSignup(){var email=document.getElementById('sEmail').value.trim(),pass=document.getElementById('sPass').value,err=document.getElementById('sErr');err.style.display='none';var res=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass,region:'global'})});var data=await res.json();if(data.error){err.textContent=data.error;err.style.display='block';return;}userLoggedIn=true;userIsPro=false;closeAuthModal();if(_postAuthAction==='upgrade'){upgradeToPro();}else{fetchVideo();}}
-async function doLogin(){var email=document.getElementById('lEmail').value.trim(),pass=document.getElementById('lPass').value,err=document.getElementById('lErr');err.style.display='none';var res=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});var data=await res.json();if(data.error){err.textContent=data.error;err.style.display='block';return;}userLoggedIn=true;try{var me=await(await fetch('/api/me')).json();userIsPro=me.plan==='pro';}catch(e){}closeAuthModal();if(_postAuthAction==='upgrade'){upgradeToPro();}else{fetchVideo();}}
+function switchAuthTab(tab){
+  document.getElementById('fSignup').style.display=tab==='signup'?'block':'none';
+  document.getElementById('fLogin').style.display=tab==='login'?'block':'none';
+  document.getElementById('tabSignup').classList.toggle('active',tab==='signup');
+  document.getElementById('tabLogin').classList.toggle('active',tab==='login');
+  document.getElementById('modalTitle').textContent=tab==='signup'?'Create your account':'Welcome back';
+  document.getElementById('modalSub').textContent=tab==='signup'?'Sign up to start downloading, 3 free downloads per day':'Log in to your TikGenius account';
+}
+async function doSignup(){
+  var email=document.getElementById('sEmail').value.trim(),pass=document.getElementById('sPass').value,err=document.getElementById('sErr');
+  err.style.display='none';
+  var res=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,region:'global'})});
+  var data=await res.json();
+  if(data.error){err.textContent=data.error;err.style.display='block';return;}
+  userLoggedIn=true;userIsPro=false;closeAuthModal();
+  if(_postAuthAction==='upgrade'){upgradeToPro();}else{fetchVideo();}
+}
+async function doLogin(){
+  var email=document.getElementById('lEmail').value.trim(),pass=document.getElementById('lPass').value,err=document.getElementById('lErr');
+  err.style.display='none';
+  var res=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});
+  var data=await res.json();
+  if(data.error){err.textContent=data.error;err.style.display='block';return;}
+  userLoggedIn=true;
+  try{var me=await(await fetch('/api/me')).json();userIsPro=me.plan==='pro';}catch(e){}
+  closeAuthModal();
+  if(_postAuthAction==='upgrade'){upgradeToPro();}else{fetchVideo();}
+}
 document.getElementById('authModal').addEventListener('click',function(e){if(e.target===this)closeAuthModal();});
-function setLoading(show){document.getElementById('loader').classList.toggle('show',show);document.getElementById('fetchBtn').disabled=show;document.getElementById('fetchBtn').textContent=show?'Fetching...':'Fetch Video';}
-function resetPreview(){if(document.getElementById('adGate'))document.getElementById('adGate').style.display='';document.getElementById('previewSection').classList.remove('show');document.getElementById('proSkip').classList.remove('show');document.getElementById('dlPanel').classList.remove('show');}
+function setLoading(show){
+  document.getElementById('loader').classList.toggle('show',show);
+  document.getElementById('fetchBtn').disabled=show;
+  document.getElementById('fetchBtn').textContent=show?'Fetching...':'Fetch Video';
+}
+function resetPreview(){
+  if(document.getElementById('adGate'))document.getElementById('adGate').style.display='';
+  document.getElementById('previewSection').classList.remove('show');
+  document.getElementById('proSkip').classList.remove('show');
+  document.getElementById('dlPanel').classList.remove('show');
+}
 function showError(msg){var b=document.getElementById('errorBox');b.textContent=msg;b.classList.add('show');}
 function hideError(){document.getElementById('errorBox').classList.remove('show');}
-function sanitizeFilename(s){return s.replace(/[^a-z0-9_\\-]/gi,'_').slice(0,60);}
+function sanitizeFilename(s){return s.replace(/[^a-z0-9_\-]/gi,'_').slice(0,60);}
 document.getElementById('urlInput').addEventListener('keydown',function(e){if(e.key==='Enter')fetchVideo();});
 </script>
 </body>

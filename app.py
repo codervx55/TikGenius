@@ -2493,8 +2493,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   </div>
   <div class="nav-right">
     <a class="nav-btn ghost" href="/download">Downloader</a>
-    <button class="nav-btn ghost" id="navLogin" onclick="openModal('login')" style="display:none">Log In</button>
-    <button class="nav-btn primary" id="navSignup" onclick="openModal('signup')" style="display:none">Sign Up Free</button>
+    <button class="nav-btn ghost" id="navLogin" onclick="openModal('login')">Log In</button>
+    <button class="nav-btn primary" id="navSignup" onclick="openModal('signup')">Sign Up Free</button>
     <button class="nav-btn earn" id="navEarn" onclick="handleEarnClick()">Start Earning</button>
     <button class="profile-btn" id="profileBtn" onclick="openProfile()" title="Your Profile">P</button>
   </div>
@@ -3114,9 +3114,6 @@ function copyRefLink() {
   });
 }
 
-if (location.search.includes('login=1')) { setTimeout(function(){ if(!user) openModal('login'); }, 500); }
-init();
-
 // ===== LIVE DEBUG OVERLAY =====
 (function() {
   // Create overlay
@@ -3252,7 +3249,10 @@ init();
     dbgLog('Debug overlay ready. All buttons monitored.', 'ok');
   }, 1000);
 })();
-</script>
+
+
+if (location.search.includes('login=1')) { setTimeout(function(){ if(!user) openModal('login'); }, 500); }
+init();</script>
 </body>
 </html>"""
 

@@ -3119,7 +3119,7 @@ function copyRefLink() {
   // Create overlay
   var overlay = document.createElement('div');
   overlay.id = 'dbgOverlay';
-  overlay.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;font-family:monospace;font-size:12px;';
+  overlay.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:200;font-family:monospace;font-size:12px;pointer-events:auto;';
 
   // Status bar
   var bar = document.createElement('div');
@@ -3145,7 +3145,7 @@ function copyRefLink() {
   // Log panel
   var logPanel = document.createElement('div');
   logPanel.id = 'dbgLog';
-  logPanel.style.cssText = 'display:none;background:#040a12;border-top:1px solid #1e3050;max-height:200px;overflow-y:auto;padding:6px 12px;';
+  logPanel.style.cssText = 'display:none;background:#040a12;border-top:1px solid #1e3050;max-height:150px;overflow-y:auto;padding:6px 12px;';
   var logVisible = false;
   toggleBtn.onclick = function() {
     logVisible = !logVisible;

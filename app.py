@@ -44,7 +44,7 @@ app.permanent_session_lifetime = timedelta(days=SESSION_DAYS)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=SESSION_DAYS)
 app.config["SESSION_REFRESH_EACH_REQUEST"] = True
 app.config["SESSION_COOKIE_HTTPONLY"] = os.getenv("SESSION_COOKIE_HTTPONLY", "true").lower() == "true"
-app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true"
+app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 # ========================= HTTP =========================
@@ -899,7 +899,7 @@ ANALYTICS_JS = """<script>
       var element=(el.id||el.name||el.className||el.tagName||'unknown').toString().slice(0,120);
       var payload=JSON.stringify({element:element,label:label,path:location.pathname});
       if(navigator.sendBeacon){navigator.sendBeacon('/api/track-click', new Blob([payload],{type:'application/json'}));}
-      else{fetch('/api/track-click',{method:'POST',headers:{'Content-Type':'application/json'},body:payload,keepalive:true});}
+      else{fetch('/api/track-click',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:payload,keepalive:true});}
     }catch(e){}
   }
   document.addEventListener('click',function(e){
@@ -1860,8 +1860,8 @@ def admin_panel():
 </div>
 <script>
 function filterRows(){{var q=document.getElementById('search').value.toLowerCase();document.querySelectorAll('#users tbody tr').forEach(r=>{{r.style.display=r.innerText.toLowerCase().includes(q)?'':'none'}})}}
-async function grantPremium(){{var email=document.getElementById('grantEmail').value.trim();var days=parseInt(document.getElementById('grantDays').value)||30;var msg=document.getElementById('grantMsg');if(!email){{msg.textContent='Enter an email first.';return;}}var res=await fetch('/api/admin/grant-premium',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{email,days}})}});var d=await res.json();if(d.error){{msg.style.color='#fb7185';msg.textContent=d.error;}}else{{msg.style.color='#6ee7b7';msg.textContent='Premium granted to '+d.email+' until '+d.expires;setTimeout(()=>location.reload(),1500);}}}}
-async function revokePremium(){{var email=document.getElementById('grantEmail').value.trim();var msg=document.getElementById('grantMsg');if(!email){{msg.textContent='Enter an email first.';return;}}if(!confirm('Revoke premium from '+email+'?'))return;var res=await fetch('/api/admin/revoke-premium',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{email}})}});var d=await res.json();if(d.error){{msg.style.color='#fb7185';msg.textContent=d.error;}}else{{msg.style.color='#fb7185';msg.textContent='Premium revoked from '+d.email;setTimeout(()=>location.reload(),1500);}}}}
+async function grantPremium(){{var email=document.getElementById('grantEmail').value.trim();var days=parseInt(document.getElementById('grantDays').value)||30;var msg=document.getElementById('grantMsg');if(!email){{msg.textContent='Enter an email first.';return;}}var res=await fetch('/api/admin/grant-premium',{{credentials:'include',method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{email,days}})}});var d=await res.json();if(d.error){{msg.style.color='#fb7185';msg.textContent=d.error;}}else{{msg.style.color='#6ee7b7';msg.textContent='Premium granted to '+d.email+' until '+d.expires;setTimeout(()=>location.reload(),1500);}}}}
+async function revokePremium(){{var email=document.getElementById('grantEmail').value.trim();var msg=document.getElementById('grantMsg');if(!email){{msg.textContent='Enter an email first.';return;}}if(!confirm('Revoke premium from '+email+'?'))return;var res=await fetch('/api/admin/revoke-premium',{{credentials:'include',method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{email}})}});var d=await res.json();if(d.error){{msg.style.color='#fb7185';msg.textContent=d.error;}}else{{msg.style.color='#fb7185';msg.textContent='Premium revoked from '+d.email;setTimeout(()=>location.reload(),1500);}}}}
 </script></body></html>"""
 
 @app.route("/admin/emails.csv")
@@ -2423,7 +2423,7 @@ var urlRef = new URLSearchParams(location.search).get('ref') || '';
 
 async function init() {
   try {
-    var r = await fetch('/api/me');
+    var r = await fetch('/api/me', {credentials:'include'});
     if (r.ok) { user = await r.json(); applyUser(); loadHistory(); }
     else { showGuest(); }
   } catch(e) { showGuest(); }
@@ -2500,7 +2500,7 @@ async function startIdea(text) {
   addMsg('user', text);
   setThinking(true, 'Understanding your idea...');
   try {
-    var r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'},
+    var r = await fetch('/api/chat', { credentials:'include', method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ stage:'question', idea:idea, region: document.getElementById('regionSel').value }) });
     var d = await r.json();
     setThinking(false);
@@ -2553,7 +2553,7 @@ async function submitAnswers() {
   if (genBtn) genBtn.disabled = true;
   setThinking(true, 'Creating your full content pack...');
   try {
-    var r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'},
+    var r = await fetch('/api/chat', { credentials:'include', method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ stage:'generate', idea:idea, answers:answers, region: document.getElementById('regionSel').value }) });
     var d = await r.json();
     setThinking(false);
@@ -2641,7 +2641,7 @@ function resetChat() {
 
 async function loadHistory() {
   try {
-    var r = await fetch('/api/history');
+    var r = await fetch('/api/history', {credentials:'include'});
     var d = await r.json();
     var items = d.items || [];
     var hs = document.getElementById('histScroll');
@@ -2672,7 +2672,7 @@ function loadHistItem(item) {
 
 async function clearHistory() {
   if (!confirm('Clear all history?')) return;
-  await fetch('/api/history/clear', { method:'POST' });
+  await fetch('/api/history/clear', { method:'POST', credentials:'include' });
   loadHistory();
 }
 
@@ -2745,7 +2745,7 @@ async function doSignup() {
   var pass=document.getElementById('sPass').value;
   var region=document.getElementById('sRegion').value;
   var err=document.getElementById('sErr'); err.style.display='none';
-  var r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,region:region,ref_code:urlRef})});
+  var r=await fetch('/api/signup',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,region:region,ref_code:urlRef})});
   var d=await r.json();
   if(d.error){err.textContent=d.error;err.style.display='block';return;}
   closeModal(); user=null; await init();
@@ -2757,7 +2757,7 @@ async function doLogin() {
   var email=document.getElementById('lEmail').value.trim();
   var pass=document.getElementById('lPass').value;
   var err=document.getElementById('lErr'); err.style.display='none';
-  var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});
+  var r=await fetch('/api/login',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});
   var d=await r.json();
   if(d.error){err.textContent=d.error;err.style.display='block';return;}
   closeModal(); user=null; await init();
@@ -2765,7 +2765,7 @@ async function doLogin() {
   if (pending) { sessionStorage.removeItem('pendingIdea'); document.getElementById('chatInput').value = pending; setTimeout(function(){ handleSend(); }, 300); }
 }
 
-async function doLogout() { await fetch('/api/logout',{method:'POST'}); location.reload(); }
+async function doLogout() { await fetch('/api/logout',{method:'POST',credentials:'include'}); location.reload(); }
 
 document.getElementById('authBackdrop').addEventListener('click',function(e){if(e.target===this)closeModal();});
 
@@ -2785,7 +2785,7 @@ async function doUpgrade() {
 
 async function saveRegion(v) {
   if (!user) return;
-  await fetch('/api/set-region',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region:v})});
+  await fetch('/api/set-region',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region:v})});
 }
 
 async function openProfile() {
@@ -2800,7 +2800,7 @@ async function openProfile() {
   planEl.textContent = isPro ? 'Premium' : 'Free Plan';
   planEl.className = 'profile-plan' + (isPro ? ' pro' : '');
   try {
-    var r = await fetch('/api/referral/stats');
+    var r = await fetch('/api/referral/stats', {credentials:'include'});
     var d = await r.json();
     document.getElementById('profBalance').textContent = 'N' + (d.balance_ngn||0).toLocaleString();
     document.getElementById('profTotalEarned').textContent = 'N' + (d.total_earned_ngn||0).toLocaleString();
@@ -3009,7 +3009,7 @@ var stats={}, banks=[], verifiedName='', verifiedBankCode='', verifiedAccountNum
 
 async function loadStats(){
   try{
-    var res=await fetch('/api/referral/stats');
+    var res=await fetch('/api/referral/stats', {credentials:'include'});
     if(res.status===401){window.location.href='/';return;}
     stats=await res.json();
     document.getElementById('balanceVal').textContent='N'+stats.balance_ngn.toLocaleString();
@@ -3023,7 +3023,7 @@ async function loadStats(){
 
 async function loadBanks(){
   try{
-    var res=await fetch('/api/referral/banks');
+    var res=await fetch('/api/referral/banks', {credentials:'include'});
     var data=await res.json();
     banks=data.banks||[];
     var sel=document.getElementById('bankSelect');
@@ -3034,7 +3034,7 @@ async function loadBanks(){
 
 async function loadWithdrawalHistory(){
   try{
-    var res=await fetch('/api/referral/withdrawal-history');
+    var res=await fetch('/api/referral/withdrawal-history', {credentials:'include'});
     var data=await res.json();
     var items=data.items||[];
     var el=document.getElementById('wdList');
@@ -3089,7 +3089,7 @@ async function verifyAccount(){
   btn.innerHTML='<span class="loader"></span>';btn.disabled=true;
   hideWErr();
   try{
-    var res=await fetch('/api/referral/verify-account',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_number:accountNumber,bank_code:bankCode})});
+    var res=await fetch('/api/referral/verify-account',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_number:accountNumber,bank_code:bankCode})});
     var data=await res.json();
     if(data.error){display.textContent='';showWErr(data.error);return;}
     verifiedName=data.account_name;
@@ -3110,7 +3110,7 @@ async function doWithdraw(){
   btn.innerHTML='<span class="loader"></span>Processing...';btn.disabled=true;
   hideWErr();hideWOk();
   try{
-    var res=await fetch('/api/referral/withdraw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_number:verifiedAccountNumber,bank_code:verifiedBankCode,account_name:verifiedName})});
+    var res=await fetch('/api/referral/withdraw',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_number:verifiedAccountNumber,bank_code:verifiedBankCode,account_name:verifiedName})});
     var data=await res.json();
     if(data.error){showWErr(data.error);return;}
     showWOk(data.message||'Withdrawal initiated successfully!');
@@ -3351,7 +3351,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
 <script>
 var videoData=null,userLoggedIn=false,userIsPro=false;
 window.addEventListener('DOMContentLoaded',async function(){
-  try{var res=await fetch('/api/me');if(res.ok){var d=await res.json();userLoggedIn=true;userIsPro=(d.plan==='pro');}}catch(e){}
+  try{var res=await fetch('/api/me', {credentials:'include'});if(res.ok){var d=await res.json();userLoggedIn=true;userIsPro=(d.plan==='pro');}}catch(e){}
 });
 async function fetchVideo(){
   var url=document.getElementById('urlInput').value.trim();hideError();resetPreview();
@@ -3359,7 +3359,7 @@ async function fetchVideo(){
   if(!userLoggedIn){openAuthModal('signup','download');return;}
   setLoading(true);
   try{
-    var res=await fetch('/api/download/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url})});
+    var res=await fetch('/api/download/fetch',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url})});
     var data=await res.json();setLoading(false);
     if(!res.ok||data.error){showError(data.error||'Could not fetch this video.');return;}
     videoData=data;renderPreview(data);
@@ -3379,7 +3379,7 @@ function renderPreview(d){
 async function useFreeDownload(){
   hideError();if(!videoData){showError('Please fetch a TikTok video first.');return;}
   try{
-    var res=await fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});
+    var res=await fetch('/api/download/confirm',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});
     var d=await res.json();
     if(!res.ok||d.error){showError(d.error||'Could not unlock download.');return;}
     document.getElementById('adGate').style.display='none';revealDownloads(videoData);
@@ -3408,7 +3408,7 @@ function revealDownloads(d){
   else{dlAU.style.display='none';}
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-function confirmDownload(e,type){if(!userIsPro)return;try{fetch('/api/download/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});}catch(err){}}
+function confirmDownload(e,type){if(!userIsPro)return;try{fetch('/api/download/confirm',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('urlInput').value.trim(),title:videoData?videoData.title:''})});}catch(err){}}
 var _postAuthAction=null;
 function openAuthModal(tab,action){_postAuthAction=action;document.getElementById('authModal').classList.add('active');switchAuthTab(tab||'signup');}
 function closeAuthModal(){document.getElementById('authModal').classList.remove('active');}
@@ -3423,7 +3423,7 @@ function switchAuthTab(tab){
 async function doSignup(){
   var email=document.getElementById('sEmail').value.trim(),pass=document.getElementById('sPass').value,err=document.getElementById('sErr');
   err.style.display='none';
-  var res=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,region:'global'})});
+  var res=await fetch('/api/signup',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,region:'global'})});
   var data=await res.json();
   if(data.error){err.textContent=data.error;err.style.display='block';return;}
   userLoggedIn=true;userIsPro=false;closeAuthModal();
@@ -3432,11 +3432,11 @@ async function doSignup(){
 async function doLogin(){
   var email=document.getElementById('lEmail').value.trim(),pass=document.getElementById('lPass').value,err=document.getElementById('lErr');
   err.style.display='none';
-  var res=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});
+  var res=await fetch('/api/login',{credentials:'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});
   var data=await res.json();
   if(data.error){err.textContent=data.error;err.style.display='block';return;}
   userLoggedIn=true;
-  try{var me=await(await fetch('/api/me')).json();userIsPro=me.plan==='pro';}catch(e){}
+  try{var me=await(await fetch('/api/me', {credentials:'include'})).json();userIsPro=me.plan==='pro';}catch(e){}
   closeAuthModal();
   if(_postAuthAction==='upgrade'){upgradeToPro();}else{fetchVideo();}
 }

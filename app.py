@@ -2493,8 +2493,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   </div>
   <div class="nav-right">
     <a class="nav-btn ghost" href="/download">Downloader</a>
-    <button class="nav-btn ghost" id="navLogin" onclick="openModal('login')">Log In</button>
-    <button class="nav-btn primary" id="navSignup" onclick="openModal('signup')">Sign Up Free</button>
+    <button class="nav-btn ghost" id="navLogin" onclick="openModal('login')" style="display:none">Log In</button>
+    <button class="nav-btn primary" id="navSignup" onclick="openModal('signup')" style="display:none">Sign Up Free</button>
     <button class="nav-btn earn" id="navEarn" onclick="handleEarnClick()">Start Earning</button>
     <button class="profile-btn" id="profileBtn" onclick="openProfile()" title="Your Profile">P</button>
   </div>
@@ -3114,141 +3114,6 @@ function copyRefLink() {
   });
 }
 
-// ===== LIVE DEBUG OVERLAY =====
-(function() {
-  // Create overlay
-  var overlay = document.createElement('div');
-  overlay.id = 'dbgOverlay';
-  overlay.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:200;font-family:monospace;font-size:12px;pointer-events:auto;';
-
-  // Status bar
-  var bar = document.createElement('div');
-  bar.style.cssText = 'background:#060d18;border-top:2px solid #1e3050;padding:6px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;';
-  var statusTxt = document.createElement('span');
-  statusTxt.id = 'dbgStatus';
-  statusTxt.textContent = 'Checking session...';
-  statusTxt.style.color = '#ffb800';
-  var btns = document.createElement('div');
-  btns.style.cssText = 'display:flex;gap:6px;flex-shrink:0;';
-  var toggleBtn = document.createElement('button');
-  toggleBtn.textContent = 'Show Log';
-  toggleBtn.style.cssText = 'background:#0a1a2a;border:1px solid #1e3050;color:#607898;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px;';
-  var closeBtn = document.createElement('button');
-  closeBtn.textContent = 'x';
-  closeBtn.style.cssText = 'background:transparent;border:none;color:#607898;cursor:pointer;font-size:14px;';
-  closeBtn.onclick = function(){ overlay.remove(); };
-  btns.appendChild(toggleBtn);
-  btns.appendChild(closeBtn);
-  bar.appendChild(statusTxt);
-  bar.appendChild(btns);
-
-  // Log panel
-  var logPanel = document.createElement('div');
-  logPanel.id = 'dbgLog';
-  logPanel.style.cssText = 'display:none;background:#040a12;border-top:1px solid #1e3050;max-height:150px;overflow-y:auto;padding:6px 12px;';
-  var logVisible = false;
-  toggleBtn.onclick = function() {
-    logVisible = !logVisible;
-    logPanel.style.display = logVisible ? 'block' : 'none';
-    toggleBtn.textContent = logVisible ? 'Hide Log' : 'Show Log';
-  };
-
-  overlay.appendChild(logPanel);
-  overlay.appendChild(bar);
-  document.body.appendChild(overlay);
-
-  // Log function
-  window.dbgLog = function(msg, type) {
-    var line = document.createElement('div');
-    var colors = {ok:'#00d68f', err:'#ff4d6d', warn:'#ffb800', info:'#607898'};
-    line.style.cssText = 'padding:2px 0;border-bottom:1px solid #0d1f30;color:'+(colors[type]||'#a0b8d0')+';';
-    var time = new Date().toLocaleTimeString();
-    line.textContent = '['+time+'] ' + msg;
-    logPanel.appendChild(line);
-    logPanel.scrollTop = logPanel.scrollHeight;
-    console.log('[DBG] ' + msg);
-  };
-
-  // Update status bar
-  window.dbgStatus = function(msg, type) {
-    var colors = {ok:'#00d68f', err:'#ff4d6d', warn:'#ffb800'};
-    statusTxt.style.color = colors[type] || '#a0b8d0';
-    statusTxt.textContent = msg;
-    window.dbgLog(msg, type);
-  };
-
-  // Check session after init
-  setTimeout(function() {
-    if (user) {
-      dbgStatus('Logged in: ' + user.email + ' | Plan: ' + user.plan, 'ok');
-    } else {
-      dbgStatus('NOT logged in - session cookie not working', 'err');
-    }
-  }, 3000);
-
-  // Intercept ALL fetch calls to log them
-  var origFetch = window.fetch;
-  window.fetch = function(url, opts) {
-    dbgLog('FETCH ' + (opts&&opts.method||'GET') + ' ' + url, 'info');
-    return origFetch.apply(this, arguments).then(function(res) {
-      var status = res.status;
-      var color = status >= 400 ? 'err' : status >= 300 ? 'warn' : 'ok';
-      dbgLog('RESPONSE ' + status + ' ' + url, color);
-      if (status === 401) {
-        dbgStatus('401 Unauthorized on ' + url + ' - NOT LOGGED IN', 'err');
-      }
-      if (status === 429) {
-        dbgStatus('429 Rate limit on ' + url, 'warn');
-      }
-      if (status >= 500) {
-        dbgStatus('SERVER ERROR ' + status + ' on ' + url, 'err');
-      }
-      return res;
-    }).catch(function(err) {
-      dbgLog('FETCH ERROR ' + url + ': ' + err.message, 'err');
-      dbgStatus('Network error on ' + url + ': ' + err.message, 'err');
-      throw err;
-    });
-  };
-
-  // Intercept send button
-  setTimeout(function() {
-    var btn = document.getElementById('submitBtn');
-    if (btn) {
-      var origClick = btn.onclick;
-      btn.addEventListener('click', function() {
-        var text = (document.getElementById('chatInput').value||'').trim();
-        var words = text.split(' ').filter(Boolean).length;
-        dbgLog('SEND clicked | user='+(user?user.email:'NULL')+' | stage='+stage+' | words='+words, user ? 'info' : 'err');
-        if (!user) dbgStatus('Send blocked: not logged in', 'err');
-        else if (words < 3) dbgStatus('Send blocked: need 3+ words (got '+words+')', 'warn');
-        else if (stage !== 'idle' && stage !== 'done') dbgStatus('Send blocked: stage='+stage+' (not idle/done)', 'warn');
-        else dbgStatus('Sending: "'+text.slice(0,40)+'"...', 'warn');
-      }, true);
-      dbgLog('Send button hooked', 'ok');
-    } else {
-      dbgLog('ERROR: submitBtn not found in DOM', 'err');
-    }
-
-    // Intercept earn/profile button
-    var earnBtn = document.getElementById('navEarn');
-    if (earnBtn) {
-      earnBtn.addEventListener('click', function() {
-        dbgLog('EARN clicked | user='+(user?user.email:'NULL'), user?'info':'err');
-        if (!user) dbgStatus('Earn blocked: not logged in', 'err');
-        else dbgStatus('Opening profile panel...', 'info');
-      }, true);
-    }
-
-    // Intercept login/signup buttons
-    var loginBtn = document.getElementById('navLogin');
-    if (loginBtn) loginBtn.addEventListener('click', function() { dbgLog('LOGIN btn clicked', 'info'); }, true);
-    var signupBtn = document.getElementById('navSignup');
-    if (signupBtn) signupBtn.addEventListener('click', function() { dbgLog('SIGNUP btn clicked', 'info'); }, true);
-
-    dbgLog('Debug overlay ready. All buttons monitored.', 'ok');
-  }, 1000);
-})();
 
 
 if (location.search.includes('login=1')) { setTimeout(function(){ if(!user) openModal('login'); }, 500); }

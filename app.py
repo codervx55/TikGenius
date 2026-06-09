@@ -2689,9 +2689,21 @@ var urlRef = new URLSearchParams(location.search).get('ref') || '';
 async function init() {
   try {
     var r = await fetch('/api/me', {credentials:'include'});
-    if (r.ok) { user = await r.json(); applyUser(); loadHistory(); }
-    else { showGuest(); }
-  } catch(e) { showGuest(); }
+    if (r.ok) {
+      user = await r.json();
+      console.log('[TikGenius] /api/me ok, user:', user);
+      applyUser();
+      loadHistory();
+    } else {
+      var errData = {};
+      try { errData = await r.json(); } catch(e2) {}
+      console.warn('[TikGenius] /api/me failed:', r.status, errData);
+      showGuest();
+    }
+  } catch(e) {
+    console.error('[TikGenius] init() fetch error:', e);
+    showGuest();
+  }
   if (location.search.includes('payment=success')) {
     setTimeout(async function(){ user=null; await init(); }, 600);
   }
@@ -2745,13 +2757,17 @@ function updateUsage(rem, unlimited) {
 function handleSend() {
   var text = (document.getElementById('chatInput').value || '').trim();
   if (!text) return;
+  console.log('[TikGenius] handleSend: user=', user, 'stage=', stage);
   if (!user) {
+    console.warn('[TikGenius] handleSend: user is null, opening modal');
+    showErr('Please log in first to send a prompt.');
     sessionStorage.setItem('pendingIdea', text);
     openModal('signup');
     return;
   }
   if (stage === 'idle') startIdea(text);
   else if (stage === 'done') { resetChat(); }
+  else { console.warn('[TikGenius] handleSend: stage is', stage, '- not idle or done'); }
 }
 
 async function startIdea(text) {
@@ -2771,7 +2787,12 @@ async function startIdea(text) {
     setThinking(false);
     if (d.error) { showErr(d.error); stage='idle'; return; }
     showQuestions(d.questions);
-  } catch(e) { setThinking(false); showErr('Network error, try again.'); stage='idle'; }
+  } catch(e) {
+    setThinking(false);
+    console.error('[TikGenius] startIdea error:', e);
+    showErr('Network error: ' + e.message + '. Check your connection and try again.');
+    stage='idle';
+  }
 }
 
 function showQuestions(qText) {
@@ -3074,7 +3095,8 @@ async function openProfile() {
     document.getElementById('profPendingRefs').textContent = (d.pending_referrals||0) + ' pending';
     document.getElementById('profRefLink').value = d.referral_link || '';
   } catch(e) {
-    document.getElementById('profBalance').textContent = 'Error loading';
+    console.error('[TikGenius] openProfile error:', e);
+    document.getElementById('profBalance').textContent = 'Error: ' + e.message;
   }
 }
 
@@ -3094,6 +3116,27 @@ function copyRefLink() {
 
 if (location.search.includes('login=1')) { setTimeout(function(){ if(!user) openModal('login'); }, 500); }
 init();
+
+// STATUS BAR - shows login state right on the page, no dev tools needed
+setTimeout(function() {
+  var bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;bottom:60px;left:0;right:0;background:#0a1520;border-top:2px solid #1e3050;padding:8px 14px;font-size:.75rem;z-index:9999;display:flex;justify-content:space-between;align-items:center;gap:10px;';
+  var txt = document.createElement('span');
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = 'x';
+  closeBtn.style.cssText = 'background:transparent;border:none;color:#607898;cursor:pointer;font-size:1rem;flex-shrink:0;';
+  closeBtn.onclick = function(){ bar.remove(); };
+  if (user) {
+    txt.style.color = '#00d68f';
+    txt.textContent = 'Session OK - logged in as: ' + user.email + ' (' + user.plan + ')';
+  } else {
+    txt.style.color = '#ff4d6d';
+    txt.textContent = 'NOT logged in - cookie not working! Go to /diag and check "Active session" row.';
+  }
+  bar.appendChild(txt);
+  bar.appendChild(closeBtn);
+  document.body.appendChild(bar);
+}, 2500);
 </script>
 </body>
 </html>"""

@@ -1299,6 +1299,145 @@ def referral_leaderboard():
     finally:
         release_db(conn)
 
+
+# ========================= DIAGNOSTICS =========================
+@app.route("/diag")
+def diag_page():
+    return DIAG_HTML
+
+@app.route("/api/diag/run")
+def diag_run():
+    import time
+    results = []
+
+    def check(name, fn):
+        t0 = time.time()
+        try:
+            ok, detail = fn()
+            results.append({"name": name, "ok": ok, "detail": detail, "ms": round((time.time()-t0)*1000)})
+        except Exception as e:
+            results.append({"name": name, "ok": False, "detail": str(e), "ms": round((time.time()-t0)*1000)})
+
+    # 1. DATABASE
+    def test_db():
+        conn = get_db()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) AS c FROM web_users")
+                row = cur.fetchone()
+            return True, f"{row['c']} users in DB"
+        finally:
+            release_db(conn)
+    check("Database connection", test_db)
+
+    # 2. SESSION / SECRET_KEY
+    def test_secret():
+        key = app.secret_key or ""
+        if not key:
+            return False, "SECRET_KEY is empty"
+        if key == "None" or len(key) < 8:
+            return False, f"SECRET_KEY looks invalid: {key[:10]}..."
+        env_key = os.getenv("SECRET_KEY", "")
+        if not env_key:
+            return False, "SECRET_KEY env var NOT SET — sessions will reset on every deploy! Set it in Railway variables."
+        return True, f"SECRET_KEY env var is set ({len(env_key)} chars)"
+    check("SECRET_KEY / Sessions", test_secret)
+
+    # 3. GROQ API KEY
+    def test_groq():
+        if not GROQ_API_KEY:
+            return False, "GROQ_API_KEY env var is missing — AI generation will fail"
+        if len(GROQ_API_KEY) < 20:
+            return False, f"GROQ_API_KEY looks too short: {GROQ_API_KEY[:8]}..."
+        return True, f"GROQ_API_KEY is set ({len(GROQ_API_KEY)} chars)"
+    check("Groq API Key (AI generation)", test_groq)
+
+    # 4. PAYSTACK
+    def test_paystack():
+        if not PAYSTACK_SECRET_KEY:
+            return False, "PAYSTACK_SECRET_KEY env var is missing — payments will fail"
+        if not PAYSTACK_PUBLIC_KEY:
+            return False, "PAYSTACK_PUBLIC_KEY env var is missing"
+        return True, f"Paystack keys set (secret: {len(PAYSTACK_SECRET_KEY)} chars)"
+    check("Paystack Keys (payments)", test_paystack)
+
+    # 5. DATABASE_URL format
+    def test_db_url():
+        if not DATABASE_URL:
+            return False, "DATABASE_URL env var is not set"
+        if DATABASE_URL.startswith("postgres://"):
+            return True, "DATABASE_URL uses postgres:// (auto-converted to postgresql://)"
+        if DATABASE_URL.startswith("postgresql://"):
+            return True, "DATABASE_URL format is correct (postgresql://)"
+        return False, f"DATABASE_URL has unexpected format: {DATABASE_URL[:20]}..."
+    check("DATABASE_URL format", test_db_url)
+
+    # 6. GROQ LIVE CALL TEST
+    def test_groq_live():
+        if not GROQ_API_KEY:
+            return False, "GROQ_API_KEY not set — skipping live test"
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [{"role": "user", "content": "Say OK"}],
+            "max_tokens": 5
+        }
+        res = http_session.post(url, json=payload, headers=headers, timeout=15)
+        data = res.json()
+        if "choices" in data:
+            return True, f"Groq API responded: {data['choices'][0]['message']['content'].strip()}"
+        return False, f"Groq error: {data.get('error', {}).get('message', str(data))}"
+    check("Groq live API call", test_groq_live)
+
+    # 7. SESSION COOKIE CONFIG
+    def test_cookies():
+        issues = []
+        if app.config.get("SESSION_COOKIE_SECURE"):
+            issues.append("SESSION_COOKIE_SECURE=True — may block cookies on HTTP/proxy")
+        samesite = app.config.get("SESSION_COOKIE_SAMESITE", "")
+        if samesite not in ("Lax", "None", "Strict"):
+            issues.append(f"SESSION_COOKIE_SAMESITE is unusual: {samesite}")
+        if issues:
+            return False, " | ".join(issues)
+        return True, f"Secure={app.config.get('SESSION_COOKIE_SECURE')}, SameSite={samesite}"
+    check("Session cookie config", test_cookies)
+
+    # 8. SESSION READ/WRITE TEST
+    def test_session():
+        uid = session.get("user_id")
+        if uid:
+            return True, f"Active session found — user_id={uid}"
+        return False, "No active session on this request (not logged in, or cookies not sent)"
+    check("Active session (are you logged in?)", test_session)
+
+    # 9. DB TABLES EXIST
+    def test_tables():
+        conn = get_db()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT table_name FROM information_schema.tables
+                    WHERE table_schema='public' ORDER BY table_name""")
+                tables = [r["table_name"] for r in cur.fetchall()]
+            expected = ["web_users","web_generations","web_payments","referrals","wallets","withdrawals"]
+            missing = [t for t in expected if t not in tables]
+            if missing:
+                return False, f"Missing tables: {', '.join(missing)}"
+            return True, f"All tables exist: {', '.join(tables)}"
+        finally:
+            release_db(conn)
+    check("Database tables", test_tables)
+
+    # 10. RAPIDAPI KEY
+    def test_rapidapi():
+        if not RAPIDAPI_KEY:
+            return False, "RAPIDAPI_KEY not set — TikTok downloader will fail"
+        return True, f"RAPIDAPI_KEY is set ({len(RAPIDAPI_KEY)} chars)"
+    check("RapidAPI Key (TikTok downloader)", test_rapidapi)
+
+    all_ok = all(r["ok"] for r in results)
+    return jsonify({"results": results, "all_ok": all_ok, "timestamp": datetime.utcnow().isoformat()})
+
 @app.route("/health")
 def health():
     try:
@@ -2013,6 +2152,132 @@ def telegram_webhook():
     return jsonify({"ok": True, "message": "Telegram bot disabled. Use the website."})
 
 # ========================= HTML PAGES =========================
+
+
+DIAG_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikGenius Diagnostics</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#060a12;color:#e8f0fe;font-family:'Inter',system-ui,sans-serif;min-height:100vh;padding:20px}
+.wrap{max-width:720px;margin:0 auto}
+.header{margin-bottom:24px}
+.header h1{font-size:1.5rem;font-weight:800;margin-bottom:4px}
+.header p{color:#607898;font-size:.875rem}
+.run-btn{background:linear-gradient(135deg,#00ffcc,#00aaff);border:none;color:#040e18;font-weight:800;font-size:.95rem;padding:12px 28px;border-radius:12px;cursor:pointer;font-family:inherit;margin-bottom:24px;transition:all .2s}
+.run-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,255,200,.3)}
+.run-btn:disabled{opacity:.5;transform:none}
+.timestamp{font-size:.75rem;color:#607898;margin-bottom:16px;display:none}
+.card{background:#0b1526;border:1px solid #162235;border-radius:14px;overflow:hidden;margin-bottom:10px}
+.card-row{display:flex;align-items:center;gap:12px;padding:14px 16px}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot.ok{background:#00d68f}
+.dot.fail{background:#ff4d6d}
+.dot.spin{background:#ffb800;animation:pulse .8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+.check-name{font-size:.9rem;font-weight:600;flex:1}
+.check-ms{font-size:.72rem;color:#607898;white-space:nowrap}
+.check-detail{padding:0 16px 14px 38px;font-size:.8rem;line-height:1.6}
+.check-detail.ok{color:#4dd9a8}
+.check-detail.fail{color:#ff8099}
+.summary{background:linear-gradient(135deg,rgba(0,255,200,.08),rgba(0,170,255,.05));border:1px solid rgba(0,255,200,.2);border-radius:14px;padding:18px;margin-bottom:16px;display:none}
+.summary.show{display:block}
+.summary h3{font-weight:800;font-size:1rem;margin-bottom:6px}
+.summary p{color:#a0b8d0;font-size:.85rem;line-height:1.6}
+.summary.all-ok{border-color:rgba(0,214,143,.3);background:rgba(0,214,143,.06)}
+.summary.has-fail{border-color:rgba(255,77,109,.3);background:rgba(255,77,109,.06)}
+.tip-box{background:#0b1526;border:1px solid #162235;border-radius:14px;padding:16px;margin-bottom:10px}
+.tip-box h4{font-size:.8rem;font-weight:700;color:#ffb800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.tip-box p{font-size:.82rem;color:#a0b8d0;line-height:1.6}
+.tip-box code{background:#060a12;padding:2px 7px;border-radius:5px;font-family:monospace;font-size:.8rem;color:#00ffcc}
+.nav-links{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.nav-link{text-decoration:none;color:#607898;font-size:.8rem;font-weight:600;padding:6px 12px;border:1px solid #162235;border-radius:8px;transition:all .2s}
+.nav-link:hover{border-color:rgba(0,255,200,.3);color:#00ffcc}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>TikGenius Diagnostics</h1>
+    <p>Runs live checks on your server — database, API keys, sessions, config.</p>
+  </div>
+  <div class="nav-links">
+    <a class="nav-link" href="/">Back to Studio</a>
+    <a class="nav-link" href="/health">Health Check</a>
+    <a class="nav-link" href="/admin">Admin Panel</a>
+  </div>
+  <button class="run-btn" id="runBtn" onclick="runDiag()">Run Diagnostics</button>
+  <div class="summary" id="summary"></div>
+  <div class="timestamp" id="ts"></div>
+  <div id="results"></div>
+  <div class="tip-box" style="margin-top:16px">
+    <h4>Most common fix needed</h4>
+    <p>If diagnostics pass but the site still feels broken, the #1 cause is <code>SECRET_KEY</code> not set in Railway. Add it in Railway > Variables: <code>SECRET_KEY = any-long-random-string</code>. Without it, every deploy logs everyone out.</p>
+  </div>
+</div>
+<script>
+async function runDiag() {
+  var btn = document.getElementById('runBtn');
+  var res = document.getElementById('results');
+  var sum = document.getElementById('summary');
+  btn.disabled = true; btn.textContent = 'Running...';
+  sum.className = 'summary'; sum.style.display = 'none';
+  res.innerHTML = '';
+
+  // Show placeholder cards
+  var checks = [
+    'Database connection','SECRET_KEY / Sessions','Groq API Key (AI generation)',
+    'Paystack Keys (payments)','DATABASE_URL format','Groq live API call',
+    'Session cookie config','Active session (are you logged in?)',
+    'Database tables','RapidAPI Key (TikTok downloader)'
+  ];
+  checks.forEach(function(name) {
+    res.innerHTML += '<div class="card"><div class="card-row"><div class="dot spin"></div><span class="check-name">'+name+'</span><span class="check-ms">running...</span></div></div>';
+  });
+
+  try {
+    var r = await fetch('/api/diag/run', {credentials:'include'});
+    var d = await r.json();
+    res.innerHTML = '';
+    d.results.forEach(function(c) {
+      var cls = c.ok ? 'ok' : 'fail';
+      res.innerHTML += '<div class="card">'+
+        '<div class="card-row">'+
+        '<div class="dot '+cls+'"></div>'+
+        '<span class="check-name">'+c.name+'</span>'+
+        '<span class="check-ms">'+c.ms+'ms</span>'+
+        '</div>'+
+        '<div class="check-detail '+cls+'">'+escHtml(c.detail)+'</div>'+
+        '</div>';
+    });
+    var fails = d.results.filter(function(r){return !r.ok;});
+    sum.style.display = 'block';
+    if (d.all_ok) {
+      sum.className = 'summary show all-ok';
+      sum.innerHTML = '<h3>All checks passed</h3><p>Everything looks good. If the site is still broken, check that SECRET_KEY is set in Railway variables and try clearing your browser cookies.</p>';
+    } else {
+      sum.className = 'summary show has-fail';
+      sum.innerHTML = '<h3>'+fails.length+' issue'+(fails.length>1?'s':'')+' found</h3><p>'+
+        fails.map(function(f){return '<strong>'+f.name+':</strong> '+escHtml(f.detail);}).join('<br>')+
+        '</p>';
+    }
+    document.getElementById('ts').style.display = 'block';
+    document.getElementById('ts').textContent = 'Last run: '+new Date(d.timestamp+'Z').toLocaleString();
+  } catch(e) {
+    res.innerHTML = '<div class="card"><div class="card-row"><div class="dot fail"></div><span class="check-name">Could not reach /api/diag/run</span></div><div class="check-detail fail">'+e.message+'</div></div>';
+  }
+  btn.disabled = false; btn.textContent = 'Run Again';
+}
+
+function escHtml(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+runDiag();
+</script>
+</body>
+</html>"""
 
 STUDIO_HTML = """<!DOCTYPE html>
 <html lang="en">

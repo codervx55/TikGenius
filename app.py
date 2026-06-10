@@ -595,6 +595,32 @@ Your content is bold, quotable, and sharp. The kind people screenshot and send t
 
 Every tweet under 280 characters. Clean English. Proper punctuation — no ellipsis (...)."""
 
+# ===== Conversational chat system prompt (free chat, content creators only) =====
+CHAT_SYSTEM = """You are TikGenius — a friendly, sharp AI assistant built ONLY for content creators. You chat naturally, like a smart creative partner the user can talk to about anything related to making content.
+
+YOUR SCOPE — you help with anything in the world of content creation:
+- TikTok, Instagram, YouTube, Twitter/X, Facebook content
+- Captions, hooks, video scripts, POV concepts, bios, hashtags, thread ideas
+- Content ideas, niche selection, posting strategy, going viral, trends
+- Audience growth, engagement, monetization as a creator, brand deals
+- Feedback on the user's drafts, captions, or ideas
+- Planning content calendars, repurposing content across platforms
+
+{region_voice}
+
+HOW TO BEHAVE:
+- Be conversational and natural. Answer the user's question directly first.
+- If they ask for content (captions, hooks, a script), generate it immediately — do NOT interrogate them with questions first. If one short clarifying question would massively improve the result, you may ask it, but never more than one.
+- Remember the conversation context — build on what was said earlier.
+- When delivering a content pack or list, label sections in bold like **5 HOOKS** and number items 1) 2) 3).
+- Keep advice specific and practical, never generic motivational fluff.
+
+STRICT SCOPE RULE: You ONLY discuss content creation and creator growth. If the user asks about anything unrelated — homework, coding, politics, medical or legal advice, relationships, general knowledge — politely say you are built only for content creators, and invite them back to their content. Do not answer off-topic questions, not even partially.
+
+PUNCTUATION RULE: Never use "..." (ellipsis). Use a dash ( — ), a line break, or a full stop instead.
+
+LANGUAGE: Clean modern English. Casual, real, emotional, and sharp. Never sound like a motivational poster or a robotic AI."""
+
 TIKTOK_PROMPTS = {
 "hooks": """Write 10 TikTok hooks for a creator posting about: {topic}
 
@@ -1062,111 +1088,70 @@ def clear_history():
 @app.route("/api/chat", methods=["POST"])
 @login_required
 def chat():
+    """Free-flowing conversational AI for content creators.
+    Accepts the full conversation history and replies naturally,
+    while staying strictly scoped to content creation topics."""
     data = request.json or {}
-    stage = data.get("stage", "question")
-    idea = (data.get("idea") or "").strip()[:600]
-    answers = data.get("answers") or {}
+    raw_msgs = data.get("messages") or []
     region = data.get("region", "global")
 
-    if not idea:
-        return jsonify({"error": "Please share your content idea first"}), 400
+    # Sanitize and cap the conversation history
+    clean = []
+    for m in raw_msgs[-12:]:
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role")
+        content = (m.get("content") or "").strip()[:4000]
+        if role in ("user", "assistant") and content:
+            clean.append({"role": role, "content": content})
+
+    if not clean or clean[-1]["role"] != "user":
+        return jsonify({"error": "Please type a message first"}), 400
+
+    user_id = session["user_id"]
+    if not check_and_increment_web_usage(user_id):
+        return jsonify({"error": "You have used all 5 free messages today. Upgrade to Premium for unlimited access."}), 429
 
     region_voice = REGION_VOICES.get(region, REGION_VOICES["global"])
+    system = CHAT_SYSTEM.format(region_voice=region_voice)
 
-    if stage == "question":
-        system = f"""You are TikGenius — a viral content strategist. A creator just shared their content idea.
-Your job: ask exactly 3 short, smart questions to understand what they need so you can create the perfect content.
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "system", "content": system}] + clean,
+        "temperature": 0.85,
+        "max_tokens": 2000,
+        "top_p": 0.95
+    }
+    try:
+        res = http_session.post(url, json=payload, headers=headers, timeout=40)
+        api_data = res.json()
+        if "choices" not in api_data or not api_data["choices"]:
+            print(f"Groq chat error: {api_data}")
+            return jsonify({"error": "The AI could not respond. Please try again."}), 500
+        reply = api_data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print(f"Chat error: {e}")
+        return jsonify({"error": "Could not reach the AI. Please try again."}), 500
 
-{region_voice}
+    # Save the exchange to history
+    last_user_msg = clean[-1]["content"]
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO web_generations (user_id, mode, platform, topic, result)
+                VALUES (%s, %s, %s, %s, %s)""", (user_id, "chat", "auto", last_user_msg[:500], reply))
+        conn.commit()
+    finally:
+        release_db(conn)
 
-Rules:
-- Ask ONLY 3 questions, numbered 1. 2. 3.
-- Questions must be SHORT — one line each
-- Cover: (1) their target audience/who this is for, (2) the emotion or goal (inspire/funny/educate/sell), (3) platform preference (TikTok, X/Twitter, or both)
-- Do NOT explain yourself. Just the 3 questions.
-- Do NOT say "Great idea!" or any filler. Just start with "1."
-"""
-        prompt = f'Creator idea: "{idea}"\n\nAsk your 3 questions.'
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-            "temperature": 0.7, "max_tokens": 300
-        }
-        try:
-            res = http_session.post(url, json=payload, headers=headers, timeout=20)
-            questions = res.json()["choices"][0]["message"]["content"].strip()
-            return jsonify({"stage": "question", "questions": questions})
-        except Exception as e:
-            return jsonify({"error": "Could not connect to AI. Please try again."}), 500
-
-    elif stage == "generate":
-        user_id = session["user_id"]
-        if not check_and_increment_web_usage(user_id):
-            return jsonify({"error": "You have used all 5 free generations today. Upgrade to Premium for unlimited access."}), 429
-
-        answers_text = "\n".join([f"Q{k}: {v}" for k, v in answers.items() if v])
-        system = f"""You are TikGenius — a viral content strategist who has studied millions of viral posts globally.
-
-{region_voice}
-
-PUNCTUATION RULE: Never use "..." (ellipsis). Use a dash ( — ) or a line break instead.
-Write clean, modern, emotionally sharp content. Never sound like a motivational poster or AI."""
-
-        prompt = f"""A creator needs content based on this:
-
-Idea: {idea}
-{answers_text}
-
-Based on everything above, create a complete content package:
-
-**5 VIRAL CAPTIONS** (TikTok/Instagram — 1-3 lines, emotional, scroll-stopping)
-
-**5 HOOKS** (First line that stops the scroll in 2 seconds — under 15 words each)
-
-**3 POV CONCEPTS** (POV: [specific moment or feeling])
-
-**1 VIDEO SCRIPT** (Hook 0-3s / Body 4-45s / Punchline 45-55s / CTA 55-60s — 130-160 words)
-
-**5 HASHTAG SETS** (7 hashtags each — mix of large and niche)
-
-If the platform is X/Twitter, also add:
-**3 X POSTS** (bold, quotable, under 280 chars each)
-
-Label each section clearly. Make every output specific to their idea — not generic."""
-
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-            "temperature": 0.9, "max_tokens": 2000
-        }
-        try:
-            res = http_session.post(url, json=payload, headers=headers, timeout=40)
-            result = res.json()["choices"][0]["message"]["content"].strip()
-        except Exception as e:
-            return jsonify({"error": "Could not generate content. Please try again."}), 500
-
-        full_topic = idea + (" | " + answers_text if answers_text else "")
-        conn = get_db()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("""INSERT INTO web_generations (user_id, mode, platform, topic, result)
-                    VALUES (%s, %s, %s, %s, %s)""", (user_id, "full_pack", "auto", full_topic[:500], result))
-            conn.commit()
-        finally:
-            release_db(conn)
-
-        return jsonify({
-            "stage": "result",
-            "result": result,
-            "uses_remaining": web_uses_remaining(user_id) if not is_web_pro(user_id) else None,
-            "unlimited": is_web_pro(user_id)
-        })
-
-    return jsonify({"error": "Invalid stage"}), 400
+    pro = is_web_pro(user_id)
+    return jsonify({
+        "reply": reply,
+        "uses_remaining": web_uses_remaining(user_id) if not pro else None,
+        "unlimited": pro
+    })
 
 
 @app.route("/api/generate", methods=["POST"])
@@ -2152,9 +2137,14 @@ def telegram_webhook():
     return jsonify({"ok": True, "message": "Telegram bot disabled. Use the website."})
 
 # ========================= HTML PAGES =========================
+# NOTE: All HTML constants below are RAW strings (r""") so that JavaScript
+# escape sequences like \n inside the embedded <script> blocks are served
+# to the browser exactly as written. Without the r prefix, Python converts
+# \n into a real newline, which breaks the JavaScript with a syntax error
+# and silently kills every button on the page.
 
 
-DIAG_HTML = """<!DOCTYPE html>
+DIAG_HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2279,7 +2269,7 @@ runDiag();
 </body>
 </html>"""
 
-STUDIO_HTML = """<!DOCTYPE html>
+STUDIO_HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2361,35 +2351,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .msg.ai .msg-name{color:var(--accent)}
 .msg.user .msg-name{color:var(--muted);text-align:right}
 .msg-bubble{padding:12px 15px;border-radius:14px;font-size:.9rem;line-height:1.65}
-.msg.ai .msg-bubble{background:var(--card);border:1px solid var(--border);color:var(--text);border-top-left-radius:4px}
+.msg.ai .msg-bubble{background:var(--card);border:1px solid var(--border);color:var(--text);border-top-left-radius:4px;word-wrap:break-word}
 .msg.user .msg-bubble{background:rgba(0,255,204,.09);border:1px solid rgba(0,255,204,.18);color:var(--text);border-top-right-radius:4px}
-.q-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:none}
-.q-card.show{display:block}
-.q-card-title{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
-.q-item{margin-bottom:12px}
-.q-item:last-child{margin-bottom:0}
-.q-item label{display:block;font-size:.8rem;font-weight:600;color:var(--text);margin-bottom:5px;line-height:1.4}
-.q-item textarea{width:100%;background:#0d0d14;border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:9px;font-size:.875rem;font-family:var(--font);outline:none;resize:none;transition:border-color .2s;line-height:1.5}
-.q-item textarea:focus{border-color:rgba(0,255,204,.4);box-shadow:0 0 0 3px rgba(0,255,204,.06)}
-.gen-btn{width:100%;margin-top:14px;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:11px;color:#050a08;font-weight:800;font-size:.95rem;font-family:var(--font);cursor:pointer;transition:all .2s}
-.gen-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,255,204,.3)}
-.gen-btn:disabled{opacity:.5;transform:none;box-shadow:none}
-.output-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:none}
-.output-card.show{display:block}
-.output-top{display:flex;justify-content:space-between;align-items:center;padding:12px 15px;border-bottom:1px solid var(--border);background:#0d0d14}
-.output-top span{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
-.copy-all{background:transparent;border:1px solid rgba(0,255,204,.2);color:var(--accent);border-radius:7px;padding:5px 10px;font-size:.72rem;font-weight:700;font-family:var(--font);cursor:pointer;transition:all .2s}
-.copy-all:hover{background:rgba(0,255,204,.08)}
-.output-sections{display:flex;flex-direction:column}
-.out-section{border-bottom:1px solid var(--border)}
-.out-section:last-child{border-bottom:none}
-.out-section-head{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:rgba(0,0,0,.2);cursor:pointer;user-select:none}
-.out-section-head span{font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-.out-section-body{padding:14px 15px;white-space:pre-wrap;font-size:.875rem;line-height:1.72;color:#ccd6f6}
-.sect-copy{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 8px;font-size:.68rem;font-weight:700;font-family:var(--font);cursor:pointer;transition:all .2s;white-space:nowrap}
-.sect-copy:hover{border-color:var(--accent);color:var(--accent)}
-.new-idea{width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:var(--font);font-size:.85rem;font-weight:600;cursor:pointer;margin-top:10px;transition:all .2s}
-.new-idea:hover{border-color:var(--accent);color:var(--accent)}
+.msg-copy{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:7px;padding:4px 10px;font-size:.7rem;font-weight:700;font-family:var(--font);cursor:pointer;transition:all .2s;margin-top:6px}
+.msg-copy:hover{border-color:var(--accent);color:var(--accent)}
 .thinking-msg{display:none;align-items:center;gap:10px;padding:12px 15px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);color:var(--muted);font-size:.85rem;max-width:800px}
 .thinking-msg.show{display:flex}
 .dots{display:flex;gap:4px}
@@ -2415,6 +2380,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .submit-btn:disabled{opacity:.4}
 .input-meta{display:flex;justify-content:space-between;align-items:center}
 .input-hint{font-size:.72rem;color:var(--muted)}
+.input-meta-right{display:flex;gap:12px;align-items:center}
+.newchat-mini{background:transparent;border:none;color:var(--muted);font-size:.72rem;font-weight:700;cursor:pointer;font-family:var(--font);padding:2px 4px;transition:color .2s}
+.newchat-mini:hover{color:var(--accent)}
 .region-sel{background:transparent;border:none;color:var(--muted);font-size:.72rem;font-family:var(--font);cursor:pointer;outline:none;padding:2px 4px}
 .region-sel option{background:var(--card)}
 .profile-btn{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#050a08;font-weight:800;font-size:.8rem;cursor:pointer;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-family:var(--font)}
@@ -2510,10 +2478,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
         <div class="usage-text" id="usageText">5 / 5 left today</div>
       </div>
       <div class="upgrade-box" id="upgradeBox">
-        <p>You have used all your free generations. Upgrade for unlimited.</p>
+        <p>You have used all your free messages. Upgrade for unlimited.</p>
         <button onclick="doUpgrade()">Upgrade - N2,000/mo</button>
       </div>
       <div class="s-divider"></div>
+      <button class="s-item" onclick="resetChat()">+ New Chat</button>
       <a class="s-item accent" href="/download">TikTok Downloader</a>
       <button class="s-item gold" id="earnLink" style="display:none" onclick="openProfile()">Earn N500/Referral</button>
       <div class="s-divider"></div>
@@ -2522,7 +2491,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
         <button onclick="clearHistory()" style="background:transparent;border:none;color:var(--muted);font-size:.68rem;cursor:pointer;font-family:var(--font)">Clear</button>
       </div>
       <div class="hist-scroll" id="histScroll">
-        <div class="hist-empty">Generate something to see history</div>
+        <div class="hist-empty">Chat with TikGenius to see history</div>
       </div>
     </div>
     <div class="sidebar-footer">
@@ -2535,21 +2504,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
       <div class="welcome" id="welcomeState">
         <div class="welcome-icon">*</div>
         <h2>What do you want to <span>create today?</span></h2>
-        <p>Describe your content idea below. The AI will ask 3 quick questions, then generate captions, hooks, scripts, hashtags and more.</p>
+        <p>Chat with TikGenius like a creative partner. Ask for captions, hooks, scripts, hashtags, content ideas, or growth advice — anything content.</p>
         <div id="guestPrompt" style="display:none;background:rgba(0,255,204,.06);border:1px solid rgba(0,255,204,.2);border-radius:12px;padding:14px 18px;text-align:center;margin-top:4px">
-          <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px;line-height:1.5">Create a free account to start generating content</p>
+          <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px;line-height:1.5">Create a free account to start chatting</p>
           <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
             <button onclick="openModal('signup')" style="padding:9px 20px;background:var(--accent);border:none;border-radius:9px;color:#050a08;font-weight:800;font-size:.85rem;font-family:var(--font);cursor:pointer">Sign Up Free</button>
             <button onclick="openModal('login')" style="padding:9px 20px;background:transparent;border:1px solid var(--border);border-radius:9px;color:var(--muted);font-weight:700;font-size:.85rem;font-family:var(--font);cursor:pointer">Log In</button>
           </div>
         </div>
         <div class="welcome-pills">
-          <span class="wpill" onclick="fillExample(this)">My fitness transformation journey</span>
-          <span class="wpill" onclick="fillExample(this)">How I make money online</span>
-          <span class="wpill" onclick="fillExample(this)">Nigerian food recipes</span>
-          <span class="wpill" onclick="fillExample(this)">Motivational content for students</span>
-          <span class="wpill" onclick="fillExample(this)">My business growth story</span>
-          <span class="wpill" onclick="fillExample(this)">Fashion and style tips</span>
+          <span class="wpill" onclick="fillExample(this)">Give me 10 hooks for my fitness journey</span>
+          <span class="wpill" onclick="fillExample(this)">Write a TikTok script about making money online</span>
+          <span class="wpill" onclick="fillExample(this)">What should I post to grow my food page?</span>
+          <span class="wpill" onclick="fillExample(this)">Captions for motivational content for students</span>
+          <span class="wpill" onclick="fillExample(this)">How do I get my first 1,000 followers?</span>
+          <span class="wpill" onclick="fillExample(this)">Hashtags for fashion and style content</span>
         </div>
       </div>
     </div>
@@ -2561,8 +2530,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
       </div>
       <div class="err-msg" id="errMsg"></div>
       <div class="upgrade-banner" id="upgradeBanner">
-        <h4>Free generations used up</h4>
-        <p>Upgrade to Premium for unlimited content, every day.</p>
+        <h4>Free messages used up</h4>
+        <p>Upgrade to Premium for unlimited messages, every day.</p>
         <button onclick="doUpgrade()">Upgrade to Premium - N2,000/mo</button>
       </div>
     </div>
@@ -2573,34 +2542,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   <div class="input-inner">
     <div class="input-row">
       <textarea class="chat-input" id="chatInput" rows="1"
-        placeholder="Describe your content idea..."
+        placeholder="Ask TikGenius anything about your content..."
         onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
       <button class="submit-btn" id="submitBtn" onclick="handleSend()" title="Send">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
     </div>
     <div class="input-meta">
-      <span class="input-hint" id="inputHint">Type your idea and press Enter</span>
-      <select class="region-sel" id="regionSel" onchange="saveRegion(this.value)">
-        <option value="global">Global</option>
-        <option value="nigeria">Nigeria</option>
-        <option value="usa">USA</option>
-        <option value="uk">UK</option>
-        <option value="caribbean">Caribbean</option>
-        <option value="eastafrica">East Africa</option>
-        <option value="southafrica">South Africa</option>
-      </select>
+      <span class="input-hint" id="inputHint">Type a message and press Enter</span>
+      <div class="input-meta-right">
+        <button class="newchat-mini" onclick="resetChat()">New Chat</button>
+        <select class="region-sel" id="regionSel" onchange="saveRegion(this.value)">
+          <option value="global">Global</option>
+          <option value="nigeria">Nigeria</option>
+          <option value="usa">USA</option>
+          <option value="uk">UK</option>
+          <option value="caribbean">Caribbean</option>
+          <option value="eastafrica">East Africa</option>
+          <option value="southafrica">South Africa</option>
+        </select>
+      </div>
     </div>
   </div>
 </div>
-
-<template id="qCardTpl">
-  <div class="q-card" id="qCard">
-    <div class="q-card-title">Answer these 3 questions</div>
-    <div id="qBody"></div>
-    <button class="gen-btn" onclick="submitAnswers()">Generate My Content</button>
-  </div>
-</template>
 
 <div class="profile-backdrop" id="profileBackdrop" onclick="closeProfile()"></div>
 <div class="profile-panel" id="profilePanel">
@@ -2634,7 +2598,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     <div class="profile-section">
       <div class="profile-section-head">Daily Usage</div>
       <div class="profile-section-body">
-        <div class="stat-row"><span class="stat-label">Generations today</span><span class="stat-val" id="profUsage">-</span></div>
+        <div class="stat-row"><span class="stat-label">Messages today</span><span class="stat-val" id="profUsage">-</span></div>
         <div class="stat-row"><span class="stat-label">Plan</span><span class="stat-val green" id="profPlanTxt">Free (5/day)</span></div>
       </div>
     </div>
@@ -2647,7 +2611,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 <div class="modal-backdrop" id="authBackdrop">
   <div class="modal">
     <h2 id="modalH">Create your account</h2>
-    <p class="modal-sub" id="modalSub">5 free AI generations per day, no card needed.</p>
+    <p class="modal-sub" id="modalSub">5 free AI messages per day, no card needed.</p>
     <div class="modal-tabs">
       <button class="modal-tab on" id="tabA" onclick="switchTab('signup')">Sign Up</button>
       <button class="modal-tab" id="tabB" onclick="switchTab('login')">Log In</button>
@@ -2681,9 +2645,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 
 <script>
 var user = null;
-var idea = '';
-var questions = [];
-var stage = 'idle';
+var chatHistory = [];
+var sending = false;
 var urlRef = new URLSearchParams(location.search).get('ref') || '';
 
 async function init() {
@@ -2691,13 +2654,9 @@ async function init() {
     var r = await fetch('/api/me', {credentials:'include'});
     if (r.ok) {
       user = await r.json();
-      console.log('[TikGenius] /api/me ok, user:', user);
       applyUser();
       loadHistory();
     } else {
-      var errData = {};
-      try { errData = await r.json(); } catch(e2) {}
-      console.warn('[TikGenius] /api/me failed:', r.status, errData);
       showGuest();
     }
   } catch(e) {
@@ -2756,172 +2715,96 @@ function updateUsage(rem, unlimited) {
 
 function handleSend() {
   var text = (document.getElementById('chatInput').value || '').trim();
-  if (!text) return;
-  console.log('[TikGenius] handleSend: user=', user, 'stage=', stage);
+  if (!text || sending) return;
   if (!user) {
-    console.warn('[TikGenius] handleSend: user is null, opening modal');
-    showErr('Please log in first to send a prompt.');
+    showErr('Please log in first to send a message.');
     sessionStorage.setItem('pendingIdea', text);
     openModal('signup');
     return;
   }
-  if (stage === 'idle') startIdea(text);
-  else if (stage === 'done') { resetChat(); }
-  else { console.warn('[TikGenius] handleSend: stage is', stage, '- not idle or done'); }
+  sendMessage(text);
 }
 
-async function startIdea(text) {
-  if (text.split(' ').length < 3) { showErr('Add a bit more detail at least 3 words'); return; }
-  idea = text;
-  stage = 'asking';
+async function sendMessage(text) {
   hideErr(); hideBanner();
-  document.getElementById('chatInput').value = '';
-  autoResize(document.getElementById('chatInput'));
-  document.getElementById('welcomeState').style.display = 'none';
+  var input = document.getElementById('chatInput');
+  input.value = '';
+  autoResize(input);
+  var w = document.getElementById('welcomeState');
+  if (w) w.style.display = 'none';
   addMsg('user', text);
-  setThinking(true, 'Understanding your idea...');
-  try {
-    var r = await fetch('/api/chat', { credentials:'include', method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ stage:'question', idea:idea, region: document.getElementById('regionSel').value }) });
-    var d = await r.json();
-    setThinking(false);
-    if (d.error) { showErr(d.error); stage='idle'; return; }
-    showQuestions(d.questions);
-  } catch(e) {
-    setThinking(false);
-    console.error('[TikGenius] startIdea error:', e);
-    showErr('Network error: ' + e.message + '. Check your connection and try again.');
-    stage='idle';
-  }
-}
-
-function showQuestions(qText) {
-  addMsg('ai', qText);
-  var lines = qText.split('\n').filter(function(l){ return /^\d+[.)\s]/.test(l.trim()) && l.trim().length > 5; });
-  if (!lines.length) lines = qText.split('\n').filter(function(l){ return l.trim().length > 8; }).slice(0,3);
-  questions = lines.map(function(l){ return l.replace(/^\d+[.)\s]+/,'').trim(); });
-
-  var tpl = document.getElementById('qCardTpl').content.cloneNode(true);
-  var card = tpl.querySelector('.q-card');
-  card.id = 'qCard_' + Date.now();
-  var body = tpl.querySelector('#qBody');
-  body.innerHTML = questions.map(function(q,i){
-    return '<div class="q-item"><label>' + escHtml(q) + '</label>' +
-      '<textarea id="qa'+i+'" rows="2" placeholder="Your answer..."></textarea></div>';
-  }).join('');
-  tpl.querySelector('.gen-btn').setAttribute('onclick','submitAnswers()');
-
-  var msgs = document.getElementById('chatMessages');
-  msgs.appendChild(tpl);
-  var appended = msgs.lastElementChild;
-  appended.classList.add('show');
-  appended.id = 'activeQCard';
-  appended.scrollIntoView({ behavior:'smooth', block:'nearest' });
-  stage = 'asked';
-  document.getElementById('inputHint').textContent = 'Answer the questions above, then click Generate';
+  chatHistory.push({ role: 'user', content: text });
+  sending = true;
   document.getElementById('submitBtn').disabled = true;
-}
-
-async function submitAnswers() {
-  var answers = {};
-  var ok = true;
-  questions.forEach(function(q,i){
-    var el = document.getElementById('qa'+i);
-    var val = el ? el.value.trim() : '';
-    if (!val) ok = false;
-    answers[i+1] = q + ': ' + val;
-  });
-  if (!ok) { showErr('Please answer all 3 questions first'); return; }
-  hideErr();
-  var qCard = document.getElementById('activeQCard');
-  if (qCard) qCard.style.opacity = '.5';
-  var genBtn = qCard ? qCard.querySelector('.gen-btn') : null;
-  if (genBtn) genBtn.disabled = true;
-  setThinking(true, 'Creating your full content pack...');
+  setThinking(true, 'TikGenius is thinking...');
   try {
-    var r = await fetch('/api/chat', { credentials:'include', method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ stage:'generate', idea:idea, answers:answers, region: document.getElementById('regionSel').value }) });
+    var r = await fetch('/api/chat', { credentials:'include', method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ messages: chatHistory, region: document.getElementById('regionSel').value }) });
     var d = await r.json();
     setThinking(false);
+    sending = false;
+    document.getElementById('submitBtn').disabled = false;
     if (d.error) {
+      chatHistory.pop();
       showErr(d.error);
-      if (r.status===429) showBanner();
-      if (qCard) { qCard.style.opacity='1'; if(genBtn) genBtn.disabled=false; }
+      if (r.status === 429) showBanner();
       return;
     }
-    if (qCard) qCard.remove();
-    renderOutput(d.result);
-    if (d.uses_remaining !== undefined) updateUsage(d.uses_remaining, false);
-    else if (d.unlimited) updateUsage(null, true);
+    chatHistory.push({ role: 'assistant', content: d.reply });
+    addAiReply(d.reply);
+    if (d.unlimited) updateUsage(null, true);
+    else if (d.uses_remaining !== undefined && d.uses_remaining !== null) updateUsage(d.uses_remaining, false);
     loadHistory();
-    stage = 'done';
-    document.getElementById('inputHint').textContent = 'Content ready, click New Idea to start again';
-    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('inputHint').textContent = 'Reply to keep the conversation going';
   } catch(e) {
     setThinking(false);
-    showErr('Network error, try again.');
-    if (qCard) { qCard.style.opacity='1'; if(genBtn) genBtn.disabled=false; }
+    sending = false;
+    document.getElementById('submitBtn').disabled = false;
+    chatHistory.pop();
+    console.error('[TikGenius] sendMessage error:', e);
+    showErr('Network error: ' + e.message + '. Check your connection and try again.');
   }
 }
 
-function renderOutput(text) {
-  var card = document.createElement('div');
-  card.className = 'output-card show';
-  var sections = [];
-  var parts = text.split(/\n(?=\*\*[A-Z0-9])/);
-  parts.forEach(function(p) {
-    var m = p.match(/^\*\*(.+?)\*\*\s*\n?([\s\S]*)/);
-    if (m) sections.push({ h: m[1].trim(), b: m[2].trim() });
-    else if (p.trim()) sections.push({ h: 'Content', b: p.trim() });
-  });
-  if (!sections.length) sections.push({ h: 'Your Content', b: text.trim() });
+function formatAI(s) {
+  var e = escHtml(s);
+  e = e.replace(/\*\*(.+?)\*\*/g, '<b style="color:var(--accent)">$1</b>');
+  return e.replace(/\n/g, '<br>');
+}
 
-  var sectionsHtml = sections.map(function(s, idx) {
-    return '<div class="out-section">' +
-      '<div class="out-section-head"><span>' + escHtml(s.h) + '</span>' +
-      '<button class="sect-copy" data-sec="' + idx + '">Copy</button></div>' +
-      '<div class="out-section-body">' + escHtml(s.b) + '</div></div>';
-  }).join('');
-
-  card.innerHTML = '<div class="output-top"><span>Content Ready</span>' +
-    '<button class="copy-all">Copy All</button></div>' +
-    '<div class="output-sections">' + sectionsHtml + '</div>';
-
-  card.querySelector('.copy-all').addEventListener('click', function() { copyRaw(this, text); });
-  card.querySelectorAll('.sect-copy').forEach(function(btn) {
-    var idx = parseInt(btn.getAttribute('data-sec'));
-    btn.addEventListener('click', function() { copyRaw(this, sections[idx].b); });
-  });
-
+function addAiReply(text) {
   var msgs = document.getElementById('chatMessages');
-  msgs.appendChild(card);
-  var btn = document.createElement('button');
-  btn.className = 'new-idea';
-  btn.textContent = 'New Idea';
-  btn.onclick = resetChat;
-  msgs.appendChild(btn);
-  card.scrollIntoView({ behavior:'smooth', block:'start' });
+  var div = document.createElement('div');
+  div.className = 'msg ai';
+  div.innerHTML = '<div class="msg-avatar">TG</div>' +
+    '<div class="msg-body"><div class="msg-name">TikGenius</div>' +
+    '<div class="msg-bubble">' + formatAI(text) + '</div>' +
+    '<button class="msg-copy">Copy</button></div>';
+  div.querySelector('.msg-copy').addEventListener('click', function(){ copyRaw(this, text); });
+  msgs.appendChild(div);
+  div.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 function resetChat() {
-  idea = ''; questions = []; stage = 'idle';
+  chatHistory = [];
   var msgs = document.getElementById('chatMessages');
-  msgs.innerHTML = '';
   msgs.innerHTML = '<div class="welcome" id="welcomeState">' +
     '<div class="welcome-icon">*</div>' +
     '<h2>What do you want to <span>create today?</span></h2>' +
-    '<p>Describe your content idea below. The AI will ask 3 quick questions, then generate captions, hooks, scripts, hashtags and more.</p>' +
+    '<p>Chat with TikGenius like a creative partner. Ask for captions, hooks, scripts, hashtags, content ideas, or growth advice — anything content.</p>' +
     '<div class="welcome-pills">' +
-    '<span class="wpill" onclick="fillExample(this)">My fitness transformation journey</span>' +
-    '<span class="wpill" onclick="fillExample(this)">How I make money online</span>' +
-    '<span class="wpill" onclick="fillExample(this)">Nigerian food recipes</span>' +
-    '<span class="wpill" onclick="fillExample(this)">Motivational content for students</span>' +
-    '<span class="wpill" onclick="fillExample(this)">My business growth story</span>' +
-    '<span class="wpill" onclick="fillExample(this)">Fashion and style tips</span>' +
+    '<span class="wpill" onclick="fillExample(this)">Give me 10 hooks for my fitness journey</span>' +
+    '<span class="wpill" onclick="fillExample(this)">Write a TikTok script about making money online</span>' +
+    '<span class="wpill" onclick="fillExample(this)">What should I post to grow my food page?</span>' +
+    '<span class="wpill" onclick="fillExample(this)">Captions for motivational content for students</span>' +
+    '<span class="wpill" onclick="fillExample(this)">How do I get my first 1,000 followers?</span>' +
+    '<span class="wpill" onclick="fillExample(this)">Hashtags for fashion and style content</span>' +
     '</div></div>';
   document.getElementById('chatInput').value = '';
-  document.getElementById('inputHint').textContent = 'Type your idea and press Enter';
+  document.getElementById('inputHint').textContent = 'Type a message and press Enter';
   document.getElementById('submitBtn').disabled = false;
+  sending = false;
   hideErr(); hideBanner();
 }
 
@@ -2933,7 +2816,7 @@ async function loadHistory() {
     var hs = document.getElementById('histScroll');
     if (!hs) return;
     if (!items.length) {
-      hs.innerHTML = '<div class="hist-empty">Generate something to see history</div>';
+      hs.innerHTML = '<div class="hist-empty">Chat with TikGenius to see history</div>';
       return;
     }
     hs.innerHTML = '';
@@ -2949,10 +2832,14 @@ async function loadHistory() {
 }
 
 function loadHistItem(item) {
-  stage = 'done';
+  chatHistory = [
+    { role: 'user', content: item.topic || '' },
+    { role: 'assistant', content: item.result || '' }
+  ];
   document.getElementById('chatMessages').innerHTML = '';
-  addMsg('user', item.topic || 'Past generation');
-  renderOutput(item.result || '');
+  addMsg('user', item.topic || 'Past chat');
+  addAiReply(item.result || '');
+  document.getElementById('inputHint').textContent = 'Reply to keep the conversation going';
   closeProfile();
 }
 
@@ -3023,7 +2910,7 @@ function switchTab(tab) {
   document.getElementById('tabA').classList.toggle('on', tab==='signup');
   document.getElementById('tabB').classList.toggle('on', tab==='login');
   document.getElementById('modalH').textContent = tab==='signup' ? 'Create your account' : 'Welcome back';
-  document.getElementById('modalSub').textContent = tab==='signup' ? '5 free AI generations per day, no card needed.' : 'Log in to your TikGenius account';
+  document.getElementById('modalSub').textContent = tab==='signup' ? '5 free AI messages per day, no card needed.' : 'Log in to your TikGenius account';
 }
 
 async function doSignup() {
@@ -3114,14 +3001,12 @@ function copyRefLink() {
   });
 }
 
-
-
 if (location.search.includes('login=1')) { setTimeout(function(){ if(!user) openModal('login'); }, 500); }
 init();</script>
 </body>
 </html>"""
 
-REFER_HTML = """<!DOCTYPE html>
+REFER_HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3191,6 +3076,8 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
 .ref-item .badge{padding:3px 8px;border-radius:6px;font-weight:700;font-size:.7rem;white-space:nowrap;margin-left:8px}
 .badge.paid{background:rgba(34,197,94,.12);color:#86efac;border:1px solid rgba(34,197,94,.25)}
 .badge.pending{background:rgba(255,184,0,.12);color:#fde68a;border:1px solid rgba(255,184,0,.25)}
+.badge.success{background:rgba(34,197,94,.12);color:#86efac;border:1px solid rgba(34,197,94,.25)}
+.badge.failed{background:rgba(251,113,133,.12);color:#fda4af;border:1px solid rgba(251,113,133,.25)}
 .empty-state{color:var(--muted);font-size:.85rem;text-align:center;padding:20px;line-height:1.6}
 .err-box{display:none;color:#fecdd3;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.2);padding:10px 14px;border-radius:10px;font-size:.83rem;margin-bottom:10px}
 .err-box.show{display:block}
@@ -3449,7 +3336,7 @@ loadStats();loadBanks();loadWithdrawalHistory();
 </body>
 </html>"""
 
-DOWNLOAD_HTML = """<!DOCTYPE html>
+DOWNLOAD_HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3609,7 +3496,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:.85rem
     <div class="feat"><div class="feat-icon">~</div><h3>Audio Extraction</h3><p>Save the background music as a standalone MP3.</p></div>
   </div>
   <div class="also-try">
-    <div class="also-try-text"><strong>Also try the TikGenius AI Studio</strong><span>Write viral captions, hooks, POVs, scripts, and X threads</span></div>
+    <div class="also-try-text"><strong>Also try the TikGenius AI Studio</strong><span>Chat with the AI about captions, hooks, scripts, and growth</span></div>
     <a class="also-try-btn" href="/">Open AI Studio</a>
   </div>
 </div>

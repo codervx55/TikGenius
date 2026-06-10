@@ -2456,15 +2456,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     <svg width="24" height="24" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="lg1" x1="60" y1="50" x2="100" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffcc"/><stop offset="1" stop-color="rgba(0,255,200,.7)"/></linearGradient><linearGradient id="lg2" x1="100" y1="55" x2="145" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#00aaff"/><stop offset="1" stop-color="#00ffcc"/></linearGradient></defs><rect x="52" y="58" width="52" height="7" rx="2" fill="url(#lg1)"/><rect x="74" y="65" width="8" height="70" rx="2" fill="url(#lg1)"/><path d="M120 72 Q148 58 155 85 Q158 100 152 115 Q144 138 120 142 Q96 146 88 125 Q82 110 88 95 Q94 78 110 72" stroke="url(#lg2)" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="118" y="104" width="28" height="6.5" rx="2" fill="url(#lg2)"/></svg>
     Tik<em>Genius</em>
   </a>
-  <div class="nav-center" id="navCenter" style="display:none">
-    <span class="nav-pill" id="navPlan">Free Plan</span>
-  </div>
   <div class="nav-right">
-    <a class="nav-btn ghost" href="/download">Downloader</a>
     <button class="nav-btn ghost" id="navLogin" onclick="openModal('login')" style="display:none">Log In</button>
     <button class="nav-btn primary" id="navSignup" onclick="openModal('signup')" style="display:none">Sign Up Free</button>
     <button class="nav-btn earn" id="navEarn" onclick="handleEarnClick()">Start Earning</button>
-    <button class="profile-btn" id="profileBtn" onclick="openProfile()" title="Your Profile">P</button>
   </div>
 </nav>
 
@@ -2603,6 +2598,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
       </div>
     </div>
     <a class="profile-action-btn earn" href="/refer">Withdraw Earnings</a>
+    <a class="profile-action-btn" href="/download" style="background:transparent;border:1px solid var(--border);color:var(--muted)">TikTok Downloader</a>
     <button class="profile-action-btn upgrade" id="profUpgradeBtn" onclick="doUpgrade()" style="display:none">Upgrade to Premium - N2,000/mo</button>
     <button class="profile-action-btn danger" onclick="doLogout()">Log out</button>
   </div>
@@ -2672,11 +2668,6 @@ function applyUser() {
   var isPro = user.plan === 'pro';
   document.getElementById('navLogin').style.display = 'none';
   document.getElementById('navSignup').style.display = 'none';
-  document.getElementById('navCenter').style.display = 'flex';
-  document.getElementById('navPlan').textContent = isPro ? 'Premium' : 'Free Plan';
-  var pb = document.getElementById('profileBtn');
-  pb.style.display = 'flex';
-  pb.textContent = (user.email || 'U')[0].toUpperCase();
   document.getElementById('planBox').style.display = 'block';
   document.getElementById('planName').textContent = isPro ? 'Premium' : 'Free Plan';
   document.getElementById('planEmail').textContent = user.email;

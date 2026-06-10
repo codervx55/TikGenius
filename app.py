@@ -2457,6 +2457,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     Tik<em>Genius</em>
   </a>
   <div class="nav-right">
+    <a class="nav-btn ghost" href="/download">Downloader</a>
     <button class="nav-btn ghost" id="navLogin" onclick="openModal('login')" style="display:none">Log In</button>
     <button class="nav-btn primary" id="navSignup" onclick="openModal('signup')" style="display:none">Sign Up Free</button>
     <button class="nav-btn earn" id="navEarn" onclick="handleEarnClick()">Start Earning</button>

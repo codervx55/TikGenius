@@ -210,6 +210,22 @@ def init_db():
                 attempted_at TIMESTAMP DEFAULT NOW()
             )""")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_hash, attempted_at)")
+            cur.execute("""CREATE TABLE IF NOT EXISTS web_conversations (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
+                title TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS web_chat_messages (
+                id SERIAL PRIMARY KEY,
+                conversation_id INTEGER NOT NULL REFERENCES web_conversations(id) ON DELETE CASCADE,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )""")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_web_conversations_user ON web_conversations(user_id, updated_at)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_web_chat_messages_conv ON web_chat_messages(conversation_id, id)")
         conn.commit()
     finally:
         release_db(conn)
@@ -1085,6 +1101,51 @@ def clear_history():
     finally:
         release_db(conn)
 
+@app.route("/api/conversations")
+@login_required
+def list_conversations():
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT id, title, created_at, updated_at
+                FROM web_conversations WHERE user_id=%s
+                ORDER BY updated_at DESC LIMIT 30""", (session["user_id"],))
+            rows = cur.fetchall()
+        return jsonify({"items": [dict(r) for r in rows]})
+    finally:
+        release_db(conn)
+
+@app.route("/api/conversations/<int:conv_id>")
+@login_required
+def get_conversation(conv_id):
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, title FROM web_conversations WHERE id=%s AND user_id=%s",
+                (conv_id, session["user_id"]))
+            conv = cur.fetchone()
+            if not conv:
+                return jsonify({"error": "Conversation not found"}), 404
+            cur.execute("""SELECT role, content FROM web_chat_messages
+                WHERE conversation_id=%s ORDER BY id ASC LIMIT 200""", (conv_id,))
+            msgs = cur.fetchall()
+        return jsonify({"id": conv["id"], "title": conv["title"],
+            "messages": [{"role": m["role"], "content": m["content"]} for m in msgs]})
+    finally:
+        release_db(conn)
+
+@app.route("/api/conversations/clear", methods=["POST"])
+@login_required
+def clear_conversations():
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM web_conversations WHERE user_id=%s", (session["user_id"],))
+        conn.commit()
+        return jsonify({"success": True})
+    finally:
+        release_db(conn)
+
 @app.route("/api/chat", methods=["POST"])
 @login_required
 def chat():
@@ -1094,6 +1155,7 @@ def chat():
     data = request.json or {}
     raw_msgs = data.get("messages") or []
     region = data.get("region", "global")
+    conversation_id = data.get("conversation_id")
 
     # Sanitize and cap the conversation history
     clean = []
@@ -1135,11 +1197,30 @@ def chat():
         print(f"Chat error: {e}")
         return jsonify({"error": "Could not reach the AI. Please try again."}), 500
 
-    # Save the exchange to history
+    # Save the exchange to permanent conversation history
     last_user_msg = clean[-1]["content"]
     conn = get_db()
     try:
         with conn.cursor() as cur:
+            conv_id = None
+            if conversation_id:
+                try:
+                    cur.execute("SELECT id FROM web_conversations WHERE id=%s AND user_id=%s",
+                        (int(conversation_id), user_id))
+                    row = cur.fetchone()
+                    if row:
+                        conv_id = row["id"]
+                except (ValueError, TypeError):
+                    conv_id = None
+            if not conv_id:
+                cur.execute("""INSERT INTO web_conversations (user_id, title)
+                    VALUES (%s, %s) RETURNING id""", (user_id, last_user_msg[:80]))
+                conv_id = cur.fetchone()["id"]
+            cur.execute("""INSERT INTO web_chat_messages (conversation_id, role, content)
+                VALUES (%s, 'user', %s)""", (conv_id, last_user_msg))
+            cur.execute("""INSERT INTO web_chat_messages (conversation_id, role, content)
+                VALUES (%s, 'assistant', %s)""", (conv_id, reply))
+            cur.execute("UPDATE web_conversations SET updated_at=NOW() WHERE id=%s", (conv_id,))
             cur.execute("""INSERT INTO web_generations (user_id, mode, platform, topic, result)
                 VALUES (%s, %s, %s, %s, %s)""", (user_id, "chat", "auto", last_user_msg[:500], reply))
         conn.commit()
@@ -1149,6 +1230,7 @@ def chat():
     pro = is_web_pro(user_id)
     return jsonify({
         "reply": reply,
+        "conversation_id": conv_id,
         "uses_remaining": web_uses_remaining(user_id) if not pro else None,
         "unlimited": pro
     })
@@ -2643,6 +2725,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 <script>
 var user = null;
 var chatHistory = [];
+var conversationId = null;
 var sending = false;
 var urlRef = new URLSearchParams(location.search).get('ref') || '';
 
@@ -2652,7 +2735,7 @@ async function init() {
     if (r.ok) {
       user = await r.json();
       applyUser();
-      loadHistory();
+      loadConversations(true);
     } else {
       showGuest();
     }
@@ -2732,7 +2815,7 @@ async function sendMessage(text) {
   try {
     var r = await fetch('/api/chat', { credentials:'include', method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ messages: chatHistory, region: document.getElementById('regionSel').value }) });
+      body: JSON.stringify({ messages: chatHistory, region: document.getElementById('regionSel').value, conversation_id: conversationId }) });
     var d = await r.json();
     setThinking(false);
     sending = false;
@@ -2743,11 +2826,12 @@ async function sendMessage(text) {
       if (r.status === 429) showBanner();
       return;
     }
+    if (d.conversation_id) conversationId = d.conversation_id;
     chatHistory.push({ role: 'assistant', content: d.reply });
     addAiReply(d.reply);
     if (d.unlimited) updateUsage(null, true);
     else if (d.uses_remaining !== undefined && d.uses_remaining !== null) updateUsage(d.uses_remaining, false);
-    loadHistory();
+    loadConversations(false);
     document.getElementById('inputHint').textContent = 'Reply to keep the conversation going';
   } catch(e) {
     setThinking(false);
@@ -2780,6 +2864,7 @@ function addAiReply(text) {
 
 function resetChat() {
   chatHistory = [];
+  conversationId = null;
   var msgs = document.getElementById('chatMessages');
   msgs.innerHTML = '<div class="welcome" id="welcomeState">' +
     '<div class="welcome-icon">*</div>' +
@@ -2800,45 +2885,58 @@ function resetChat() {
   hideErr(); hideBanner();
 }
 
-async function loadHistory() {
+async function loadConversations(autoResume) {
   try {
-    var r = await fetch('/api/history', {credentials:'include'});
+    var r = await fetch('/api/conversations', {credentials:'include'});
     var d = await r.json();
     var items = d.items || [];
     var hs = document.getElementById('histScroll');
-    if (!hs) return;
-    if (!items.length) {
-      hs.innerHTML = '<div class="hist-empty">Chat with TikGenius to see history</div>';
-      return;
+    if (hs) {
+      if (!items.length) {
+        hs.innerHTML = '<div class="hist-empty">Chat with TikGenius to see history</div>';
+      } else {
+        hs.innerHTML = '';
+        items.forEach(function(item) {
+          var div = document.createElement('div');
+          div.className = 'hist-item';
+          div.innerHTML = '<b>' + escHtml((item.title||'Untitled').slice(0,40)) + '</b>' +
+            '<span>' + new Date(item.updated_at).toLocaleDateString() + '</span>';
+          div.addEventListener('click', function() { loadConversation(item.id); });
+          hs.appendChild(div);
+        });
+      }
     }
-    hs.innerHTML = '';
-    items.forEach(function(item) {
-      var div = document.createElement('div');
-      div.className = 'hist-item';
-      div.innerHTML = '<b>' + escHtml((item.topic||'Untitled').slice(0,40)) + '</b>' +
-        '<span>' + new Date(item.created_at).toLocaleDateString() + '</span>';
-      div.addEventListener('click', function() { loadHistItem(item); });
-      hs.appendChild(div);
-    });
+    if (autoResume && items.length && chatHistory.length === 0) {
+      loadConversation(items[0].id);
+    }
   } catch(e) {}
 }
 
-function loadHistItem(item) {
-  chatHistory = [
-    { role: 'user', content: item.topic || '' },
-    { role: 'assistant', content: item.result || '' }
-  ];
-  document.getElementById('chatMessages').innerHTML = '';
-  addMsg('user', item.topic || 'Past chat');
-  addAiReply(item.result || '');
-  document.getElementById('inputHint').textContent = 'Reply to keep the conversation going';
-  closeProfile();
+async function loadConversation(convId) {
+  try {
+    var r = await fetch('/api/conversations/' + convId, {credentials:'include'});
+    var d = await r.json();
+    if (d.error) return;
+    conversationId = d.id;
+    chatHistory = d.messages || [];
+    var msgs = document.getElementById('chatMessages');
+    msgs.innerHTML = '';
+    chatHistory.forEach(function(m) {
+      if (m.role === 'user') addMsg('user', m.content);
+      else addAiReply(m.content);
+    });
+    msgs.scrollTop = msgs.scrollHeight;
+    document.getElementById('inputHint').textContent = 'Reply to keep the conversation going';
+    closeProfile();
+  } catch(e) {}
 }
 
 async function clearHistory() {
   if (!confirm('Clear all history?')) return;
-  await fetch('/api/history/clear', { method:'POST', credentials:'include' });
-  loadHistory();
+  await fetch('/api/conversations/clear', { method:'POST', credentials:'include' });
+  conversationId = null;
+  resetChat();
+  loadConversations(false);
 }
 
 function addMsg(type, text) {
